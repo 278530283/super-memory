@@ -29,7 +29,7 @@ export function RegisterPhoneScreen() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [otpError, setOtpError] = useState<string | null>(null);
 
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownIntervalRef = useRef<number | null>(null);
 
   const startCountdown = () => {
     setCountdown(60);
@@ -54,7 +54,7 @@ export function RegisterPhoneScreen() {
       startCountdown();
     } catch (err: any) {
       if (err instanceof z.ZodError) {
-        setPhoneError(err.errors[0]?.message || '手机号格式错误');
+        setPhoneError(err.issues[0]?.message || '手机号格式错误');
       } else {
         setPhoneError(err.response?.data?.message || err.message || '发送失败');
       }
@@ -88,7 +88,7 @@ export function RegisterPhoneScreen() {
       }
     } catch (err: any) {
       if (err instanceof z.ZodError) {
-        setOtpError(err.errors[0]?.message || '验证码格式错误');
+        setOtpError(err.issues[0]?.message || '验证码格式错误');
       } else {
         setOtpError(err.response?.data?.message || err.message || '验证失败');
       }
