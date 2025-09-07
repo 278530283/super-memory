@@ -20,6 +20,7 @@
     "@react-navigation/native": "^7.1.6",
     "@reduxjs/toolkit": "^2.8.2",
     "@types/redux-persist": "^4.0.0",
+    "@xstate/react": "^6.0.0",
     "axios": "^1.11.0",
     "expo": "~53.0.20",
     "expo-audio": "~0.4.8",
@@ -51,6 +52,7 @@
     "react-redux": "^9.2.0",
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
+    "xstate": "^5.20.2",
     "zod": "^4.0.15"
   },
   "devDependencies": {
