@@ -124,7 +124,7 @@ export default client;
 
 ```typescript
 // services/authService.ts
-import { account } from '../api/appwrite';
+import { account } from '@/src/api/appwrite';
 
 class AuthService {
   async register(phone: string, password: string, name: string) {
@@ -175,7 +175,7 @@ export default new AuthService();
 *   **AI发音评估 (`pronunciationService.ts`):**
     ```typescript
     // services/pronunciationService.ts
-    import { functions, storage, databases } from '../api/appwrite';
+    import { functions, storage, databases } from '@/src/api/appwrite';
 
     class PronunciationService {
       async evaluatePronunciation(audio: File, wordId: string, userId: string, speed: number) {
@@ -217,7 +217,7 @@ export default new AuthService();
 
 ```typescript
 // services/morphemeService.ts
-import { databases } from '../api/appwrite';
+import { databases } from '@/src/api/appwrite';
 
 class MorphemeService {
   // 获取一个单词的所有构成词素

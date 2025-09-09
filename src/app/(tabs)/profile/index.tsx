@@ -1,7 +1,7 @@
 // src/app/(tabs)/profile/index.tsx
+import useAuthStore from '@/src/lib/stores/useAuthStore';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import useAuthStore from '../../../lib/stores/useAuthStore';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();

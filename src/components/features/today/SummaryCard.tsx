@@ -6,7 +6,7 @@ import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 interface SummaryCardProps {
   isVisible: boolean;
   onClose: () => void;
-  // Data to display
+  // Data to display - align with user_interface.md
   newData: number;
   reviewData: number;
   levelUpData: number;
@@ -24,7 +24,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 }) => {
   return (
     <Modal
-      animationType="slide" // Or 'fade' or 'none'
+      animationType="slide" // 'slide' from bottom is common for such cards
       transparent={true}
       visible={isVisible}
       onRequestClose={onClose} // For Android back button
@@ -37,7 +37,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
           {/* Title */}
           <Text style={styles.title}>太棒了！</Text>
 
-          {/* Summary Stats */}
+          {/* Summary Stats - Align with user_interface.md */}
           <View style={styles.statsContainer}>
             <View style={styles.statRow}>
               <Text style={styles.statLabel}>新学单词：</Text>
@@ -57,9 +57,9 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
             </View>
           </View>
 
-          {/* Close Button */}
+          {/* Close Button - Align with user_interface.md */}
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>我知道了</Text>
+            <Text style={styles.closeButtonText}>太棒了！</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -70,7 +70,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
 const styles = StyleSheet.create({
   centeredView: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'center', // Center vertically
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
   },
@@ -89,6 +89,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     width: '80%', // Adjust width as needed
+    // Optional: Add a max height and scrolling if content is long
+    // maxHeight: '70%',
+    // overflow: 'scroll'
   },
   trophyIcon: {
     marginBottom: 15,
@@ -105,7 +108,7 @@ const styles = StyleSheet.create({
   },
   statRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between', // Align label left, value right
     marginBottom: 10,
   },
   statLabel: {
@@ -118,15 +121,18 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   closeButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: '#4CAF50', // Success Green from design spec
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 20,
+    width: '100%', // Full width button
+    alignItems: 'center', // Center text horizontally
   },
   closeButtonText: {
     color: 'white',
     fontWeight: 'bold',
     textAlign: 'center',
+    fontSize: 16,
   },
 });
 

@@ -1,8 +1,8 @@
 // src/components/ProtectedRoute.tsx
+import useAuthStore from '@/src/lib/stores/useAuthStore';
 import { Redirect, usePathname } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import useAuthStore from '../lib/stores/useAuthStore';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuthStore();

@@ -1,10 +1,10 @@
 // src/app/(tabs)/today/[sessionId]/test/[type]/index.tsx
+import ListenWord from '@/src/components/features/today/TestTypes/ListenWord';
+import TranslateEnToZh from '@/src/components/features/today/TestTypes/TranslateEnToZh';
+import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
-import ListenWord from '../../../../../../components/features/today/TestTypes/ListenWord';
-import TranslateEnToZh from '../../../../../../components/features/today/TestTypes/TranslateEnToZh';
-import useDailyLearningStore from '../../../../../../lib/stores/useDailyLearningStore';
 // Import other test components as they are created
 // import SpellingTest from ...
 // import PronunciationTest from ...

@@ -1,7 +1,7 @@
 // src/lib/stores/useUserStore.ts
+import { userService } from '@/src/services';
+import { UserPreferences } from '@/src/types/User';
 import { create } from 'zustand';
-import { UserPreferences } from '../../types/User';
-import { userService } from '../services';
 
 interface UserState {
   preferences: UserPreferences | null;

@@ -1,7 +1,7 @@
 // src/lib/stores/useDailyLearningStore.ts
+import { dailyLearningService } from '@/src/services';
+import { DailyLearningSession } from '@/src/types/DailyLearningSession';
 import { create } from 'zustand';
-import { DailyLearningSession } from '../../types/DailyLearningSession';
-import { dailyLearningService } from '../services';
 
 interface DailyLearningState {
   session: DailyLearningSession | null;
@@ -36,9 +36,10 @@ const useDailyLearningStore = create<DailyLearningState>((set) => ({
       }
     }
   },
-  createSession: async (userId, modeId, initialWordIds) => {
+  createSession: async (userId, modeId, initialWordIds) => { // Add initialWordIds parameter
     set({ loading: true, error: null });
     try {
+      // Pass the initialWordIds object directly to the service
       const session = await dailyLearningService.createSession(userId, modeId, initialWordIds);
       set({ session, loading: false });
     } catch (error: any) {

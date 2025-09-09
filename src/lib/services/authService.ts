@@ -1,6 +1,6 @@
 // src/lib/services/authService.ts
+import { account } from '@/src/appwrite';
 import { Models } from 'appwrite';
-import { account } from '../appwrite';
 
 class AuthService {
   async register(phone: string, password: string, name: string): Promise<Models.User<Models.Preferences>> {

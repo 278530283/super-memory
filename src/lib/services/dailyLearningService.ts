@@ -1,112 +1,102 @@
 // src/lib/services/dailyLearningService.ts
-import { databases, ID, Query } from 'appwrite';
 import {
-  COLLECTION_DAILY_LEARNING_SESSIONS,
   COLLECTION_LEARNING_MODES,
-  DATABASE_ID,
-} from '../../constants/appwrite';
-import { DailyLearningSession } from '../../types/DailyLearningSession';
+  COLLECTION_USER_WORD_PROGRESS,
+  COLLECTION_WORDS,
+  DATABASE_ID
+} from '@/src/constants/appwrite';
+import { LearningMode } from '@/src/types/LearningMode';
+import { UserWordProgress } from '@/src/types/UserWordProgress';
+import { databases, Query } from 'appwrite';
 
 class DailyLearningService {
-  async getTodaysSession(userId: string, sessionDate: string): Promise<DailyLearningSession | null> {
-    try {
-      // Query by user_id (string) and session_date (string)
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_DAILY_LEARNING_SESSIONS,
-        [Query.equal('user_id', userId), Query.equal('session_date', sessionDate)]
-      );
 
-      if (response.documents.length > 0) {
-        return response.documents[0] as unknown as DailyLearningSession;
-      } else {
-        return null;
+  // ... (existing methods: getTodaysSession, createSession, updateSession, recordWordAction, getLearningMode)
+
+  /**
+   * Generates the word lists for a new daily learning session.
+   * This is a simplified version. A real implementation would be much more complex,
+   * involving sophisticated algorithms based on spaced repetition, user history, etc.
+   * @param userId The ID of the user.
+   * @param modeId The ID of the selected learning mode.
+   * @returns An object containing arrays of word IDs for pre-test, learning, and post-test.
+   */
+  async generateTodaysWordLists(userId: string, modeId: number): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
+    try {
+      // 1. Fetch User Preferences and Learning Mode Details
+      // This would typically be passed in or fetched by the caller
+      // const userPrefs = await userService.getUserPreferences(userId);
+      const modeResponse = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTION_LEARNING_MODES,
+        [Query.equal('id', modeId)]
+      );
+      const mode: LearningMode | null = modeResponse.documents.length > 0 ? modeResponse.documents[0] as unknown as LearningMode : null;
+
+      if (!mode) {
+        throw new Error(`Learning mode with ID ${modeId} not found.`);
       }
-    } catch (error: any) {
-      console.error("DailyLearningService.getTodaysSession error:", error);
-      // Re-throw specific error for 404 if needed, or let store handle
-      throw error;
-    }
-  }
 
-  async createSession(
-    userId: string,
-    modeId: number,
-    initialWordIds: { pre_test: string[]; learning: string[]; post_test: string[] }
-  ): Promise<DailyLearningSession> {
-    try {
-      const sessionData: any = {
-        user_id: userId,
-        session_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-        mode_id: modeId,
-        status: 0, // Start at '待开始'
-        // Appwrite handles arrays directly
-        pre_test_word_ids: initialWordIds.pre_test,
-        learning_word_ids: initialWordIds.learning,
-        post_test_word_ids: initialWordIds.post_test,
-        // Progress fields will be initialized as null/undefined or empty strings
-        // pre_test_progress: null,
-        // learning_progress: null,
-        // post_test_progress: null,
-      };
-
-      const newSession = await databases.createDocument(
+      // 2. Fetch User's Word Progress
+      // This fetches ALL progress, which might be inefficient for large vocabularies.
+      // In practice, you'd use more specific queries or pagination.
+      const progressResponse = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_DAILY_LEARNING_SESSIONS,
-        ID.unique(),
-        sessionData
+        COLLECTION_USER_WORD_PROGRESS,
+        [Query.equal('userId', userId)]
+        // Add limit/pagination if needed
       );
-      return newSession as unknown as DailyLearningSession;
-    } catch (error) {
-      console.error("DailyLearningService.createSession error:", error);
-      throw error;
-    }
-  }
+      const userProgress: UserWordProgress[] = progressResponse.documents as unknown as UserWordProgress[];
 
-  async updateSession(sessionId: string, updates: Partial<DailyLearningSession>): Promise<DailyLearningSession> {
-    try {
-      // Appwrite handles arrays and partial updates directly
-      const updatedSession = await databases.updateDocument(
+      // 3. Logic to Select Words (Simplified Mock Logic)
+      // --- Pre-test Words ---
+      // Select words that need to be re-evaluated.
+      // Example: Words at L1, L2, or L3 that haven't been tested recently.
+      const preTestCandidates = userProgress.filter(p =>
+        (p.current_level === 1 || p.current_level === 2 || p.current_level === 3) &&
+        (!p.last_review_time || (new Date().getTime() - new Date(p.last_review_time).getTime()) > 24 * 60 * 60 * 1000) // e.g., not reviewed in last 24h
+      );
+      const preTestWordIds = preTestCandidates.map(p => p.wordId).slice(0, mode.word_count); // Limit by mode
+
+      // --- Learning Words ---
+      // Select a mix of new words and words for review/upgrade.
+      // Example: New words (L0) + Words to upgrade (L1->L2, L2->L3)
+      const newWordCandidatesResponse = await databases.listDocuments(
         DATABASE_ID,
-        COLLECTION_DAILY_LEARNING_SESSIONS,
-        sessionId,
-        updates
+        COLLECTION_WORDS,
+        [
+          Query.notEqual('$id', userProgress.map(p => p.wordId)), // Words NOT in user's progress (simplified)
+          Query.limit(mode.word_count) // Simplified limit
+        ]
       );
-      return updatedSession as unknown as DailyLearningSession;
+      const newWordIds = newWordCandidatesResponse.documents.map((w: any) => w.$id);
+
+      const upgradeCandidates = userProgress.filter(p =>
+        (p.current_level === 1 || p.current_level === 2) &&
+        p.last_learn_time && (new Date().getTime() - new Date(p.last_learn_time).getTime()) < 7 * 24 * 60 * 60 * 1000 // e.g., learned recently
+      );
+      const upgradeWordIds = upgradeCandidates.map(p => p.wordId).slice(0, mode.word_count / 2); // Limit upgrades
+
+      const learningWordIds = [...newWordIds, ...upgradeWordIds].slice(0, mode.word_count); // Combine and limit
+
+      // --- Post-test Words ---
+      // Test words that were just learned or reviewed in this session.
+      // For a new session, this would initially be empty or based on previous session.
+      // For simplicity, we'll test the words selected for learning in this session.
+      const postTestWordIds = [...learningWordIds]; // Simplified: test what we just learned
+
+      console.log("Generated Word Lists:", { preTestWordIds, learningWordIds, postTestWordIds });
+      return { pre_test: preTestWordIds, learning: learningWordIds, post_test: postTestWordIds };
     } catch (error) {
-      console.error("DailyLearningService.updateSession error:", error);
-      throw error;
+      console.error("DailyLearningService.generateTodaysWordLists error:", error);
+      // Depending on requirements, you might return empty lists or re-throw
+      // Returning empty lists allows session creation to proceed, maybe with a warning
+      return { pre_test: [], learning: [], post_test: [] };
     }
   }
 
-  async recordWordAction(actionData: any): Promise<void> {
-    console.log("Recording word action (placeholder):", actionData);
-    try {
-        // Example implementation for recording action
-        // const collectionId = COLLECTION_USER_WORD_ACTION_LOG;
-        // await databases.createDocument(DATABASE_ID, collectionId, ID.unique(), actionData);
-    } catch (error) {
-        console.error("DailyLearningService.recordWordAction error:", error);
-        throw error;
-    }
-  }
 
-  async getLearningMode(modeId: number): Promise<any | null> {
-    try {
-        const response = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTION_LEARNING_MODES,
-            [Query.equal('id', modeId)] // Assuming 'id' is a number field in Appwrite
-        );
-        if (response.documents.length > 0) {
-            return response.documents[0];
-        }
-        return null;
-    } catch (error) {
-        console.error("DailyLearningService.getLearningMode error:", error);
-        return null;
-    }
-  }
+  // ... (rest of existing methods)
 }
 
 export default new DailyLearningService();

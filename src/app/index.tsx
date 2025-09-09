@@ -1,7 +1,7 @@
 // src/app/index.tsx
+import useAuthStore from '@/src/lib/stores/useAuthStore';
 import { Redirect } from 'expo-router';
 import React from 'react';
-import useAuthStore from '../lib/stores/useAuthStore';
 
 export default function Index() {
   const { user, loading } = useAuthStore();

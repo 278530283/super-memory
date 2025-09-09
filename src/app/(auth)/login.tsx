@@ -1,7 +1,7 @@
 // src/app/(auth)/login.tsx
+import useAuthStore from '@/src/lib/stores/useAuthStore';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import useAuthStore from '../../lib/stores/useAuthStore';
 
 export default function LoginScreen() {
   const [phone, setPhone] = useState('');

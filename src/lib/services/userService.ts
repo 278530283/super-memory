@@ -1,11 +1,10 @@
 // src/lib/services/userService.ts
-import { ID, Query } from 'appwrite';
-import { COLLECTION_USERS_PREFERENCES, DATABASE_ID } from '../../constants/appwrite';
-import { UserPreferences } from '../../types/User';
-import { databases } from '../appwrite';
+import { COLLECTION_USERS_PREFERENCES, DATABASE_ID } from '@/src/constants/appwrite';
+import { UserPreferences } from '@/src/types/User';
+import { databases, ID, Query } from 'appwrite';
 
 class UserService {
-  async getUserPreferences(userId: string): Promise<UserPreferences> {
+  async getUserPreferences(userId: string): Promise<UserPreferences | null> {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
@@ -16,11 +15,12 @@ class UserService {
       if (response.documents.length > 0) {
         return response.documents[0] as unknown as UserPreferences;
       } else {
-        throw new Error('User preferences not found');
+        console.warn(`User preferences not found for userId: ${userId}`);
+        return null; // Or throw an error if preferred
       }
     } catch (error) {
       console.error("UserService.getUserPreferences error:", error);
-      throw error;
+      throw error; // Re-throw for store to handle
     }
   }
 
@@ -51,13 +51,18 @@ class UserService {
   }
 
   // Create initial preferences if needed (e.g., after registration)
+  // Assumes the user document in Appwrite Account already exists
   async createUserPreferences(userId: string, initialData: Omit<UserPreferences, '$id' | 'userId'>): Promise<UserPreferences> {
     try {
-        const fullData = { ...initialData, userId };
+        const fullData: UserPreferences = {
+            $id: ID.unique(), // Let Appwrite generate ID, or omit if using 'unique()'
+            userId,
+            ...initialData
+        } as UserPreferences; // Type assertion might be needed depending on exact structure
         const newDoc = await databases.createDocument(
             DATABASE_ID,
             COLLECTION_USERS_PREFERENCES,
-            ID.unique(), // Let Appwrite generate ID
+            ID.unique(), // Use ID.unique() or let Appwrite generate if preferred
             fullData
         );
         return newDoc as unknown as UserPreferences;

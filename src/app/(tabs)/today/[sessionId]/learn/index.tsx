@@ -1,92 +1,158 @@
 // src/app/(tabs)/today/[sessionId]/learn/index.tsx
-import { useLocalSearchParams } from 'expo-router';
+import WordLearningComponent from '@/src/components/features/today/LearnTypes/WordLearningComponent'; // Create this component
+import { wordService } from '@/src/lib/services'; // Import word service
+import useAuthStore from '@/src/lib/stores/useAuthStore';
+import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import useDailyLearningStore from '../../../../../lib/stores/useDailyLearningStore';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function LearnScreen() {
+  const router = useRouter();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-  const { session, loading, error } = useDailyLearningStore();
+  const { session, loading: sessionLoading, error: sessionError, updateSessionProgress } = useDailyLearningStore();
+  const { user } = useAuthStore(); // Get user for preferences like speed
 
-  // State for current word index, word details, learning method, etc.
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [wordDetails, setWordDetails] = useState<any>(null); // Use Word type
-  const [learningMethod, setLearningMethod] = useState<number | null>(null); // Based on word level/user prefs
+  const [wordList, setWordList] = useState<any[]>([]); // Use Word type
+  const [currentWord, setCurrentWord] = useState<any | null>(null); // Use Word type
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch session details if not already loaded, or use session from store
-    // Determine current word list (learning_word_ids) and current index
-    // Fetch word details for current word index
-    // Determine learning method based on word level and user settings
-    console.log(`Loading learning session for ID: ${sessionId}`);
-    // Placeholder logic
-    if (session && session.$id === sessionId) {
-        // Simulate fetching word details
-        setWordDetails({ spelling: 'example', chinese_meaning: '例子' });
-        setLearningMethod(1); // Placeholder method
-    }
+    const fetchWords = async () => {
+      if (!sessionId || !session || session.$id !== sessionId) {
+        setIsLoading(false);
+        return;
+      }
+
+      const wordIds = session.learning_word_ids || [];
+      if (wordIds.length === 0) {
+        Alert.alert('提示', '没有找到需要学习的单词。');
+        router.back();
+        return;
+      }
+
+      try {
+        const words = await wordService.getWordsByIds(wordIds);
+        setWordList(words);
+        if (words.length > 0) {
+          setCurrentWord(words[0]);
+        }
+      } catch (error: any) {
+        console.error("Error fetching learning words:", error);
+        Alert.alert('加载失败', error.message || '无法加载学习内容。');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchWords();
   }, [sessionId, session]);
 
-  const handleNext = () => {
-    // Logic to go to next word
-    // Update progress in dailyLearningStore
-    // Record action log
-    console.log("Moving to next word...");
-    if (session && currentWordIndex < session.learning_word_ids.length - 1) {
-        setCurrentWordIndex(currentWordIndex + 1);
+  const handleNext = async () => {
+    const total = wordList.length;
+    const nextIndex = currentWordIndex + 1;
+
+    // Update session progress
+    const progressField = 'learning_progress';
+    await updateSessionProgress(sessionId!, { [progressField]: `${nextIndex}/${total}` });
+
+    if (nextIndex < wordList.length) {
+      setCurrentWordIndex(nextIndex);
+      setCurrentWord(wordList[nextIndex]);
     } else {
-        // Finish learning phase
-        console.log("Learning phase completed.");
-        // Update session status to 3 (post-test)
-        // Navigate back or to post-test
+      // Finish learning phase
+      console.log("Learning phase completed for session", sessionId);
+      Alert.alert('完成', '学习阶段已完成！');
+      // Update session status to 3 (post-test)
+      await updateSessionProgress(sessionId!, { status: 3 });
+      router.back(); // Navigate back to today's main screen
     }
   };
 
-  if (loading || !wordDetails) {
+  if (sessionLoading || isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
-        <Text>Loading learning content...</Text>
+        <Text>加载学习内容...</Text>
       </View>
     );
   }
 
+  if (sessionError) {
+    return (
+      <View style={styles.center}>
+        <Text>加载失败: {sessionError}</Text>
+      </View>
+    );
+  }
+
+  if (!session || !currentWord) {
+    return (
+      <View style={styles.center}>
+        <Text>未找到学习内容。</Text>
+      </View>
+    );
+  }
+
+  const total = wordList.length;
+  const current = currentWordIndex + 1;
+  // Get user's preferred speed or default
+  const userSpeed = useAuthStore.getState().userPreferences?.pronunciation_preference === 1 ? 70 : 80; // Example logic
+
   return (
     <View style={styles.container}>
-      <Text style={styles.progress}>单词 {currentWordIndex + 1}/{session?.learning_word_ids.length || 0}</Text>
-      {/* Pause button placeholder */}
-      <View style={styles.learnArea}>
-        <Text style={styles.word}>{wordDetails.spelling}</Text>
-        <Text style={styles.meaning}>{wordDetails.chinese_meaning}</Text>
-        {/* Render learning content based on learningMethod */}
-        <Text>Learning Method: {learningMethod}</Text>
-        {/* Add audio playback, images, morpheme breakdown, custom materials etc. */}
+      {/* Top Bar */}
+      <View style={styles.topBar}>
+        <Text style={styles.progressText}>单词 {current}/{total}</Text>
+        {/* <TouchableOpacity onPress={() => { /* Handle Pause * / }}>
+          <Text style={styles.pauseButton}>⏸️</Text>
+        </TouchableOpacity> */}
       </View>
-      <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-        <Text style={styles.nextButtonText}>Next</Text>
-      </TouchableOpacity>
-      {/* Navigation/Control buttons placeholder */}
+
+      {/* Learning Area */}
+      <ScrollView contentContainerStyle={styles.learnArea}>
+        {currentWord && (
+          <WordLearningComponent
+            word={currentWord}
+            userSpeed={userSpeed} // Pass user's preferred speed
+            onComplete={handleNext} // Callback when learning for this word is done
+          />
+        )}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  progress: { fontSize: 16, marginBottom: 10 },
-  learnArea: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  word: { fontSize: 32, fontWeight: 'bold', marginBottom: 10 },
-  meaning: { fontSize: 20, color: 'gray', marginBottom: 20 },
-  nextButton: {
-    backgroundColor: '#4A90E2',
-    padding: 15,
-    borderRadius: 5,
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#f0f0f0',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
-  nextButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+  progressText: {
     fontSize: 16,
+    fontWeight: 'bold',
   },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  pauseButton: {
+    fontSize: 20,
+  },
+  learnArea: {
+    flexGrow: 1, // Allow ScrollView to grow
+    padding: 20,
+    justifyContent: 'flex-start', // Align content to top
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
