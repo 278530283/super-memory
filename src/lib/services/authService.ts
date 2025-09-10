@@ -22,6 +22,13 @@ class AuthService {
   async login(phone: string, password: string): Promise<Models.User<Models.Preferences>> {
     const email = `${phone}@supermemory.com`;
     try {
+      // 检查当前是否有活跃会话
+      const currentSession = await account.getSession('current');
+    
+      // 如果有活跃会话，先删除
+      if (currentSession) {
+        await account.deleteSession({sessionId:'current'});
+      }
       const session = await account.createEmailPasswordSession({email: email, password:password});
       
       // 从 session 中提取用户信息，或者调用 getCurrentUser() 获取完整用户

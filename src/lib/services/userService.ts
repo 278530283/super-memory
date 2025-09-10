@@ -7,10 +7,15 @@ import { account } from '../appwrite';
 class UserService {
   async getUserPreferences(userId: string): Promise<UserPreferences | null> {
     try {
+      const accountResponse = account.get();
+      console.log("Account fetched:", accountResponse);
+      if ((await accountResponse).$id !== userId) {
+        throw new Error('User ID mismatch');
+      }
       const response = await account.getPrefs();
       console.log("User preferences fetched:", response);
 
-      if (response.documents.length > 0) {
+      if (response.length > 0) {
         return response.documents[0] as unknown as UserPreferences;
       } else {
         console.warn(`User preferences not found for userId: ${userId}`);
