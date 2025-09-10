@@ -1,5 +1,5 @@
 // src/lib/stores/useUserStore.ts
-import { userService } from '@/src/services';
+import userService from '@/src/lib/services/userService';
 import { UserPreferences } from '@/src/types/User';
 import { create } from 'zustand';
 

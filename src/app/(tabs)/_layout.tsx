@@ -35,7 +35,7 @@ export default function TabLayout() {
         options={{
           title: '专项训练',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'target' : 'target-outline'} color={color} size={24} />
+            <Ionicons name={focused ? 'timer' : 'timer-outline'} color={color} size={24} />
           ),
         }}
       />

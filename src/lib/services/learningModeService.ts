@@ -1,7 +1,8 @@
 // src/lib/services/learningModeService.ts
 import { COLLECTION_LEARNING_MODES, DATABASE_ID } from '@/src/constants/appwrite';
 import { LearningMode } from '@/src/types/LearningMode';
-import { databases, Query } from 'appwrite';
+import { Query } from 'appwrite';
+import { databases } from '../appwrite';
 
 class LearningModeService {
   async getLearningMode(modeId: number): Promise<LearningMode | null> {

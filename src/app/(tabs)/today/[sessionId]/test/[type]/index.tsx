@@ -1,6 +1,6 @@
 // src/app/(tabs)/today/[sessionId]/test/[type]/index.tsx
-import ListenWord from '@/src/components/features/today/TestTypes/ListenWord';
-import TranslateEnToZh from '@/src/components/features/today/TestTypes/TranslateEnToZh';
+import ListenWord from '@/src/components/features/TestTypes/ListenWord';
+import TranslateEnToZh from '@/src/components/features/TestTypes/TranslateEnToZh';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';

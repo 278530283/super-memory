@@ -20,7 +20,7 @@ class AuthService {
   }
 
   async login(phone: string, password: string): Promise<Models.User<Models.Preferences>> {
-    const email = `${phone}@memoryapp.com`;
+    const email = `${phone}@supermemory.com`;
     try {
       const session = await account.createEmailPasswordSession({email: email, password:password});
       

@@ -1,5 +1,5 @@
 // src/lib/stores/useDailyLearningStore.ts
-import { dailyLearningService } from '@/src/services';
+import dailyLearningService from '@/src/lib/services/dailyLearningService';
 import { DailyLearningSession } from '@/src/types/DailyLearningSession';
 import { create } from 'zustand';
 

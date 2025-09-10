@@ -1,6 +1,6 @@
 // src/app/(tabs)/today/[sessionId]/learn/index.tsx
-import WordLearningComponent from '@/src/components/features/today/LearnTypes/WordLearningComponent'; // Create this component
-import { wordService } from '@/src/lib/services'; // Import word service
+import WordLearningComponent from '@/src/components/features/LearnTypes/WordLearningComponent'; // Create this component
+import wordService from '@/src/lib/services/wordService'; // Import word service
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';

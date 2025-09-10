@@ -1,16 +1,14 @@
 // src/lib/services/userService.ts
 import { COLLECTION_USERS_PREFERENCES, DATABASE_ID } from '@/src/constants/appwrite';
 import { UserPreferences } from '@/src/types/User';
-import { databases, ID, Query } from 'appwrite';
+import { ID, Query } from 'appwrite';
+import { account } from '../appwrite';
 
 class UserService {
   async getUserPreferences(userId: string): Promise<UserPreferences | null> {
     try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_USERS_PREFERENCES,
-        [Query.equal('userId', userId)]
-      );
+      const response = await account.getPrefs();
+      console.log("User preferences fetched:", response);
 
       if (response.documents.length > 0) {
         return response.documents[0] as unknown as UserPreferences;

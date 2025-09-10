@@ -1,5 +1,5 @@
 // src/components/features/today/TestTypes/PronunciationTest.tsx (完整更新)
-import { pronunciationService } from '@/src/lib/services'; // Import pronunciation service
+import pronunciationService from '@/src/lib/services/pronunciationService'; // Import pronunciation service
 import actionLogService from '@/src/lib/services/actionLogService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';

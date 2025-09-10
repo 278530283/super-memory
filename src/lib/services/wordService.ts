@@ -1,7 +1,8 @@
 // src/lib/services/wordService.ts
 import { COLLECTION_WORDS, DATABASE_ID } from '@/src/constants/appwrite';
 import { Word } from '@/src/types/Word';
-import { databases, Query } from 'appwrite';
+import { Query } from 'appwrite';
+import { databases } from '../appwrite';
 
 class WordService {
   async getWordById(wordId: string): Promise<Word | null> {

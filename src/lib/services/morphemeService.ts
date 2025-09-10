@@ -1,6 +1,7 @@
 // src/lib/services/morphemeService.ts
 import { COLLECTION_MORPHEMES, COLLECTION_WORD_MORPHEME_ASSOCIATIONS, DATABASE_ID } from '@/src/constants/appwrite';
-import { Databases, Query } from 'appwrite';
+import { Query } from 'appwrite';
+import { databases } from '../appwrite';
 
 // Define types (these should ideally be in src/types/Morpheme.ts)
 interface Morpheme {
@@ -20,7 +21,7 @@ class MorphemeService {
   async getMorphemesForWord(wordId: string): Promise<Morpheme[]> {
     try {
       // 1. Get associations
-      const associationsResponse = await Databases.listDocuments(
+      const associationsResponse = await databases.listDocuments(
         DATABASE_ID,
         COLLECTION_WORD_MORPHEME_ASSOCIATIONS,
         [Query.equal('wordId', wordId), Query.orderAsc('orderIndex')]

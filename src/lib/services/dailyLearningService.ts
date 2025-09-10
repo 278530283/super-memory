@@ -7,7 +7,8 @@ import {
 } from '@/src/constants/appwrite';
 import { LearningMode } from '@/src/types/LearningMode';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
-import { databases, Query } from 'appwrite';
+import { Query } from 'appwrite';
+import { databases } from '../appwrite';
 
 class DailyLearningService {
 
