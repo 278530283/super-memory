@@ -19,6 +19,7 @@
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
     "@reduxjs/toolkit": "^2.8.2",
+    "@tanstack/react-query": "^5.87.1",
     "@types/redux-persist": "^4.0.0",
     "@xstate/react": "^6.0.0",
     "appwrite": "^20.0.0",
@@ -55,7 +56,8 @@
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "xstate": "^5.20.2",
-    "zod": "^4.0.15"
+    "zod": "^4.0.15",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

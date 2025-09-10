@@ -1,9 +1,10 @@
 // src/lib/stores/useAuthStore.ts
-import { authService, userService } from '@/src/services';
 import { UserPreferences } from '@/src/types/User';
 import { Models } from 'appwrite';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import authService from '../services/authService';
+import userService from '../services/userService';
 
 interface AuthState {
   user: Models.User<Models.Preferences> | null;

@@ -1,5 +1,5 @@
 // src/lib/services/authService.ts
-import { account } from '@/src/appwrite';
+import { account } from '@/src/lib/appwrite';
 import { Models } from 'appwrite';
 
 class AuthService {
@@ -9,7 +9,7 @@ class AuthService {
     const email = `${phone}@memoryapp.com`;
     const userId = 'unique()'; // Appwrite generates unique ID
     try {
-      const user = await account.create(userId, email, password, name);
+      const user = await account.create({userId:userId, email:email, password:password, name:name});
       // Optionally, create a session immediately after registration
       // await account.createEmailSession(email, password);
       return user;
@@ -19,11 +19,19 @@ class AuthService {
     }
   }
 
-  async login(phone: string, password: string): Promise<Models.Session> {
+  async login(phone: string, password: string): Promise<Models.User<Models.Preferences>> {
     const email = `${phone}@memoryapp.com`;
     try {
-      const session = await account.createEmailSession(email, password);
-      return session;
+      const session = await account.createEmailPasswordSession({email: email, password:password});
+      
+      // 从 session 中提取用户信息，或者调用 getCurrentUser() 获取完整用户
+      const user = await this.getCurrentUser(); // 或者通过其他方式获取完整用户信息
+      
+      if (!user) {
+        throw new Error('User not found after login');
+      }
+      
+      return user;
     } catch (error) {
       console.error("AuthService.login error:", error);
       throw error;
@@ -32,7 +40,7 @@ class AuthService {
 
   async logout(): Promise<void> {
     try {
-      await account.deleteSession('current');
+      await account.deleteSession({sessionId:'current'});
     } catch (error) {
       console.error("AuthService.logout error:", error);
       throw error;

@@ -2,6 +2,7 @@
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import { Redirect } from 'expo-router';
 import React from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 
 export default function Index() {
   const { user, loading } = useAuthStore();
@@ -29,4 +30,5 @@ export default function Index() {
   } else {
     return <Redirect href="/(auth)/login" />; // Redirect to login if not
   }
+  
 }

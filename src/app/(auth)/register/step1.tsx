@@ -1,5 +1,6 @@
 // src/app/(auth)/register/step1.tsx
 import useAuthStore from '@/src/lib/stores/useAuthStore';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -39,7 +40,7 @@ export default function RegisterStep1() {
       await register(phone, 'TempPass123!', `User_${phone}`); // Use phone as name placeholder
       // Successful registration handled by ProtectedRoute redirect after login
       // Or navigate to next step if registration doesn't auto-login
-      // router.push('/(auth)/register/step2');
+      router.push('/(auth)/register/step2');
     } catch (err) {
       Alert.alert('Registration Failed', error || 'An error occurred.');
     }
