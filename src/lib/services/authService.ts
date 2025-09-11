@@ -6,7 +6,7 @@ class AuthService {
   async register(phone: string, password: string, name: string): Promise<Models.User<Models.Preferences>> {
     // Using phone as email prefix, as per architecture.md example
     // Adjust if using phone verification directly
-    const email = `${phone}@memoryapp.com`;
+    const email = `${phone}@supermemory.com`;
     const userId = 'unique()'; // Appwrite generates unique ID
     try {
       const user = await account.create({userId:userId, email:email, password:password, name:name});
@@ -31,6 +31,7 @@ class AuthService {
         console.log('Current session exists, deleting...');
         await account.deleteSession({sessionId:'current'});
       }
+      console.log('Creating new session...');
       const session = await account.createEmailPasswordSession({email: email, password:password});
       console.log('Session created:', session);
       

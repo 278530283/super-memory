@@ -1,10 +1,47 @@
 // src/lib/stores/useAuthStore.ts
 import { UserPreferences } from '@/src/types/User';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Models } from 'appwrite';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, PersistStorage } from 'zustand/middleware';
 import authService from '../services/authService';
 import userService from '../services/userService';
+
+
+// 创建符合 Zustand StateStorage 接口的存储适配器
+const storage: PersistStorage<Partial<AuthState>> = {
+  getItem: async (name: string) => {
+    try {
+      const value = await AsyncStorage.getItem(name);
+      if (value === null) return null;
+      
+      // 解析存储的值
+      return JSON.parse(value);
+    } catch (error) {
+      console.warn('AsyncStorage getItem error:', error);
+      return null;
+    }
+  },
+  
+  setItem: async (name: string, value: any) => {
+    try {
+      // 序列化值
+      const stringValue = JSON.stringify(value);
+      await AsyncStorage.setItem(name, stringValue);
+    } catch (error) {
+      console.warn('AsyncStorage setItem error:', error);
+    }
+  },
+  
+  removeItem: async (name: string) => {
+    try {
+      await AsyncStorage.removeItem(name);
+    } catch (error) {
+      console.warn('AsyncStorage removeItem error:', error);
+    }
+  }
+};
+
 
 interface AuthState {
   user: Models.User<Models.Preferences> | null;
@@ -15,7 +52,7 @@ interface AuthState {
   register: (phone: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchUserPreferences: () => Promise<void>;
-  updateUserPreferences: (updates: Partial<UserPreferences>) => Promise<void>; // 新增方法
+  updateUserPreferences: (updates: Partial<UserPreferences>) => Promise<void>;
   clearError: () => void;
 }
 
@@ -26,6 +63,7 @@ const useAuthStore = create<AuthState>()(
       userPreferences: null,
       loading: false,
       error: null,
+      
       login: async (phone, password) => {
         set({ loading: true, error: null });
         try {
@@ -37,6 +75,7 @@ const useAuthStore = create<AuthState>()(
           throw error;
         }
       },
+      
       register: async (phone, password, name) => {
         set({ loading: true, error: null });
         try {
@@ -47,6 +86,7 @@ const useAuthStore = create<AuthState>()(
           throw error;
         }
       },
+      
       logout: async () => {
         set({ loading: true, error: null });
         try {
@@ -57,6 +97,7 @@ const useAuthStore = create<AuthState>()(
           set({ user: null, userPreferences: null });
         }
       },
+      
       fetchUserPreferences: async () => {
         const { user } = get();
         if (!user) return;
@@ -67,6 +108,7 @@ const useAuthStore = create<AuthState>()(
           console.error("Failed to fetch user preferences:", error);
         }
       },
+      
       updateUserPreferences: async (updates) => {
         set({ loading: true, error: null });
         try {
@@ -77,13 +119,15 @@ const useAuthStore = create<AuthState>()(
           throw error;
         }
       },
+      
       clearError: () => set({ error: null }),
     }),
     {
       name: 'auth-storage',
+      storage: storage, // 使用符合 StateStorage 接口的存储适配器
       partialize: (state) => ({ 
         user: state.user,
-        userPreferences: state.userPreferences // 如果需要持久化偏好设置
+        userPreferences: state.userPreferences
       }),
     }
   )
