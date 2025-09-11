@@ -2,12 +2,12 @@
 import { COLLECTION_WORDS, DATABASE_ID } from '@/src/constants/appwrite';
 import { Word } from '@/src/types/Word';
 import { Query } from 'appwrite';
-import { databases } from '../appwrite';
+import { tablesDB } from '../appwrite';
 
 class WordService {
   async getWordById(wordId: string): Promise<Word | null> {
     try {
-      const word = await databases.getDocument(DATABASE_ID, COLLECTION_WORDS, wordId);
+      const word = await tablesDB.getRow({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, rowId:wordId});
       return word as unknown as Word;
     } catch (error: any) {
       if (error.code === 404) {
@@ -22,10 +22,10 @@ class WordService {
     if (wordIds.length === 0) return [];
     try {
       // Appwrite Query.equal with array checks if the field value is IN the array
-      const response = await databases.listDocuments(DATABASE_ID, COLLECTION_WORDS, [
+      const response = await tablesDB.listRows({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, queries:[
         Query.equal('$id', wordIds)
-      ]);
-      return response.documents as unknown as Word[];
+      ]});
+      return response.rows as unknown as Word[];
     } catch (error) {
       console.error("WordService.getWordsByIds error:", error);
       throw error;

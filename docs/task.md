@@ -10,7 +10,7 @@
 
 请按照以下优先级逐步生成代码：
 
-1.  核心状态管理 (`src/lib/stores/`): 基于 `database.md` 和 `architecture.md` 中的用户、学习会话等实体，以及 `requirements.md` 的流程，生成关键的 Zustand Store 文件（如 `useAuthStore.ts`, `useUserStore.ts`, `useDailyLearningStore.ts`）。明确使用 `persist` 中间件持久化认证状态。
+1.  核心状态管理 (`src/lib/stores/`): 基于 `database.md` 和 `architecture.md` 中的用户、学习会话等实体，以及 `requirements.md` 的流程，生成关键的 Zustand Store 文件（如 `useAuthStore.ts`, `useDailyLearningStore.ts`）。明确使用 `persist` 中间件持久化认证状态。
 2.  Appwrite 服务层 (`src/lib/services/`): 生成封装 Appwrite API 调用的服务文件（如 `authService.ts`, `userService.ts`, `dailyLearningService.ts`），与 Store 对应。
 3.  路由与权限 (`src/app/`, `src/components/`): 实现 `expo-router` 的路由结构（包括 `(auth)`, `(tabs)` 布局），并创建 `ProtectedRoute` 组件来保护需要登录的路由。
 4.  核心页面 (`src/app/`): 生成关键页面，如登录页 (`(auth)/login.tsx`)、注册第一步 (`(auth)/register/step1.tsx`)、今日学习主页 (`(tabs)/today/index.tsx`) 和评测子流程 (`(tabs)/today/[sessionId]/test/[type]/index.tsx`)。确保 UI 严格遵循 `user_interface.md` 和 `requirements.md` 的设计（三步流程、状态显示、锁逻辑）。

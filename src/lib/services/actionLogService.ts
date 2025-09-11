@@ -1,7 +1,7 @@
 // src/lib/services/actionLogService.ts
 import { COLLECTION_USER_WORD_ACTION_LOG, DATABASE_ID } from '@/src/constants/appwrite';
 import { ID } from 'appwrite';
-import { databases } from '../appwrite';
+import { tablesDB } from '../appwrite';
 
 // Define the type for the log entry based on the database schema
 interface UserWordActionLogEntry {
@@ -22,10 +22,10 @@ interface UserWordActionLogEntry {
 class ActionLogService {
   async logAction(logEntry: Omit<UserWordActionLogEntry, '$id' | 'createdAt'>): Promise<void> {
     try {
-      await databases.createDocument({
+      await tablesDB.createRow({
         databaseId:DATABASE_ID,
-        collectionId:COLLECTION_USER_WORD_ACTION_LOG,
-        documentId:ID.unique(),
+        tableId:COLLECTION_USER_WORD_ACTION_LOG,
+        rowId:ID.unique(),
         data:logEntry
     });
       console.log("Action logged successfully for word:", logEntry.wordId);

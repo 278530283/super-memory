@@ -1,5 +1,5 @@
 // src/lib/appwrite.ts
-import { Account, Client, Databases, Functions, Storage } from 'appwrite';
+import { Account, Client, Functions, Storage, TablesDB } from 'appwrite';
 
 // --- Configuration ---
 // Consider moving these to environment variables (.env)
@@ -25,12 +25,12 @@ client.ping().then(
 
 // --- Service Instances ---
 const account = new Account(client);
-const databases = new Databases(client);
 const storage = new Storage(client);
 const functions = new Functions(client);
+const tablesDB = new TablesDB(client);
 
 // --- Export ---
-export { account, client, databases, functions, storage };
+export { account, client, functions, storage, tablesDB };
 
 // --- Constants for Collection/Database IDs ---
 // Define these based on your Appwrite setup (architecture.md)

@@ -7,13 +7,6 @@ import { ActivityIndicator, Text, View } from 'react-native';
 export default function Index() {
   const { user, loading } = useAuthStore();
 
-  // Optional: Fetch user on app start if needed beyond just checking session
-  // useEffect(() => {
-  //   if (user && !preferences) {
-  //     fetchUserPreferences(); // Call action from useUserStore
-  //   }
-  // }, [user, preferences, fetchUserPreferences]);
-
   if (loading) {
     // Show splash screen or loading indicator
     return (

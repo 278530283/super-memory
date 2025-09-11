@@ -1,7 +1,7 @@
 // src/lib/services/morphemeService.ts
 import { COLLECTION_MORPHEMES, COLLECTION_WORD_MORPHEME_ASSOCIATIONS, DATABASE_ID } from '@/src/constants/appwrite';
 import { Query } from 'appwrite';
-import { databases } from '../appwrite';
+import { tablesDB } from '../appwrite';
 
 // Define types (these should ideally be in src/types/Morpheme.ts)
 interface Morpheme {
@@ -21,28 +21,28 @@ class MorphemeService {
   async getMorphemesForWord(wordId: string): Promise<Morpheme[]> {
     try {
       // 1. Get associations
-      const associationsResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_WORD_MORPHEME_ASSOCIATIONS,
-        [Query.equal('wordId', wordId), Query.orderAsc('orderIndex')]
-      );
+      const associationsResponse = await tablesDB.listRows({
+        databaseId:DATABASE_ID,
+        tableId:COLLECTION_WORD_MORPHEME_ASSOCIATIONS,
+        queries:[Query.equal('wordId', wordId), Query.orderAsc('orderIndex')]
+    });
 
-      const morphemeIds = associationsResponse.documents.map((assoc: any) => assoc.morphemeId);
+      const morphemeIds = associationsResponse.rows.map((assoc: any) => assoc.morphemeId);
 
       if (morphemeIds.length === 0) {
         return [];
       }
 
       // 2. Get morpheme details
-      const morphemesResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_MORPHEMES,
-        [Query.equal('$id', morphemeIds)]
-      );
+      const morphemesResponse = await tablesDB.listRows({
+        databaseId:DATABASE_ID,
+        tableId:COLLECTION_MORPHEMES,
+        queries:[Query.equal('$id', morphemeIds)]
+    });
 
       // 3. Sort by orderIndex
-      const morphemeMap = new Map(morphemesResponse.documents.map((m: any) => [m.$id, m]));
-      const orderedMorphemes = associationsResponse.documents
+      const morphemeMap = new Map(morphemesResponse.rows.map((m: any) => [m.$id, m]));
+      const orderedMorphemes = associationsResponse.rows
         .map((assoc: any) => morphemeMap.get(assoc.morphemeId))
         .filter(Boolean); // Remove any undefined if ID mismatch
 

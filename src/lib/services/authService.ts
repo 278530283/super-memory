@@ -22,14 +22,17 @@ class AuthService {
   async login(phone: string, password: string): Promise<Models.User<Models.Preferences>> {
     const email = `${phone}@supermemory.com`;
     try {
+      console.log('Attempting to login with email:', email, 'and password:', password);
       // 检查当前是否有活跃会话
-      const currentSession = await account.getSession('current');
+      const currentSession = await account.getSession({sessionId:'current'});
     
       // 如果有活跃会话，先删除
       if (currentSession) {
+        console.log('Current session exists, deleting...');
         await account.deleteSession({sessionId:'current'});
       }
       const session = await account.createEmailPasswordSession({email: email, password:password});
+      console.log('Session created:', session);
       
       // 从 session 中提取用户信息，或者调用 getCurrentUser() 获取完整用户
       const user = await this.getCurrentUser(); // 或者通过其他方式获取完整用户信息

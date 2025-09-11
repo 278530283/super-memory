@@ -8,10 +8,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { user, loading } = useAuthStore();
   const pathname = usePathname();
 
-  // Optional: Check if user data is fully loaded (e.g., preferences)
-  // const { preferences } = useUserStore();
-  // const isFullyLoaded = user && preferences; // Or just user if preferences load is async
-
   if (loading) {
     // Show a loading indicator while checking auth state
     return (

@@ -1,5 +1,6 @@
 // src/app/(auth)/login.tsx
 import useAuthStore from '@/src/lib/stores/useAuthStore';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -20,6 +21,12 @@ export default function LoginScreen() {
       // Error handled by store, but you can show an alert too if needed
       Alert.alert('Login Failed', error || 'An error occurred.');
     }
+  };
+
+  const handleRegister = () => {
+    // Navigate to register
+    console.log('Navigating to register');
+    router.push('/(auth)/register/step1');
   };
 
   return (
@@ -46,7 +53,7 @@ export default function LoginScreen() {
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => {/* Navigate to register */}}>
+      <TouchableOpacity onPress={handleRegister}>
         <Text style={styles.link}>{"Don't have an account? Register"}</Text>
       </TouchableOpacity>
     </View>

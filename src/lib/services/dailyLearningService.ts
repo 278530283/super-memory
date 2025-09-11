@@ -8,7 +8,7 @@ import {
 import { LearningMode } from '@/src/types/LearningMode';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { Query } from 'appwrite';
-import { databases } from '../appwrite';
+import { tablesDB } from '../appwrite';
 
 class DailyLearningService {
 
@@ -27,12 +27,12 @@ class DailyLearningService {
       // 1. Fetch User Preferences and Learning Mode Details
       // This would typically be passed in or fetched by the caller
       // const userPrefs = await userService.getUserPreferences(userId);
-      const modeResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_LEARNING_MODES,
-        [Query.equal('id', modeId)]
-      );
-      const mode: LearningMode | null = modeResponse.documents.length > 0 ? modeResponse.documents[0] as unknown as LearningMode : null;
+      const modeResponse = await tablesDB.listRows({
+        databaseId:DATABASE_ID,
+        tableId:COLLECTION_LEARNING_MODES,
+        queries:[Query.equal('id', modeId)]
+    });
+      const mode: LearningMode | null = modeResponse.rows.length > 0 ? modeResponse.rows[0] as unknown as LearningMode : null;
 
       if (!mode) {
         throw new Error(`Learning mode with ID ${modeId} not found.`);
@@ -41,13 +41,13 @@ class DailyLearningService {
       // 2. Fetch User's Word Progress
       // This fetches ALL progress, which might be inefficient for large vocabularies.
       // In practice, you'd use more specific queries or pagination.
-      const progressResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_USER_WORD_PROGRESS,
-        [Query.equal('userId', userId)]
+      const progressResponse = await tablesDB.listRows({
+        databaseId:DATABASE_ID,
+        tableId:COLLECTION_USER_WORD_PROGRESS,
+        queries:[Query.equal('userId', userId)]
         // Add limit/pagination if needed
-      );
-      const userProgress: UserWordProgress[] = progressResponse.documents as unknown as UserWordProgress[];
+    });
+      const userProgress: UserWordProgress[] = progressResponse.rows as unknown as UserWordProgress[];
 
       // 3. Logic to Select Words (Simplified Mock Logic)
       // --- Pre-test Words ---
@@ -62,15 +62,15 @@ class DailyLearningService {
       // --- Learning Words ---
       // Select a mix of new words and words for review/upgrade.
       // Example: New words (L0) + Words to upgrade (L1->L2, L2->L3)
-      const newWordCandidatesResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTION_WORDS,
-        [
+      const newWordCandidatesResponse = await tablesDB.listRows({
+        databaseId:DATABASE_ID,
+        tableId:COLLECTION_WORDS,
+        queries:[
           Query.notEqual('$id', userProgress.map(p => p.wordId)), // Words NOT in user's progress (simplified)
           Query.limit(mode.word_count) // Simplified limit
         ]
-      );
-      const newWordIds = newWordCandidatesResponse.documents.map((w: any) => w.$id);
+    });
+      const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.$id);
 
       const upgradeCandidates = userProgress.filter(p =>
         (p.current_level === 1 || p.current_level === 2) &&

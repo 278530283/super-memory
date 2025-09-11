@@ -15,6 +15,7 @@ interface AuthState {
   register: (phone: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchUserPreferences: () => Promise<void>;
+  updateUserPreferences: (updates: Partial<UserPreferences>) => Promise<void>; // 新增方法
   clearError: () => void;
 }
 
@@ -39,11 +40,8 @@ const useAuthStore = create<AuthState>()(
       register: async (phone, password, name) => {
         set({ loading: true, error: null });
         try {
-            const user = await authService.register(phone, password, name);
-            set({ user, loading: false });
-            // After registration, you might want to create user preferences
-            // This could be done via an Appwrite Function or directly here if simple
-            // await userService.createUserPreferences(user.$id, { /* default prefs */ });
+          const user = await authService.register(phone, password, name);
+          set({ user, loading: false });
         } catch (error: any) {
           set({ error: error.message || 'Registration failed', loading: false });
           throw error;
@@ -56,25 +54,37 @@ const useAuthStore = create<AuthState>()(
           set({ user: null, userPreferences: null, loading: false });
         } catch (error: any) {
           set({ error: error.message || 'Logout failed', loading: false });
-          set({ user: null, userPreferences: null }); // Clear state anyway
+          set({ user: null, userPreferences: null });
         }
       },
       fetchUserPreferences: async () => {
         const { user } = get();
         if (!user) return;
         try {
-          const preferences = await userService.getUserPreferences(user.$id);
+          const preferences = await userService.getUserPreferences();
           set({ userPreferences: preferences });
         } catch (error: any) {
           console.error("Failed to fetch user preferences:", error);
-          // Decide if this should set an error in the store or just log
+        }
+      },
+      updateUserPreferences: async (updates) => {
+        set({ loading: true, error: null });
+        try {
+          const updatedPreferences = await userService.updateUserPreferences(updates);
+          set({ userPreferences: updatedPreferences, loading: false });
+        } catch (error: any) {
+          set({ error: error.message || 'Failed to update preferences', loading: false });
+          throw error;
         }
       },
       clearError: () => set({ error: null }),
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user }),
+      partialize: (state) => ({ 
+        user: state.user,
+        userPreferences: state.userPreferences // 如果需要持久化偏好设置
+      }),
     }
   )
 );
