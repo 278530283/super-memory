@@ -1,20 +1,50 @@
 // src/app/(auth)/register/step2.tsx
+import useAuthStore from '@/src/lib/stores/useAuthStore';
+import { UserPreferences } from '@/src/types/User';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import RNPickerSelect from 'react-native-picker-select'; // You'll need to install this
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import RNPickerSelect from 'react-native-picker-select';
 
 export default function RegisterStep2() {
   const [nickname, setNickname] = useState('');
-  const [role, setRole] = useState('1'); // Default to student
-  const [englishLevel, setEnglishLevel] = useState('2'); // Default to 小学
-  const [grade, setGrade] = useState<string | null>(null); // For 小学年级
+  const [role, setRole] = useState('1');
+  const [englishLevel, setEnglishLevel] = useState('2');
+  const [grade, setGrade] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { updateUserPreferences } = useAuthStore();
 
-  const handleNext = () => {
-    // Validation can be added here
-    // Navigate to next step, potentially passing data
-    // router.push({ pathname: '/(auth)/register/step3', params: { nickname, role, englishLevel, grade } });
-    router.push('/(auth)/register/step3');
+  const handleNext = async () => {
+    // 数据校验
+    if (englishLevel === '2' && !grade) {
+      Alert.alert('请选择小学年级');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // 准备用户偏好数据
+      const updates: Partial<UserPreferences> = {
+        nickname: nickname || undefined,
+        role: parseInt(role, 10),
+        englishLevel: parseInt(englishLevel, 10),
+        ...(englishLevel === '2' && { 
+          grade: grade ? parseInt(grade, 10) : null // 转换为数字或保持null
+        })
+      };
+
+      // 保存到状态管理
+      await updateUserPreferences(updates);
+      
+      // 导航到下一步
+      router.push('/(auth)/register/step3');
+    } catch (error: any) {
+      Alert.alert('保存失败', error.message || '请稍后重试');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -27,6 +57,7 @@ export default function RegisterStep2() {
         placeholder="昵称 (选填)"
         value={nickname}
         onChangeText={setNickname}
+        maxLength={20}
       />
 
       <Text style={styles.label}>我是</Text>
@@ -48,7 +79,7 @@ export default function RegisterStep2() {
         <RNPickerSelect
           onValueChange={(value) => {
             setEnglishLevel(value);
-            if (value !== '2') setGrade(null); // Reset grade if not 小学
+            if (value !== '2') setGrade(null);
           }}
           items={[
             { label: '零基础', value: '1' },
@@ -85,8 +116,14 @@ export default function RegisterStep2() {
         </>
       )}
 
-      <TouchableOpacity style={styles.button} onPress={handleNext}>
-        <Text style={styles.buttonText}>下一步</Text>
+      <TouchableOpacity 
+        style={[styles.button, isLoading && styles.buttonDisabled]} 
+        onPress={handleNext}
+        disabled={isLoading}
+      >
+        <Text style={styles.buttonText}>
+          {isLoading ? '保存中...' : '下一步'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -103,9 +140,10 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 5,
     marginBottom: 15,
-    justifyContent: 'center', // Vertically center the picker
+    justifyContent: 'center',
   },
   button: { backgroundColor: '#4A90E2', padding: 15, borderRadius: 5, alignItems: 'center', marginTop: 20 },
+  buttonDisabled: { backgroundColor: '#A0A0A0' },
   buttonText: { color: 'white', fontWeight: 'bold' },
 });
 
@@ -114,10 +152,10 @@ const pickerSelectStyles = StyleSheet.create({
     fontSize: 16,
     paddingVertical: 12,
     paddingHorizontal: 10,
-    borderWidth: 0, // Remove inner border
+    borderWidth: 0,
     borderRadius: 5,
     color: 'black',
-    paddingRight: 30, // to ensure the text is never behind the icon
+    paddingRight: 30,
   },
   inputAndroid: {
     fontSize: 16,
@@ -126,6 +164,6 @@ const pickerSelectStyles = StyleSheet.create({
     borderWidth: 0,
     borderRadius: 5,
     color: 'black',
-    paddingRight: 30, // to ensure the text is never behind the icon
+    paddingRight: 30,
   },
 });

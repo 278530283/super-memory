@@ -37,7 +37,7 @@ export default function RegisterStep1() {
     try {
       // Pass phone and a temporary password for now, name can be set later or here if collected
       // You might need a more complex flow for SMS verification
-      await register(phone, 'TempPass123!', `User_${phone}`); // Use phone as name placeholder
+      await register(phone, '12345678', `User_${phone}`); // Use phone as name placeholder
       // Successful registration handled by ProtectedRoute redirect after login
       // Or navigate to next step if registration doesn't auto-login
       router.push('/(auth)/register/step2');

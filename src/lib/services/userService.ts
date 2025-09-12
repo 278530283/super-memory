@@ -10,11 +10,11 @@ class UserService {
       
       const defaultPreferences: UserPreferences = {
         nickname: name,
-        pronunciation_preference: 1,
+        pronunciation: 1,
         role: 1,
-        english_level: 1,
+        englishLevel: 1,
         grade: null,
-        default_learning_mode: 1
+        learningMode: 1
       };
 
       return {

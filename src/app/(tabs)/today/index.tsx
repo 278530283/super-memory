@@ -38,7 +38,7 @@ export default function TodayScreen() {
         if (!sessionLoading && !session && user?.$id && !isLoading) {
             // Assume we have user preferences to get default mode
             const userPrefs = useAuthStore.getState().userPreferences;
-            const modeId = userPrefs?.default_learning_mode || 2; // Default to Normal
+            const modeId = userPrefs?.learningMode || 2; // Default to Normal
 
             try {
                 setIsLoading(true); // Set loading while creating

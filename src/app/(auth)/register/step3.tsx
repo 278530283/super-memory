@@ -1,36 +1,40 @@
 // src/app/(auth)/register/step3.tsx
+import useAuthStore from '@/src/lib/stores/useAuthStore';
+import { UserPreferences } from '@/src/types/User';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 
 export default function RegisterStep3() {
-  const [learningMode, setLearningMode] = useState('2'); // Default to 正常模式
+  const [learningMode, setLearningMode] = useState('2'); // 使用字符串状态
   const [enableSpelling, setEnableSpelling] = useState(false);
-  const [pronunciation, setPronunciation] = useState('1'); // Default to 英式
+  const [pronunciation, setPronunciation] = useState('1'); // 使用字符串状态
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { updateUserPreferences, userPreferences } = useAuthStore();
 
   const handleFinish = async () => {
-    // Here you would typically update the user's preferences in the database
-    // using the user ID from useAuthStore (obtained after login in step 1)
-    // const userId = useAuthStore.getState().user?.$id;
-    // if (userId) {
-    //   try {
-    //     await userService.updateUserPreferences(userId, {
-    //       default_learning_mode: parseInt(learningMode),
-    //       pronunciation_preference: parseInt(pronunciation),
-    //       // ... other fields
-    //     });
-    //     // Navigate to main app
-    //     router.replace('/(tabs)/today');
-    //   } catch (error) {
-    //     Alert.alert('Error', 'Failed to save preferences.');
-    //   }
-    // } else {
-    //   Alert.alert('Error', 'User not found.');
-    // }
+    setIsLoading(true);
+    
+    try {
+      // 准备用户偏好数据，将字符串转换为数字
+      const updates: Partial<UserPreferences> = {
+        learningMode: parseInt(learningMode, 10), // 转换为数字
+        pronunciation: parseInt(pronunciation, 10), // 转换为数字
+        enableSpelling,
+      };
 
-    // For now, just navigate
-    router.replace('/(tabs)/today');
+      // 保存到状态管理
+      await updateUserPreferences(updates);
+      
+      // 导航到主应用
+      router.replace('/(tabs)/today');
+    } catch (error: any) {
+      Alert.alert('保存失败', error.message || '请稍后重试');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -80,8 +84,14 @@ export default function RegisterStep3() {
         />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleFinish}>
-        <Text style={styles.buttonText}>完成，开始学习！</Text>
+      <TouchableOpacity 
+        style={[styles.button, isLoading && styles.buttonDisabled]} 
+        onPress={handleFinish}
+        disabled={isLoading}
+      >
+        <Text style={styles.buttonText}>
+          {isLoading ? '保存中...' : '完成，开始学习！'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -131,6 +141,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   button: { backgroundColor: '#4A90E2', padding: 15, borderRadius: 5, alignItems: 'center' },
+  buttonDisabled: { backgroundColor: '#A0A0A0' },
   buttonText: { color: 'white', fontWeight: 'bold' },
 });
 

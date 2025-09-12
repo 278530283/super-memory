@@ -17,6 +17,7 @@ export default function LoginScreen() {
     try {
       await login(phone, password);
       // Successful login handled by ProtectedRoute redirect
+      router.replace('/(tabs)/today');
     } catch (err) {
       // Error handled by store, but you can show an alert too if needed
       Alert.alert('Login Failed', error || 'An error occurred.');

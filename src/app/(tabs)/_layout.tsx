@@ -1,10 +1,12 @@
 // src/app/(tabs)/_layout.tsx
+import ProtectedRoute from '@/src/components/ProtectedRoute';
 import { Ionicons } from '@expo/vector-icons'; // Or any icon library you prefer
 import { Tabs } from 'expo-router';
 import React from 'react';
 
 export default function TabLayout() {
   return (
+    <ProtectedRoute>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#4A90E2', // Match design spec
@@ -49,5 +51,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </ProtectedRoute>
   );
 }
