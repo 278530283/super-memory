@@ -15,7 +15,7 @@ export default function TodayScreen() {
     loading: sessionLoading,
     error: sessionError,
     getSession,
-    createSession, // This needs to be updated in the store to accept initialWordIds
+    createSession, // This now accepts initialWordIds
     clearError: clearSessionError,
   } = useDailyLearningStore();
 
@@ -43,10 +43,8 @@ export default function TodayScreen() {
             try {
                 setIsLoading(true); // Set loading while creating
                 const initialWordIds = await dailyLearningService.generateTodaysWordLists(user.$id, modeId);
-                // Update the createSession call in the store to accept initialWordIds
-                // This requires modifying useDailyLearningStore.ts
-                // await createSession(user.$id, modeId, initialWordIds);
-                console.warn("Session creation logic needs to be integrated with the store.");
+                // Call the store's createSession method with initialWordIds
+                await createSession(user.$id, modeId, initialWordIds);
             } catch (err) {
                 console.error("Failed to create new session:", err);
                 Alert.alert('错误', '无法创建今日学习计划。');
@@ -57,7 +55,7 @@ export default function TodayScreen() {
     };
 
     createNewSessionIfNeeded();
-  }, [session, sessionLoading, user?.$id, isLoading]);
+  }, [session, sessionLoading, user?.$id, isLoading, createSession]); // Add createSession dependency
 
   useEffect(() => {
     if (sessionError) {

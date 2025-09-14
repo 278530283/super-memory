@@ -13,16 +13,6 @@ client
   .setEndpoint(ENDPOINT)
   .setProject(PROJECT_ID);
 
-  
-client.ping().then(
-  () => {
-    console.log('Appwrite is reachable');
-  },
-  () => {
-    console.log('Appwrite is not reachable. Please check your endpoint URL.');
-  }
-);
-
 // --- Service Instances ---
 const account = new Account(client);
 const storage = new Storage(client);

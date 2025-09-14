@@ -1,7 +1,7 @@
 // src/lib/services/actionLogService.ts
 import { COLLECTION_USER_WORD_ACTION_LOG, DATABASE_ID } from '@/src/constants/appwrite';
+import { tablesDB } from '@/src/lib/appwrite';
 import { ID } from 'appwrite';
-import { tablesDB } from '../appwrite';
 
 // Define the type for the log entry based on the database schema
 interface UserWordActionLogEntry {

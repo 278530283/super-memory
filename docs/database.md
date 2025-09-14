@@ -17,8 +17,6 @@ CREATE TABLE `user` (
   `english_level` tinyint NOT NULL COMMENT '英语水平（1=零基础，2=小学，3=初中，4=高中）',
   `grade` tinyint DEFAULT NULL COMMENT '小学年级（仅english_level=2时有效，1-6年级）',
   `learning_mode` tinyint DEFAULT 2 COMMENT '默认学习模式（1=轻松，2=正常，3=努力）',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_phone` (`phone`)
 ) ENGINE=InnoDB COMMENT '用户信息表';
@@ -70,10 +68,8 @@ CREATE TABLE `morpheme` (
   `meaning_en` varchar(200) NOT NULL COMMENT '英文释义（如   "to look  "）',
   `origin` varchar(50) DEFAULT NULL COMMENT '来源（如   "Latin  ",   "Greek  ",   "Old English  "）',
   `description` text COMMENT '详细描述、演变历史、用法说明',
-  `priority` tinyint NOT NULL DEFAULT '2' COMMENT '常见度优先级（1-5，1最高，5最低）',
+  `priority` tinyint NOT NULL DEFAULT NULL COMMENT '常见度优先级（1-5，1最高，5最低）',
   `difficulty_level` tinyint DEFAULT NULL COMMENT '推荐学习  水平（1=小学，2=初中，3=高中，NULL=通用）',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
    PRIMARY KEY (`id`),
   UNIQUE KEY `uk_morpheme_text_type` (`morpheme_text`,`type`) COMMENT '同一文本不同类别的词素可共存（如 "ing  "既可能是后缀也可能是词根）'
 ) ENGINE=InnoDB COMMENT '词素表（词根、前缀、后缀）';
@@ -87,7 +83,6 @@ CREATE TABLE `word_morpheme_association` (
   `word_id` bigint NOT NULL COMMENT '关联单词ID',
   `morpheme_id` bigint NOT NULL COMMENT '关联词素ID',
   `order_index` tinyint NOT NULL COMMENT '在单词中的出现顺序（从1开始）',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_word_morpheme_order` (`word_id`,`morpheme_id`,`order_index`),
   KEY `idx_morpheme` (`morpheme_id`),
@@ -118,15 +113,13 @@ CREATE TABLE `daily_learning_session` (
   `user_id` bigint NOT NULL COMMENT '关联用户ID',
   `session_date` date NOT NULL COMMENT '会话日期（通常是当天）',
   `mode_id` tinyint NOT NULL COMMENT '本次会话的学习模式',
-  `status` tinyint NOT NULL DEFAULT 0 COMMENT '会话状态 (0=待开始, 1=前置评测中, 2=学习中, 3=当日评测中, 4=已完成)',
+  `status` tinyint NOT NULL DEFAULT NULL COMMENT '会话状态 (0=待开始, 1=前置评测中, 2=学习中, 3=当日评测中, 4=已完成)',
   `pre_test_progress` varchar(50) DEFAULT NULL COMMENT '前置评测进度 (如 "3/7")',
   `learning_progress` varchar(50) DEFAULT NULL COMMENT '学习阶段进度 (如 "5/10")',
   `post_test_progress` varchar(50) DEFAULT NULL COMMENT '当日评测进度 (如 "2/7")',
   `pre_test_word_ids` json NOT NULL COMMENT '前置评测单词ID列表 (JSON数组)',
   `learning_word_ids` json NOT NULL COMMENT '学习阶段单词ID列表 (JSON数组)',
   `post_test_word_ids` json NOT NULL COMMENT '当日评测单词ID列表 (JSON数组)',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_date` (`user_id`, `session_date`),
   CONSTRAINT `fk_dls_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
@@ -155,11 +148,9 @@ CREATE TABLE `user_word_action_log` (
   `response_time_ms` int NULL COMMENT '响应耗时（毫秒） — 对于纯学习活动可为空',
   `study_duration_ms` int NULL COMMENT '学习时长（毫秒）— 仅当action_type=2时有效，记录沉浸式学习耗时',
   `speed_used` int NOT NULL COMMENT '活动时使用的语速（百分比）',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '行为发生时间',
   PRIMARY KEY (`id`),
   KEY `idx_user_word` (`user_id`, `word_id`),
   KEY `idx_session` (`session_id`),
-  KEY `idx_created_at` (`created_at`),
   CONSTRAINT `fk_uwal_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   CONSTRAINT `fk_uwal_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`),
   CONSTRAINT `fk_uwal_session` FOREIGN KEY (`session_id`) REFERENCES `daily_learning_session` (`id`)
@@ -173,13 +164,11 @@ CREATE TABLE `user_word_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL COMMENT '关联用户ID',
   `word_id` bigint NOT NULL COMMENT '关联单词ID',
-  `current_level` tinyint NOT NULL DEFAULT 0 COMMENT '当前掌握等级（0=L0，1=L1，2=L2，3=L3，4=L4）',
-  `current_speed` int NOT NULL DEFAULT 50 COMMENT '当前适应语速（百分比，基于母语者正常语速）',
+  `current_level` tinyint NOT NULL DEFAULT NULL COMMENT '当前掌握等级（0=L0，1=L1，2=L2，3=L3，4=L4）',
+  `current_speed` int NOT NULL DEFAULT NULL COMMENT '当前适应语速（百分比，基于母语者正常语速）',
   `last_learn_time` datetime DEFAULT NULL COMMENT '最后学习时间',
   `last_review_time` datetime DEFAULT NULL COMMENT '最后复习时间',
-  `is_long_difficult` tinyint NOT NULL DEFAULT 0 COMMENT '是否为长难词',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `is_long_difficult` tinyint NOT NULL DEFAULT NULL COMMENT '是否为长难词',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_word` (`user_id`,`word_id`),
   KEY `idx_level` (`current_level`),
@@ -201,7 +190,6 @@ CREATE TABLE `learning_record` (
   `end_time` datetime NOT NULL COMMENT '结束时间（“当日评测”结束）',
   `test_correct_rate` decimal(5,2) DEFAULT NULL COMMENT '当日评测的最终正确率（百分比）',
   `total_duration` int NOT NULL COMMENT '总学习时长（秒，从开始到结束）',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_user_date` (`user_id`,`learning_date`),
   KEY `idx_session` (`session_id`),
@@ -222,7 +210,6 @@ CREATE TABLE `learning_word` (
   `pre_test_level` tinyint NOT NULL COMMENT '前置评测时的等级',
   `post_test_level` tinyint NOT NULL COMMENT '当日评测后的等级',
   `mastery_change` tinyint GENERATED ALWAYS AS (`post_test_level` - `pre_test_level`) STORED COMMENT '学习后等级净变化',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_learning_word` (`learning_record_id`,`word_id`),
   KEY `idx_user_word` (`user_id`, `word_id`),
@@ -255,28 +242,26 @@ CREATE TABLE `review_record` (
 ) ENGINE=InnoDB COMMENT '复习记录表';
 ```
 
-## 13. **新增：FSRS复习调度表 (`fsrs_review_schedule`)**
-专用于FSRS算法，为每个用户-单词对动态计算下一次复习时间。
+## 13. **FSRS复习调度表 (`fsrs_review_schedule`)**
+专用于FSRS算法，为每个用户-单词对动态计算下一次复习时间（仅记录最新状态）。
 ```sql
 CREATE TABLE `fsrs_review_schedule` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '调度记录唯一标识',
   `user_id` bigint NOT NULL COMMENT '关联用户ID',
   `word_id` bigint NOT NULL COMMENT '关联单词ID',
   `next_review_time` datetime NOT NULL COMMENT 'FSRS算法计算出的下一次复习时间',
-  `stability` double NOT NULL DEFAULT 0.0 COMMENT 'FSRS稳定性参数 (S)',
-  `difficulty` double NOT NULL DEFAULT 0.0 COMMENT 'FSRS难度参数 (D)',
+  `stability` double NOT NULL COMMENT 'FSRS稳定性参数 (S)',
+  `difficulty` double NOT NULL COMMENT 'FSRS难度参数 (D)',
   `retention` double NOT NULL DEFAULT 0.9 COMMENT '目标保留率 (默认0.9)',
-  `last_review_record_id` bigint NULL COMMENT '关联的上一次复习记录ID',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `reps` int NOT NULL DEFAULT 0 COMMENT '总复习次数',
+  `lapses` int NOT NULL DEFAULT 0 COMMENT '遗忘次数',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_word` (`user_id`, `word_id`),
   KEY `idx_next_review` (`next_review_time`),
   KEY `idx_user_next_review` (`user_id`, `next_review_time`),
   CONSTRAINT `fk_frs_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
-  CONSTRAINT `fk_frs_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`),
-  CONSTRAINT `fk_frs_review_record` FOREIGN KEY (`last_review_record_id`) REFERENCES `review_record` (`id`)
-) ENGINE=InnoDB COMMENT 'FSRS复习调度表，为每个用户-单词对动态计算下一次复习时间';
+  CONSTRAINT `fk_frs_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`)
+) ENGINE=InnoDB COMMENT 'FSRS复习调度表，为每个用户-单词对记录当前状态和下一次复习时间';
 ```
 
 ## 14. 发音评估记录表（`pronunciation_evaluation`）
@@ -308,7 +293,6 @@ CREATE TABLE `morpheme_relation` (
   `child_morpheme_id` bigint NOT NULL COMMENT '子词素ID',
   `relation_type` tinyint NOT NULL COMMENT '关系类型（1=变体-variant, 2=反义-opposite, 3=同源-same_origin, 4=衍生-derives）',
   `description` varchar(255) DEFAULT NULL COMMENT '关系描述',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_parent_child_relation` (`parent_morpheme_id`,`child_morpheme_id`,`relation_type`),
   KEY `idx_child` (`child_morpheme_id`),
@@ -328,8 +312,6 @@ CREATE TABLE `custom_material` (
   `custom_image` varchar(255) DEFAULT NULL COMMENT '自定义图片路径',
   `recording_path` varchar(255) DEFAULT NULL COMMENT '录音路径',
   `recording_speed` tinyint DEFAULT NULL COMMENT '录音语速（1=慢速，2=正常）',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_word` (`user_id`,`word_id`),
   CONSTRAINT `fk_cm_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
@@ -380,8 +362,6 @@ CREATE TABLE `user_morpheme_progress` (
   `mastery_level` tinyint NOT NULL DEFAULT '0' COMMENT '掌握等级（0=未学，1=已学，2=熟悉，3=掌握）',
   `last_encountered_time` datetime DEFAULT NULL COMMENT '最后一次在单词中遇到的时间',
   `last_studied_time` datetime DEFAULT NULL COMMENT '最后一次主动学习的时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_morpheme` (`user_id`,`morpheme_id`),
   KEY `idx_morpheme` (`morpheme_id`),

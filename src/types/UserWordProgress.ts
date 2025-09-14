@@ -3,8 +3,8 @@
 
 export interface UserWordProgress {
   $id: string; // Appwrite Document ID
-  userId: string;
-  wordId: string;
+  user_id: string;
+  word_id: string;
   current_level: number; // 0=L0, 1=L1, 2=L2, 3=L3, 4=L4
   current_speed: number; // Percentage (e.g., 50)
   last_learn_time?: string | null; // ISO String
