@@ -1,6 +1,7 @@
 // src/app/(tabs)/today/[sessionId]/test/[type]/index.tsx
 import ListenWord from '@/src/components/features/TestTypes/ListenWord';
 import TranslateEnToZh from '@/src/components/features/TestTypes/TranslateEnToZh';
+import wordService from '@/src/lib/services/wordService';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -54,16 +55,10 @@ export default function TestScreen() {
         return;
       }
 
-      // TODO: Fetch actual Word details from wordService using wordIds
-      // For now, mock the word objects
-      const mockWords = wordIds.map((id, index) => ({
-        $id: id,
-        spelling: `word${index + 1}`,
-        chinese_meaning: `中文意思${index + 1}`,
-        // Add other necessary fields based on test type logic
-      }));
+      // Fetch actual Word details from wordService using wordIds
+      const fetchedWords = await wordService.getWordsByIds(wordIds);
 
-      setWordList(mockWords);
+      setWordList(fetchedWords);
       setIsLoading(false);
 
       // --- Initialize progress in session if needed ---

@@ -3,9 +3,11 @@ import ProtectedRoute from '@/src/components/ProtectedRoute';
 import { Ionicons } from '@expo/vector-icons'; // Or any icon library you prefer
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   return (
+      <SafeAreaProvider>
     <ProtectedRoute>
     <Tabs
       screenOptions={{
@@ -52,5 +54,6 @@ export default function TabLayout() {
       />
     </Tabs>
     </ProtectedRoute>
+    </SafeAreaProvider>
   );
 }
