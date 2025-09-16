@@ -56,7 +56,7 @@ export default function TestScreen() {
       }
 
       // Fetch actual Word details from wordService using wordIds
-      const fetchedWords = await wordService.getWordsByIds(wordIds);
+      const fetchedWords = await wordService.getWordsBySpellings(wordIds);
 
       setWordList(fetchedWords);
       setIsLoading(false);

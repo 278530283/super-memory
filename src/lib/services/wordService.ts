@@ -32,6 +32,20 @@ class WordService {
     }
   }
 
+  async getWordsBySpellings(spellingIds: string[]): Promise<Word[]> {
+    if (spellingIds.length === 0) return [];
+    try {
+      // Appwrite Query.equal with array checks if the field value is IN the array
+      const response = await tablesDB.listRows({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, queries:[
+        Query.equal('spelling', spellingIds)
+      ]});
+      return response.rows as unknown as Word[];
+    } catch (error) {
+      console.error("WordService.getWordsByIds error:", error);
+      throw error;
+    }
+  }
+
   // Example: Get words by difficulty level (if needed for learning list generation)
   // async getWordsByDifficulty(difficultyLevel: number, limit: number = 10): Promise<Word[]> {
   //   try {

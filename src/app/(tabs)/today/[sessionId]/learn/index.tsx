@@ -33,7 +33,7 @@ export default function LearnScreen() {
       }
 
       try {
-        const words = await wordService.getWordsByIds(wordIds);
+        const words = await wordService.getWordsBySpellings(wordIds);
         setWordList(words);
         if (words.length > 0) {
           setCurrentWord(words[0]);
