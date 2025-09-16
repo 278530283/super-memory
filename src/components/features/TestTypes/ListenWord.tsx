@@ -22,7 +22,7 @@ const ListenWord: React.FC<ListenWordProps> = ({ word, onAnswer, speed }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Determine audio file ID based on user preference
-  const userPref = useAuthStore.getState().userPreferences?.pronunciation_preference;
+  const userPref = useAuthStore.getState().userPreferences?.pronunciation;
   const audioFileId = userPref === 1 ? word.british_audio : word.american_audio;
 
   const playAudio = async () => {

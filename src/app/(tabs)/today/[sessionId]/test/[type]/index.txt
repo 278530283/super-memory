@@ -22,6 +22,17 @@ export default function TestScreen() {
   const [wordList, setWordList] = useState<any[]>([]); // Use Word type later
   const [isLoading, setIsLoading] = useState(true);
 
+  // 动态生成标题
+  const getTitle = () => {
+    const titleMap: Record<string, string> = {
+      pre_test: "前置评测",
+      post_test: "当日评测",
+      listen: "听力测试",
+      translate: "翻译测试",
+    };
+    return titleMap[type || ''] || "单词评测";
+  };
+
   // --- Fetch word list based on session and type ---
   useEffect(() => {
     const fetchWords = async () => {
@@ -166,6 +177,9 @@ export default function TestScreen() {
   return (
     <View style={styles.container}>
       {/* Top Bar */}
+      <Head>
+        <title>{getTitle()}</title>
+      </Head>
       <View style={styles.topBar}>
         <Text style={styles.progressText}>{current}/{total}</Text>
         {/* { <TouchableOpacity onPress={() => {  HandlePause  }}>
