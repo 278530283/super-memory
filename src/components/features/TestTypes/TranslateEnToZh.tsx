@@ -1,10 +1,22 @@
 // src/components/features/today/TestTypes/TranslateEnToZh.tsx
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import {
+  Alert,
+  Animated,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+
 import actionLogService from '@/src/lib/services/actionLogService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { Word } from '@/src/types/Word';
-import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // 扩展 Word 类型，支持音标和例句
 interface WordWithExtraInfo extends Word {
@@ -15,40 +27,125 @@ interface WordWithExtraInfo extends Word {
 interface TranslateEnToZhProps {
   word: WordWithExtraInfo;
   onAnswer: (result: { 
-    type: 'translate'; 
+    type: string; 
     correct: boolean; 
     selectedOption: string; 
     wordId: string; 
     responseTimeMs?: number 
   }) => void;
+  testType?: string; // 新增测试类型参数
 }
 
-const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ word, onAnswer }) => {
+// 选项类型定义
+interface Option {
+  partOfSpeech: string;
+  meaning: string;
+  id: string;
+}
+
+// 错误回退组件
+const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
+  <View style={styles.errorContainer}>
+    <Ionicons name="warning" size={48} color="#FF9500" />
+    <Text style={styles.errorText}>组件加载失败</Text>
+    <Text style={styles.errorSubText}>{error.message}</Text>
+    <TouchableOpacity style={styles.retryButton} onPress={resetErrorBoundary}>
+      <Text style={styles.retryButtonText}>重试</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+// 选项卡片组件
+interface OptionCardProps {
+  option: Option;
+  isSelected: boolean;
+  isCorrect: boolean;
+  showFeedback: { correct: boolean; message: string } | null;
+  onSelect: (optionKey: string) => void;
+  testID?: string;
+}
+
+const OptionCard: React.FC<OptionCardProps> = React.memo(({
+  option,
+  isSelected,
+  isCorrect,
+  showFeedback,
+  onSelect,
+  testID
+}) => {
+  const optionKey = `${option.partOfSpeech} ${option.meaning}`;
+  
+  const handlePress = useCallback(() => {
+    onSelect(optionKey);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [onSelect, optionKey]);
+
+  return (
+    <TouchableOpacity
+      testID={testID}
+      style={[
+        styles.optionCard,
+        isSelected && !showFeedback && styles.selectedOptionCard,
+        showFeedback && isCorrect && styles.correctOptionCard,
+        showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
+      ]}
+      onPress={handlePress}
+      disabled={!!showFeedback}
+      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.meaning}`}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isSelected }}
+    >
+      <Text style={styles.optionText}>
+        <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
+        <Text style={styles.meaningText}>{option.meaning}</Text>
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+OptionCard.displayName = 'OptionCard';
+
+// 主组件
+const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ 
+  word, 
+  onAnswer, 
+  testType = 'translate' // 默认值为 'translate'
+}) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
   const [startTime] = useState<number>(Date.now());
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // 6个选项（1正确+5错误），确保两列3行排列
-  const generateOptions = (): { partOfSpeech: string; meaning: string }[] => {
+  // 动画效果
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // 生成选项（使用useMemo缓存）
+  const generateOptions = useCallback((): Option[] => {
     return [
-      { partOfSpeech: 'n.', meaning: '特性；财产；房产' }, // 正确选项
-      { partOfSpeech: 'n.', meaning: '贫困，贫穷；贫乏' },
-      { partOfSpeech: 'adv.', meaning: '正确地，适当地' },
-      { partOfSpeech: 'n.', meaning: '嗜好，习性；倾向' },
-      { partOfSpeech: 'adj.', meaning: '珍贵的；稀有的' }, // 新增错误选项
-      { partOfSpeech: 'v.', meaning: '积累；储存' } // 新增错误选项
-    ].sort(() => Math.random() - 0.5); // 随机打乱
-  };
+      { partOfSpeech: 'n.', meaning: '特性；财产；房产', id: 'option-1' }, // 正确选项
+      { partOfSpeech: 'n.', meaning: '贫困，贫穷；贫乏', id: 'option-2' },
+      { partOfSpeech: 'adv.', meaning: '正确地，适当地', id: 'option-3' },
+      { partOfSpeech: 'n.', meaning: '嗜好，习性；倾向', id: 'option-4' },
+      { partOfSpeech: 'adj.', meaning: '珍贵的；稀有的', id: 'option-5' },
+      { partOfSpeech: 'v.', meaning: '积累；储存', id: 'option-6' }
+    ].sort(() => Math.random() - 0.5);
+  }, []);
 
-  const [options] = useState<ReturnType<typeof generateOptions>>(generateOptions());
+  const [options] = useState<Option[]>(generateOptions);
   const correctOptionKey = 'n. 特性；财产；房产'; // 正确选项标识
 
-  const handleSelect = (optionKey: string) => {
+  const handleSelect = useCallback((optionKey: string) => {
     if (showFeedback) return;
     setSelectedOption(optionKey);
-  };
+  }, [showFeedback]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!selectedOption) {
       Alert.alert('请选择一个选项');
       return;
@@ -58,14 +155,14 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ word, onAnswer }) => 
     const isCorrect = selectedOption === correctOptionKey;
     const responseTimeMs = Date.now() - startTime;
     const result = {
-      type: 'translate' as const,
+      type: testType, // 使用传入的 testType
       correct: isCorrect,
       selectedOption,
       wordId: word.$id,
       responseTimeMs,
     };
 
-    // 日志记录（保留原逻辑）
+    // 日志记录
     const sessionId = useDailyLearningStore.getState().session?.$id || null;
     const userId = useAuthStore.getState().user?.$id || 'unknown_user';
     actionLogService.logAction({
@@ -74,7 +171,7 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ word, onAnswer }) => 
       sessionId,
       actionType: 1,
       phase: 1,
-      activityType: 2,
+      activityType: 2, // 英译中活动类型
       isCorrect,
       responseTimeMs,
       speedUsed: 100,
@@ -90,10 +187,10 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ word, onAnswer }) => 
       setSelectedOption(null);
       setShowFeedback(null);
     }, 1500);
-  };
+  }, [selectedOption, showFeedback, startTime, word, onAnswer, testType]);
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 单词 + 音标区域 */}
       <View style={styles.wordPhoneticContainer}>
         <Text style={styles.wordText}>{word.spelling || 'property'}</Text>
@@ -107,52 +204,66 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ word, onAnswer }) => 
         {word.example_sentence || 'Glitter is one of the properties of gold.'}
       </Text>
 
-      {/* 选项区域（核心修复：强制两列排列） */}
+      {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {options.map((option, index) => {
           const optionKey = `${option.partOfSpeech} ${option.meaning}`;
           const isSelected = selectedOption === optionKey;
           const isCorrect = optionKey === correctOptionKey;
+          
           return (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.optionCard,
-                isSelected && !showFeedback && styles.selectedOptionCard,
-                showFeedback && isCorrect && styles.correctOptionCard,
-                showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
-              ]}
-              onPress={() => handleSelect(optionKey)}
-              disabled={!!showFeedback}
-            >
-              <Text style={styles.optionText}>
-                <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
-                <Text style={styles.meaningText}>{option.meaning}</Text>
-              </Text>
-            </TouchableOpacity>
+            <OptionCard
+              key={option.id}
+              option={option}
+              isSelected={isSelected}
+              isCorrect={isCorrect}
+              showFeedback={showFeedback}
+              onSelect={handleSelect}
+              testID={`option-${index}`}
+            />
           );
         })}
       </View>
 
       {/* 提交按钮 */}
       <TouchableOpacity
+        testID="submit-button"
         style={[styles.submitButton, (!selectedOption || showFeedback) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
         disabled={!selectedOption || !!showFeedback}
+        accessibilityLabel="提交答案"
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !selectedOption || !!showFeedback }}
       >
         <Text style={styles.submitButtonText}>提交</Text>
       </TouchableOpacity>
 
       {/* 答题反馈 */}
       {showFeedback && (
-        <Text style={[
-          styles.feedbackText,
-          showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
-        ]}>
-          {showFeedback.message}
-        </Text>
+        <View style={styles.feedbackContainer}>
+          <Ionicons 
+            name={showFeedback.correct ? "checkmark-circle" : "close-circle"} 
+            size={32} 
+            color={showFeedback.correct ? "#28A745" : "#DC3545"} 
+          />
+          <Text style={[
+            styles.feedbackText,
+            showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
+          ]}>
+            {showFeedback.message}
+          </Text>
+        </View>
       )}
-    </View>
+    </Animated.View>
+  );
+};
+
+// 使用错误边界包装组件
+const TranslateEnToZhWithErrorBoundary: React.FC<TranslateEnToZhProps> = (props) => {
+  return (
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <TranslateEnToZh {...props} />
+    </ErrorBoundary>
   );
 };
 
@@ -160,12 +271,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16, // 缩小水平内边距，避免挤压选项
+    paddingHorizontal: 16,
     paddingVertical: 20,
     position: 'relative',
   },
-
-  // 单词+音标容器
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 16,
+    color: '#1A1A1A',
+  },
+  errorSubText: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   wordPhoneticContainer: {
     alignItems: 'center',
     marginVertical: 20,
@@ -180,55 +320,56 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginTop: 5,
   },
-
-  // 例句样式
   exampleText: {
     fontSize: 14,
     color: '#666666',
     fontStyle: 'italic',
     marginBottom: 20,
     lineHeight: 20,
-    width: '100%', // 确保例句不超出容器
+    width: '100%',
     textAlign: 'left',
   },
-
-  // 选项网格（核心修复：精确控制两列布局）
   optionsGrid: {
-    flexDirection: 'row',       // 横向排列
-    flexWrap: 'wrap',          // 自动换行
-    justifyContent: 'space-between', // 左右对齐，消除中间空隙
-    marginBottom: 80,          // 给底部按钮留足空间
-    rowGap: 12,                // 仅设置垂直间距（避免水平间距挤压宽度）
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 80,
+    rowGap: 12,
   },
   optionCard: {
-    width: '48%',              // 两列各占48%，总宽度96%（留4%间隙）
+    width: '48%',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E0E0E0',
     borderRadius: 8,
-    padding: 12,               // 减少内边距，避免内容拥挤
-    boxSizing: 'border-box',   // 关键：确保border/padding不增加总宽度
-    overflow: 'hidden',        // 防止内容溢出导致布局错乱
+    padding: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  // 选中状态样式
   selectedOptionCard: {
     borderColor: '#4A90E2',
     backgroundColor: '#F0F8FF',
   },
-  // 正确答案高亮
   correctOptionCard: {
     borderColor: '#28A745',
     backgroundColor: '#F8FFF8',
   },
-  // 错误答案（用户选中）高亮
   incorrectOptionCard: {
     borderColor: '#DC3545',
     backgroundColor: '#FFF8F8',
   },
-  // 选项文本样式（适配内容长度）
   optionText: {
-    fontSize: 13,              // 进一步缩小字体，确保一行显示
-    lineHeight: 18,            // 减小行高，压缩卡片高度
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: 'left',
   },
   partOfSpeechText: {
@@ -238,10 +379,8 @@ const styles = StyleSheet.create({
   },
   meaningText: {
     color: '#333333',
-    flexShrink: 1,             // 允许文本收缩，避免溢出
+    flexShrink: 1,
   },
-
-  // 提交按钮
   submitButton: {
     position: 'absolute',
     bottom: 20,
@@ -260,18 +399,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-
-  // 答题反馈
-  feedbackText: {
+  feedbackContainer: {
     position: 'absolute',
     top: '50%',
     left: 0,
     right: 0,
+    alignItems: 'center',
+    transform: [{ translateY: -50 }],
+    zIndex: 10,
+  },
+  feedbackText: {
     fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
-    transform: [{ translateY: -50 }],
-    zIndex: 10,
+    marginTop: 8,
   },
   correctFeedbackText: {
     color: '#28A745',
@@ -281,4 +422,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TranslateEnToZh;
+export default TranslateEnToZhWithErrorBoundary;

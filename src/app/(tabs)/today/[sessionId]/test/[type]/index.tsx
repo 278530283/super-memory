@@ -1,232 +1,430 @@
 // src/app/(tabs)/today/[sessionId]/test/[type]/index.tsx
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+
+// 导入测试组件
 import ListenWord from '@/src/components/features/TestTypes/ListenWord';
 import TranslateEnToZh from '@/src/components/features/TestTypes/TranslateEnToZh';
+// 导入其他测试组件
+// import SpellingTest from '@/src/components/features/TestTypes/SpellingTest';
+// import PronunciationTest from '@/src/components/features/TestTypes/PronunciationTest';
+
+// 导入服务和存储
 import wordService from '@/src/lib/services/wordService';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
-// Import other test components as they are created
-// import SpellingTest from ...
-// import PronunciationTest from ...
+import { Word } from '@/src/types/Word';
 
+// 错误边界组件
+const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
+  <View style={styles.center}>
+    <Ionicons name="warning" size={48} color="#FF9500" />
+    <Text style={styles.errorText}>加载测试时出错</Text>
+    <Text style={styles.errorSubText}>{error.message}</Text>
+    <TouchableOpacity style={styles.retryButton} onPress={resetErrorBoundary}>
+      <Text style={styles.retryButtonText}>重试</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+// 测试类型定义
+type TestType = 'pre_test' | 'post_test';
+type TestActivity = 'listen' | 'translate' | 'spell' | 'pronounce';
+
+// 测试序列配置 - 可以根据单词属性动态调整
+const getTestSequence = (word: Word): TestActivity[] => {
+  // 这里可以根据单词的难度、历史表现等动态生成测试序列
+  // 目前使用固定序列：先翻译，再拼写
+  return ['translate', 'spell'];
+};
+
+// 测试类型到组件名称的映射
+const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
+  listen: ListenWord,
+  translate: TranslateEnToZh,
+  spell: TranslateEnToZh, // 暂时用翻译组件代替
+  pronounce: TranslateEnToZh, // 暂时用翻译组件代替
+};
+
+// 测试类型到活动类型的映射
+const testActivityTypeMap: Record<TestActivity, number> = {
+  listen: 1, // 听单词
+  translate: 2, // 英译中
+  spell: 4, // 拼写
+  pronounce: 5, // 跟读
+};
 
 export default function TestScreen() {
   const router = useRouter();
-  // Get route params
-  const { sessionId, type } = useLocalSearchParams<{ sessionId: string; type: string }>();
-  const { session, loading: sessionLoading, error: sessionError } = useDailyLearningStore();
+  const { sessionId, type } = useLocalSearchParams<{ 
+    sessionId: string; 
+    type: TestType 
+  }>();
+  
+  const { 
+    session, 
+    loading: sessionLoading, 
+    error: sessionError,
+    updateSessionProgress 
+  } = useDailyLearningStore();
 
-  // State for the current word being tested and the list of words for this phase
+  // 状态管理
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [wordList, setWordList] = useState<any[]>([]); // Use Word type later
+  const [currentTestIndex, setCurrentTestIndex] = useState(0);
+  const [wordList, setWordList] = useState<Word[]>([]);
+  const [testSequences, setTestSequences] = useState<TestActivity[][]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, any[]>>({});
 
-  // --- Fetch word list based on session and type ---
-  useEffect(() => {
-    const fetchWords = async () => {
+  // 获取当前单词
+  const currentWord = useMemo(() => {
+    return wordList[currentWordIndex] || null;
+  }, [wordList, currentWordIndex]);
+
+  // 获取当前测试序列
+  const currentTestSequence = useMemo(() => {
+    return testSequences[currentWordIndex] || [];
+  }, [testSequences, currentWordIndex]);
+
+  // 获取当前测试类型
+  const currentTestType = useMemo(() => {
+    return currentTestSequence[currentTestIndex] || null;
+  }, [currentTestSequence, currentTestIndex]);
+
+  // 获取当前测试组件
+  const CurrentTestComponent = useMemo(() => {
+    return currentTestType ? testComponentMap[currentTestType] : null;
+  }, [currentTestType]);
+
+  // 获取单词列表和测试序列
+  const fetchWordsAndTestSequences = useCallback(async () => {
+    try {
       if (!sessionId || !type || !session || session.$id !== sessionId) {
-        // Wait for session to load or ensure it matches the route
         setIsLoading(false);
         return;
       }
 
       let wordIds: string[] = [];
-      let progressField: 'pre_test_progress' | 'post_test_progress' | null = null;
 
       switch (type) {
         case 'pre_test':
           wordIds = session.pre_test_word_ids || [];
-          progressField = 'pre_test_progress';
           break;
         case 'post_test':
           wordIds = session.post_test_word_ids || [];
-          progressField = 'post_test_progress';
           break;
-        // Add 'learning' case if needed, though it might be different
         default:
-          console.error(`Unsupported test type: ${type}`);
+          setError(`不支持的测试类型: ${type}`);
           setIsLoading(false);
           return;
       }
 
       if (wordIds.length === 0) {
-        Alert.alert('提示', '没有找到需要评测的单词。');
-        router.back(); // Or navigate to a completion screen
+        Alert.alert('提示', '没有找到需要评测的单词。', [
+          {
+            text: '确定',
+            onPress: () => router.back(),
+          },
+        ]);
         return;
       }
 
-      // Fetch actual Word details from wordService using wordIds
+      // 获取单词详情
       const fetchedWords = await wordService.getWordsBySpellings(wordIds);
-
       setWordList(fetchedWords);
+      
+      // 为每个单词生成测试序列
+      const sequences = fetchedWords.map(word => getTestSequence(word));
+      setTestSequences(sequences);
+      
+      // 初始化进度
+      const progressField = type === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+      if (!session[progressField] || session[progressField]?.startsWith('0/')) {
+        updateSessionProgress(sessionId, { 
+          [progressField]: `0/${wordIds.length}` 
+        });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '获取单词列表失败');
+      console.error('获取单词列表失败:', err);
+    } finally {
       setIsLoading(false);
-
-      // --- Initialize progress in session if needed ---
-      // This could be done here or in the parent component when starting the phase
-      // const total = wordIds.length;
-      // if (session[progressField] === null || session[progressField]?.startsWith('0/')) {
-      //     useDailyLearningStore.getState().updateSessionProgress(sessionId, { [progressField]: `0/${total}` });
-      // }
-    };
-
-    fetchWords();
-  }, [sessionId, type, session]); // Re-run if sessionId, type, or session changes
-
-  // --- Handle answer submission from test components ---
-  const handleAnswer = (result: { type: string; correct: boolean; /* ...other data */ }) => {
-    // 1. Record the action in the log
-    // useDailyLearningStore.getState().recordWordAction({
-    //   userId: session?.user_id, // Get from store
-    //   wordId: wordList[currentWordIndex].$id,
-    //   sessionId: sessionId,
-    //   actionType: type === 'pre_test' ? 1 : 3, // 1=前置评测, 3=当日评测
-    //   phase: type === 'pre_test' ? 1 : 3,
-    //   activityType: getActivityType(result.type), // Map component type to activity type
-    //   isCorrect: result.correct,
-    //   responseTimeMs: result.responseTime, // If provided
-    //   speedUsed: result.speedUsed, // If provided
-    //   // ... other relevant data from result
-    // });
-
-    // 2. Update session progress
-    const total = wordList.length;
-    const nextIndex = currentWordIndex + 1;
-    const progressField = type === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
-    useDailyLearningStore.getState().updateSessionProgress(sessionId!, { [progressField]: `${nextIndex}/${total}` });
-
-    // 3. Move to next word or finish
-    if (nextIndex < wordList.length) {
-      setCurrentWordIndex(nextIndex);
-    } else {
-      // Finish test - update session status if needed, navigate back or show summary
-      console.log(`${type} finished for session ${sessionId}`);
-      Alert.alert('完成', `${type === 'pre_test' ? '前置评测' : '当日评测'}已完成！`);
-      // Update session status based on type
-      // if (type === 'pre_test') {
-      //   useDailyLearningStore.getState().updateSessionProgress(sessionId!, { status: 1 }); // Or 2 if learning starts immediately
-      // } else if (type === 'post_test') {
-      //   useDailyLearningStore.getState().updateSessionProgress(sessionId!, { status: 4 });
-      //   // TODO: Trigger creation of learning_record and learning_words
-      // }
-      router.back(); // Navigate back to today's main screen
-      // Or push to a summary screen: router.push(`/(tabs)/today/${sessionId}/summary`);
     }
-  };
+  }, [sessionId, type, session, updateSessionProgress, router]);
 
-  // --- Render the appropriate test component ---
-  const renderTestComponent = () => {
-    const currentWord = wordList[currentWordIndex];
-    if (!currentWord) return null;
+  // 加载单词列表和测试序列
+  useEffect(() => {
+    fetchWordsAndTestSequences();
+  }, []);
 
-    // TODO: Logic to determine the exact test type based on word history/level
-    // This is a simplified placeholder based on the route 'type' param
-    switch (type) {
-      case 'listen':
-        return <ListenWord word={currentWord} onAnswer={handleAnswer} />;
-      case 'translate':
-        return <TranslateEnToZh word={currentWord} onAnswer={handleAnswer} />;
-      // Add cases for other types like 'spelling', 'pronunciation'
-      default:
-        // Fallback or dynamic determination based on word.level/history
-        // For now, defaulting to a common test type
-        return <TranslateEnToZh word={currentWord} onAnswer={handleAnswer} />;
+  // 处理答题结果
+  const handleAnswer = useCallback((result: { 
+    type: string; 
+    correct: boolean; 
+    wordId: string;
+    responseTimeMs?: number;
+    selectedOption?: string;
+  }) => {
+    try {
+      // 1. 记录答题结果
+      const updatedResults = { ...testResults };
+      if (!updatedResults[currentWord.$id]) {
+        updatedResults[currentWord.$id] = [];
+      }
+      updatedResults[currentWord.$id].push(result);
+      setTestResults(updatedResults);
+      
+      // 2. 记录答题行为（这里可以添加日志记录逻辑）
+      // 例如: recordWordAction({ ... })
+      
+      // 3. 决定下一步：继续当前单词的下一个测试，还是移动到下一个单词
+      const nextTestIndex = currentTestIndex + 1;
+      
+      if (nextTestIndex < currentTestSequence.length) {
+        // 继续当前单词的下一个测试
+        setCurrentTestIndex(nextTestIndex);
+      } else {
+        // 当前单词的所有测试已完成
+        const nextWordIndex = currentWordIndex + 1;
+        const totalWords = wordList.length;
+        const progressField = type === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+        
+        // 更新会话进度
+        updateSessionProgress(sessionId!, { 
+          [progressField]: `${nextWordIndex}/${totalWords}` 
+        });
+        
+        if (nextWordIndex < totalWords) {
+          // 移动到下一个单词，重置测试索引
+          setCurrentWordIndex(nextWordIndex);
+          setCurrentTestIndex(0);
+        } else {
+          // 所有单词的所有测试都已完成
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          
+          Alert.alert(
+            '完成', 
+            `${type === 'pre_test' ? '前置评测' : '当日评测'}已完成！`,
+            [
+              {
+                text: '查看结果',
+                onPress: () => {
+                  // 导航到结果页面，传递测试结果
+                  router.push({
+                    pathname: `/(tabs)/today/${sessionId}/results`,
+                    params: { 
+                      type,
+                      results: JSON.stringify(testResults) 
+                    }
+                  });
+                },
+              },
+              {
+                text: '返回首页',
+                onPress: () => router.back(),
+              },
+            ]
+          );
+        }
+      }
+    } catch (err) {
+      console.error('处理答题结果失败:', err);
+      Alert.alert('错误', '处理答题结果时发生错误');
     }
-  };
+  }, [
+    wordList, 
+    currentWordIndex, 
+    currentTestIndex, 
+    currentTestSequence, 
+    type, 
+    sessionId, 
+    updateSessionProgress, 
+    router, 
+    testResults,
+    currentWord
+  ]);
 
-  // --- Render ---
+  // 处理暂停按钮点击
+  const handlePause = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      '暂停测试',
+      '您确定要暂停测试吗？您的进度将会保存。',
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+        {
+          text: '确定',
+          onPress: () => router.back(),
+        },
+      ]
+    );
+  }, [router]);
+
+  // 显示加载状态
   if (sessionLoading || isLoading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text>加载评测内容...</Text>
+        <ActivityIndicator size="large" color="#4A90E2" />
+        <Text style={styles.loadingText}>加载评测内容...</Text>
       </View>
     );
   }
 
-  if (sessionError) {
+  // 显示错误状态
+  if (sessionError || error) {
     return (
       <View style={styles.center}>
-        <Text>加载失败: {sessionError}</Text>
+        <Ionicons name="alert-circle" size={48} color="#FF3B30" />
+        <Text style={styles.errorText}>
+          加载失败: {sessionError || error}
+        </Text>
+        <TouchableOpacity 
+          style={styles.retryButton} 
+          onPress={fetchWordsAndTestSequences}
+        >
+          <Text style={styles.retryButtonText}>重试</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  if (wordList.length === 0 || !session) {
+  // 无数据状态
+  if (wordList.length === 0 || !session || !currentWord || !CurrentTestComponent) {
     return (
       <View style={styles.center}>
-        <Text>未找到评测内容。</Text>
+        <Ionicons name="document-text" size={48} color="#C5C5C7" />
+        <Text style={styles.emptyText}>未找到评测内容</Text>
+        <TouchableOpacity 
+          style={styles.retryButton} 
+          onPress={() => router.back()}
+        >
+          <Text style={styles.retryButtonText}>返回</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  const total = wordList.length;
-  const current = currentWordIndex + 1;
+  const totalWords = wordList.length;
+  const currentWordNumber = currentWordIndex + 1;
+  const totalTests = currentTestSequence.length;
+  const currentTestNumber = currentTestIndex + 1;
 
   return (
     <View style={styles.container}>
-      {/* Top Bar */}
+      {/* 顶部进度条 */}
       <View style={styles.topBar}>
-        <Text style={styles.progressText}>{current}/{total}</Text>
-        {/* { <TouchableOpacity onPress={() => {  HandlePause  }}>
-          <Text style={styles.pauseButton}>⏸️</Text>
-        </TouchableOpacity> } */}
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            单词 {currentWordNumber}/{totalWords}
+          </Text>
+          <Text style={styles.testProgressText}>
+            测试 {currentTestNumber}/{totalTests}
+          </Text>
+        </View>
+        <TouchableOpacity 
+          onPress={handlePause}
+          accessibilityLabel="暂停测试"
+          accessibilityHint="暂停当前测试并返回首页"
+        >
+          <Ionicons name="pause" size={24} color="#4A90E2" />
+        </TouchableOpacity>
       </View>
 
-      {/* Test Area */}
+      {/* 测试区域 */}
       <View style={styles.testArea}>
-        {renderTestComponent()}
+        <CurrentTestComponent 
+          word={currentWord} 
+          onAnswer={handleAnswer}
+          testType={currentTestType}
+        />
       </View>
-
-      {/* Bottom Controls (if needed, often handled by test components) */}
-      {/* <View style={styles.bottomControls}>
-        // Navigation or submit buttons if not handled by component
-      </View> */}
     </View>
   );
 }
 
-// Helper function to map component type to activity type (placeholder)
-// const getActivityType = (componentType: string): number => {
-//   switch(componentType) {
-//     case 'listen': return 1; // 听单词
-//     case 'translate': return 2; // 英译中
-//     case 'spell': return 4; // 拼写
-//     case 'pronounce': return 5; // 跟读
-//     default: return 10; // Default or unknown
-//   }
-// };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff', // White background for test screen
+    backgroundColor: '#FFFFFF',
   },
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#f0f0f0', // Light gray top bar
+    padding: 16,
+    backgroundColor: '#F8F9FA',
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    borderBottomColor: '#E9ECEF',
+  },
+  progressContainer: {
+    alignItems: 'flex-start',
   },
   progressText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    color: '#1A1A1A',
   },
-  pauseButton: {
-    fontSize: 20,
+  testProgressText: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 4,
   },
   testArea: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#FF3B30',
+    textAlign: 'center',
+  },
+  errorSubText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
