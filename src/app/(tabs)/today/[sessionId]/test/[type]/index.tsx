@@ -319,8 +319,6 @@ export default function TestScreen() {
 
   const totalWords = wordList.length;
   const currentWordNumber = currentWordIndex + 1;
-  const totalTests = currentTestSequence.length;
-  const currentTestNumber = currentTestIndex + 1;
 
   return (
     <View style={styles.container}>
@@ -329,9 +327,6 @@ export default function TestScreen() {
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
             单词 {currentWordNumber}/{totalWords}
-          </Text>
-          <Text style={styles.testProgressText}>
-            测试 {currentTestNumber}/{totalTests}
           </Text>
         </View>
         <TouchableOpacity 

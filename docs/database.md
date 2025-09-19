@@ -157,8 +157,26 @@ CREATE TABLE `user_word_action_log` (
 ) ENGINE=InnoDB COMMENT '用户单词行为日志表（记录每一次原子级交互，包括学习与评测）';
 ```
 
-## 9. 用户单词进度表（`user_word_progress`）
-记录用户对每个单词的掌握状态
+## 9. 用户单词历史评测等级表 (`user_word_test_history`)
+核心表，记录用户每次完整的评测（前置评测、当日评测）中，每个单词的等级变化或最终等级，并且能按日期查询。。
+```sql
+CREATE TABLE `user_word_test_history` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录唯一标识',
+  `user_id` BIGINT NOT NULL COMMENT '关联用户ID',
+  `word_id` BIGINT NOT NULL COMMENT '关联单词ID',
+  `test_date` DATE NOT NULL COMMENT '测试日期 (可从 session_id 关联的 session_date 获取)',
+  `phase` TINYINT NOT NULL COMMENT '测试阶段 (1=前置评测 (Pre-test), 3=当日评测 (Post-test))', -- 使用与 user_word_action_log.phase 一致的枚举
+  `test_level` TINYINT NULL COMMENT '本次测试结束后该单词的掌握等级 (对应 user_word_progress.current_level 在测试完成时的值)',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_word_session_phase` (`user_id`, `word_id`, `test_date`, `phase`), -- 确保每个用户在同一天中的同一阶段，一个单词只有一条记录
+  KEY `idx_user_date_phase` (`user_id`, `test_date`, `phase`),
+  CONSTRAINT `fk_uwth_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
+  CONSTRAINT `fk_uwth_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`),
+) ENGINE=InnoDB COMMENT='用户单词历史测试等级表 (记录每次前置/当日评测后单词的等级)';
+```
+
+## 10. 用户单词进度表（`user_word_progress`）
+核心表，记录用户对每个单词的掌握状态
 ```sql
 CREATE TABLE `user_word_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -177,7 +195,7 @@ CREATE TABLE `user_word_progress` (
 ) ENGINE=InnoDB COMMENT '用户单词掌握进度表';
 ```
 
-## 10. 学习记录表（`learning_record`）
+## 11. 学习记录表（`learning_record`）
 记录用户每日学习任务及测试结果。此表在“当日评测”完成后生成，用于归档最终结果。
 ```sql
 CREATE TABLE `learning_record` (
@@ -199,7 +217,7 @@ CREATE TABLE `learning_record` (
 ) ENGINE=InnoDB COMMENT '学习任务记录表（结果归档）';
 ```
 
-## 11. 学习单词关联表（`learning_word`）
+## 12. 学习单词关联表（`learning_word`）
 记录单次学习中包含的单词及其在不同阶段的成果。此表在 `learning_record` 生成后填充。
 ```sql
 CREATE TABLE `learning_word` (
@@ -220,7 +238,7 @@ CREATE TABLE `learning_word` (
 ) ENGINE=InnoDB COMMENT '学习-单词关联表（记录单次学习会话中，单词的最终等级变化）';
 ```
 
-## 12. 复习记录表（`review_record`）
+## 13. 复习记录表（`review_record`）
 记录用户复习行为及效果，并增加策略类型和FSRS评分字段。
 ```sql
 CREATE TABLE `review_record` (
@@ -242,7 +260,7 @@ CREATE TABLE `review_record` (
 ) ENGINE=InnoDB COMMENT '复习记录表';
 ```
 
-## 13. **FSRS复习调度表 (`fsrs_review_schedule`)**
+## 14. **FSRS复习调度表 (`fsrs_review_schedule`)**
 专用于FSRS算法，为每个用户-单词对动态计算下一次复习时间（仅记录最新状态）。
 ```sql
 CREATE TABLE `fsrs_review_schedule` (
@@ -264,7 +282,7 @@ CREATE TABLE `fsrs_review_schedule` (
 ) ENGINE=InnoDB COMMENT 'FSRS复习调度表，为每个用户-单词对记录当前状态和下一次复习时间';
 ```
 
-## 14. 发音评估记录表（`pronunciation_evaluation`）
+## 15. 发音评估记录表（`pronunciation_evaluation`）
 存储AI对用户发音的评估结果
 ```sql
 CREATE TABLE `pronunciation_evaluation` (
@@ -284,7 +302,7 @@ CREATE TABLE `pronunciation_evaluation` (
 ) ENGINE=InnoDB COMMENT '发音评估记录表';
 ```
 
-## 15. 词素关系表 (`morpheme_relation`)
+## 16. 词素关系表 (`morpheme_relation`)
 记录词素之间的衍生、变体、反义等关系，用于构建知识网络。
 ```sql
 CREATE TABLE `morpheme_relation` (
@@ -301,7 +319,7 @@ CREATE TABLE `morpheme_relation` (
 ) ENGINE=InnoDB COMMENT '词素关系网表';
 ```
 
-## 16. 自定义材料表（`custom_material`）
+## 17. 自定义材料表（`custom_material`）
 存储家长为单词添加的个性化记忆材料
 ```sql
 CREATE TABLE `custom_material` (
@@ -319,7 +337,7 @@ CREATE TABLE `custom_material` (
 ) ENGINE=InnoDB COMMENT '自定义记忆材料表';
 ```
 
-## 17. 文章表（`article`）
+## 18. 文章表（`article`）
 存储用户上传的OCR文章及提取的生词
 ```sql
 CREATE TABLE `article` (
@@ -335,7 +353,7 @@ CREATE TABLE `article` (
 ) ENGINE=InnoDB COMMENT '用户上传文章表';
 ```
 
-## 18. 水平评估表（`level_assessment`）
+## 19. 水平评估表（`level_assessment`）
 存储用户起始水平及定期评估结果
 ```sql
 CREATE TABLE `level_assessment` (
@@ -352,7 +370,7 @@ CREATE TABLE `level_assessment` (
 ) ENGINE=InnoDB COMMENT '水平评估记录表';
 ```
 
-## 19. 用户词素进度表 (`user_morpheme_progress`)
+## 20. 用户词素进度表 (`user_morpheme_progress`)
 记录用户对每个词根/词缀的掌握情况。
 ```sql
 CREATE TABLE `user_morpheme_progress` (

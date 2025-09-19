@@ -14,7 +14,8 @@ class UserService {
         role: 1,
         englishLevel: 1,
         grade: null,
-        learningMode: 1
+        learningMode: 1,
+        enableSpelling: false
       };
 
       return {
