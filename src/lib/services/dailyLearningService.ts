@@ -273,7 +273,7 @@ class DailyLearningService {
           Query.limit(mode.word_count) // Simplified limit
         ]
       });
-      const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.spelling);
+      const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.$id);
 
       const upgradeCandidates = userProgress.filter(p =>
         (p.current_level === 1 || p.current_level === 2) &&

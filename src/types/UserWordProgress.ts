@@ -12,3 +12,6 @@ export interface UserWordProgress {
   is_long_difficult: boolean; // 1=true, 0=false -> boolean
   // created_at and updated_at are usually handled by Appwrite
 }
+
+// Type for creating a new word process record (without Appwrite's $id)
+export type CreateUserWordProgress = Omit<UserWordProgress, '$id'>;

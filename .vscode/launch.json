@@ -2,6 +2,22 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug userWordService Test",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
+      "args": [
+        "__tests__/lib/services/userWordService.test.ts",
+        "--runInBand",
+        "--no-cache"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "windows": {
+        "program": "${workspaceFolder}/node_modules/jest/bin/jest.js"
+      }
+    },
+    {
       "name": "Debug Jest Tests",
       "type": "node",
       "request": "launch",

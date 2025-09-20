@@ -10,6 +10,7 @@ export const COLLECTION_USERS_PREFERENCES = 'user_preferences'; // user (prefere
 export const COLLECTION_LEARNING_MODES = 'learning_modes';
 export const COLLECTION_WORDS = 'words';
 export const COLLECTION_USER_WORD_PROGRESS = 'user_word_progress';
+export const COLLECTION_USER_WORD_TEST_HISTORY = 'user_word_test_history';
 export const COLLECTION_DAILY_LEARNING_SESSIONS = 'daily_learning_sessions'; // Updated from daily_words
 export const COLLECTION_USER_WORD_ACTION_LOG = 'user_word_action_log';
 export const COLLECTION_LEARNING_RECORDS = 'learning_records';

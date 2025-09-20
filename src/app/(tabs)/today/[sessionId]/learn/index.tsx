@@ -98,7 +98,7 @@ export default function LearnScreen() {
   const total = wordList.length;
   const current = currentWordIndex + 1;
   // Get user's preferred speed or default
-  const userSpeed = useAuthStore.getState().userPreferences?.pronunciation_preference === 1 ? 70 : 80; // Example logic
+  const userSpeed = useAuthStore.getState().userPreferences?.pronunciation === 1 ? 70 : 80; // Example logic
 
   return (
     <View style={styles.container}>
