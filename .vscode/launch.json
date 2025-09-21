@@ -2,12 +2,12 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug userWordService Test",
+      "name": "Debug wordService Test",
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
       "args": [
-        "__tests__/lib/services/userWordService.test.ts",
+        "__tests__/lib/services/wordService.test.ts",
         "--runInBand",
         "--no-cache"
       ],
