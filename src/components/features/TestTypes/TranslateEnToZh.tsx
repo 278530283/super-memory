@@ -166,15 +166,14 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({
     const sessionId = useDailyLearningStore.getState().session?.$id || null;
     const userId = useAuthStore.getState().user?.$id || 'unknown_user';
     actionLogService.logAction({
-      userId,
-      wordId: word.$id,
-      sessionId,
-      actionType: 1,
+      user_id:userId,
+      word_id: word.$id,
+      session_id:sessionId,
       phase: 1,
-      activityType: 2, // 英译中活动类型
-      isCorrect,
-      responseTimeMs,
-      speedUsed: 100,
+      action_type: 2, // 英译中活动类型
+      is_correct:isCorrect,
+      response_time_ms:responseTimeMs,
+      speed_used:100,
     });
 
     setShowFeedback({

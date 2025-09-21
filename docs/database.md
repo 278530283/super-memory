@@ -135,9 +135,8 @@ CREATE TABLE `user_word_action_log` (
   `user_id` bigint NOT NULL COMMENT '关联用户ID',
   `word_id` bigint NOT NULL COMMENT '关联单词ID',
   `session_id` bigint NULL COMMENT '关联的每日学习会话ID（快速复习时可为空）',
-  `action_type` tinyint NOT NULL COMMENT '行为大类 (1=前置评测, 2=学习阶段, 3=当日评测, 4=快速复习, 5=专项训练)',
-  `phase` tinyint NULL COMMENT '学习阶段 (1=前置评测, 2=学习阶段, 3=当日评测) — 仅当action_type为1,2,3时有效',
-  `activity_type` tinyint NOT NULL COMMENT '具体活动类型 
+  `phase` tinyint NOT NULL COMMENT '阶段 (1=前置评测, 2=学习阶段, 3=当日评测, 4=快速复习, 5=专项训练)',
+  `action_type` tinyint NOT NULL COMMENT '行为类型 
     -- 评测/测试类：
     (1=听单词, 2=英译中, 3=中译英, 4=拼写, 5=跟读, 6=词义匹配, 7=语境应用, 8=快速反应)
     -- 学习/吸收类：

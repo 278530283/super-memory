@@ -14,44 +14,46 @@ import {
 // 导入测试组件 (根据实际组件和 TestActivity 调整)
 import ListenWord from '@/src/components/features/TestTypes/ListenWord';
 import TranslateEnToZh from '@/src/components/features/TestTypes/TranslateEnToZh';
-// 导入其他测试组件 (如果需要)
-// import SpellingTest from '@/src/components/features/TestTypes/SpellingTest';
-// import PronunciationTest from '@/src/components/features/TestTypes/PronunciationTest';
 // 导入服务和存储
+import userWordService from '@/src/lib/services/userWordService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useTestStore } from '@/src/lib/stores/useTestStore';
+import { CreateUserWordTestHistory } from '@/src/types/UserWordTestHistory';
+import { Word } from '@/src/types/Word';
 
 // --- 类型定义 ---
 type TestType = 'pre_test' | 'post_test';
-// 与 useTestStore 中的 TestActivity 保持一致
-// 注意：这里的名称需要与从状态机状态值 (如 'flow1_transEn') 中解析出的活动名称匹配
-// 根据之前的讨论和 app/index.tsx，使用 transEn, transCh, spelling, pronunce, listen
-type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen';
+type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen'; // 与 store 保持一致
 
-// 测试类型到组件名称的映射 (根据实际组件和 TestActivity 调整)
+// 测试类型到组件名称的映射
 const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
   listen: ListenWord,
-  transEn: TranslateEnToZh, // 英译中
-  transCh: TranslateEnToZh, // 中译英 (如果使用)
-  spelling: TranslateEnToZh, // 拼写 (暂时用翻译组件代替)
-  pronunce: TranslateEnToZh, // 跟读 (暂时用翻译组件代替)
-  // 添加其他活动到组件的映射
+  transEn: TranslateEnToZh,
+  transCh: TranslateEnToZh,
+  spelling: TranslateEnToZh,
+  pronunce: TranslateEnToZh,
+};
+
+// 测试活动类型到数据库 test_type 数字的映射
+const testActivityTypeMap: Record<TestActivity, number> = {
+  listen: 1,
+  transEn: 2,
+  transCh: 3,
+  spelling: 4,
+  pronunce: 5,
 };
 
 export default function TestScreen() {
   const router = useRouter();
   const { sessionId, type } = useLocalSearchParams<{
     sessionId: string;
-    type: TestType; // 使用定义的类型
+    type: TestType;
   }>();
 
-  // --- 在组件顶层无条件调用所有 Hooks ---
-  // --- 从 useAuthStore 获取用户信息 ---
+  // --- 从 Hooks 获取原始状态 ---
   const { userPreferences: authUserPreferences, user: authAppwriteUser } = useAuthStore();
 
-  // --- 从 useDailyLearningStore 获取会话状态 ---
-  // ✅ 关键：在组件顶层无条件调用
   const {
     session,
     loading: sessionLoading,
@@ -59,18 +61,18 @@ export default function TestScreen() {
     updateSessionProgress
   } = useDailyLearningStore();
 
-  // --- 从 Zustand store 获取状态和 actions ---
+  // 从 useTestStore 获取所有原始状态
   const {
-    // 状态 (注意：selectors 是函数)
     wordList,
-    currentWord, // 这是一个函数，需要调用
-    currentTestActivity, // 这是一个函数，需要调用
+    currentWordIndex,
+    currentActorSnapshot,
     isLoading: storeIsLoading,
     error: storeError,
-    totalWords, // 这是一个函数，需要调用
-    currentWordNumber, // 这是一个函数，需要调用
-    isTestCompleted, // 这是一个函数，需要调用
-    // Actions
+    session: testStoreSession,
+    userPreferences: testStoreUserPreferences,
+    appwriteUser: testStoreAppwriteUser,
+    testType: testStoreTestType,
+    // 获取 Actions
     initializeTest,
     handleAnswer: storeHandleAnswer,
     nextWord,
@@ -78,36 +80,53 @@ export default function TestScreen() {
     reset: resetStore,
   } = useTestStore();
 
+  // --- 使用 useMemo 计算派生值 ---
+  const currentWordObj = useMemo<Word | null>(() => {
+    return wordList[currentWordIndex] || null;
+  }, [wordList, currentWordIndex]);
 
-  // 获取当前单词对象
-  const currentWordObj = useMemo(() => currentWord(), [currentWord]);
-  
-  // 获取当前测试活动类型
-  const currentTestActivityType = useMemo(() => currentTestActivity(), [currentTestActivity]);
-  
-  // 获取当前测试组件
-  const CurrentTestComponent = useMemo(() => {
+  const totalWordsCount = useMemo<number>(() => {
+    return wordList.length;
+  }, [wordList]);
+
+  const currentWordNum = useMemo<number>(() => {
+    return currentWordIndex + 1;
+  }, [currentWordIndex]);
+
+  const isTestFinished = useMemo<boolean>(() => {
+    return wordList.length > 0 && currentWordIndex >= wordList.length;
+  }, [wordList.length, currentWordIndex]);
+
+  const currentTestActivityType = useMemo<TestActivity | null>(() => {
+    if (!currentActorSnapshot) return null;
+
+    const stateValue = currentActorSnapshot.value;
+    if (typeof stateValue === 'string') {
+        const match = stateValue.match(/^flow\d+_(.+)$/);
+        if (match) {
+            const activityName = match[1] as TestActivity;
+            // 确保 activityName 在预定义的列表中
+            if (['transEn', 'transCh', 'spelling', 'pronunce', 'listen'].includes(activityName)) {
+                return activityName;
+            } else {
+                 console.warn(`[TestScreen] Unrecognized test activity from state: ${activityName}`);
+            }
+        }
+    }
+    return null;
+  }, [currentActorSnapshot]);
+
+  const CurrentTestComponent = useMemo<React.ComponentType<any> | null>(() => {
     return currentTestActivityType ? testComponentMap[currentTestActivityType] : null;
-  }, [currentTestActivityType]); // testComponentMap 是常量，不需要加入依赖
+  }, [currentTestActivityType]);
 
-  // 获取总单词数
-  const totalWordsCount = useMemo(() => totalWords(), [totalWords]);
-  
-  // 获取当前单词编号
-  const currentWordNum = useMemo(() => currentWordNumber(), [currentWordNumber]);
-  
-  // 获取测试是否完成
-  const isTestFinished = useMemo(() => isTestCompleted(), [isTestCompleted]);
-
-  // --- 初始化测试 (在组件挂载或参数变化时) ---
+  // --- Effects ---
   useEffect(() => {
     console.log('[TestScreen] useEffect triggered. sessionId:', sessionId, 'type:', type);
-    // 检查用户是否已认证
     if (!authUserPreferences || !authAppwriteUser) {
         console.log('[TestScreen] User not authenticated, redirecting...');
-        // 可以在这里导航到登录页面，或者依赖父级路由守卫
         Alert.alert('未登录', '请先登录以开始测试。', [
-            { text: '确定', onPress: () => router.replace('/login') } // 或其他登录路径
+            { text: '确定', onPress: () => router.replace('/login') }
         ]);
         return;
     }
@@ -116,14 +135,12 @@ export default function TestScreen() {
       console.log('[TestScreen] Calling initializeTest...');
       initializeTest(sessionId, type);
     }
-    // 清理函数：组件卸载时重置 store
     return () => {
       console.log('[TestScreen] Component unmounting, calling resetStore...');
       resetStore();
     };
-  }, [sessionId, type, initializeTest, resetStore, authUserPreferences, authAppwriteUser, router]); // 添加用户依赖
+  }, [sessionId, type, initializeTest, resetStore, authUserPreferences, authAppwriteUser, router]);
 
-  // --- 监听测试完成状态 ---
   useEffect(() => {
     if (isTestFinished && wordList.length > 0) {
       console.log('[TestScreen] Test completed detected.');
@@ -133,8 +150,8 @@ export default function TestScreen() {
         `${type === 'pre_test' ? '前置评测' : '当日评测'}已完成！`,
         [
           {
-            text: '查看结果', // 可以导航到结果页
-            onPress: () => router.back(), // 简化处理
+            text: '查看结果',
+            onPress: () => router.back(),
           },
           {
             text: '返回首页',
@@ -142,7 +159,6 @@ export default function TestScreen() {
           },
         ]
       );
-      // 更新最终进度 (如果需要)
       if (sessionId) {
           const progressField = type === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
           updateSessionProgress(sessionId, {
@@ -152,60 +168,69 @@ export default function TestScreen() {
     }
   }, [isTestFinished, wordList.length, type, router, sessionId, totalWordsCount, updateSessionProgress]);
 
-  // --- 处理答题结果 ---
+  // --- Handlers ---
   const handleAnswer = useCallback(async (result: {
-    type: string; // 组件传递的，通常可以忽略
+    type: string;
     correct: boolean;
     wordId: string;
     responseTimeMs?: number;
-    selectedOption?: string; // 组件传递的，通常可以忽略
+    selectedOption?: string;
   }) => {
     console.log('[TestScreen] handleAnswer called with result:', result);
 
-    // 1. 调用 store 的 handleAnswer action (发送事件、保存历史)
-    const wordForThisAnswer = currentWordObj; // 使用 useMemo 计算出的值
-    if (!wordForThisAnswer) {
+    if (!currentWordObj) {
         console.error('[TestScreen] No current word when handling answer.');
         setStoreError('处理答案时找不到当前单词');
         return;
     }
 
-    await storeHandleAnswer({
-      correct: result.correct,
-      wordId: result.wordId,
-      responseTimeMs: result.responseTimeMs
-    });
+    try {
+      // 1. 保存测试历史记录 (在 TestScreen 中处理，因为它需要解析当前活动类型)
+      const userId = authAppwriteUser?.$id;
+      const sessionPhase = type === 'pre_test' ? 1 : 3;
+      const testDate = new Date().toISOString().split('T')[0];
 
-    // 2. 检查状态机是否已到达最终状态 ('L*')
-    //    需要获取 handleAnswer 执行后的最新快照
-    const latestSnapshot = useTestStore.getState().currentActorSnapshot(); // 调用 selector 函数
-    const nextStateValue = latestSnapshot?.value;
-    console.log('[TestScreen] Checking next state after ANSWER:', nextStateValue);
+      if (userId && currentTestActivityType) {
+          const testTypeNumeric = testActivityTypeMap[currentTestActivityType];
+          if (testTypeNumeric !== undefined) {
+              const testData: CreateUserWordTestHistory = {
+                user_id: userId,
+                word_id: currentWordObj.$id,
+                test_date: testDate,
+                phase: sessionPhase,
+                test_level: 0,
+              };
+              console.log('[TestScreen] Saving test history before sending to actor:', testData);
+              await userWordService.upsertUserWordTestHistory(testData);
+              console.log('[TestScreen] Test history saved for word:', currentWordObj.$id, 'Activity:', currentTestActivityType);
+          } else {
+              console.warn(`[TestScreen] No test_type mapping for activity: ${currentTestActivityType}`);
+          }
+      } else {
+          console.warn('[TestScreen] Could not save test history: missing userId or currentTestActivityType');
+      }
 
-    if (typeof nextStateValue === 'string' && nextStateValue.startsWith('L')) {
-         // 状态机已结束当前单词的测试
-         console.log('[TestScreen] Final state detected, processing completion...');
+      // 2. 调用 store 的 handleAnswer action (发送事件给 actor)
+      await storeHandleAnswer({
+        correct: result.correct,
+        wordId: result.wordId,
+        responseTimeMs: result.responseTimeMs
+      });
+      console.log('[TestScreen] useTestStore.handleAnswer completed.');
 
-         // 3. (可选) 从快照中提取最终等级并再次保存进度 (Store 已尝试，这里再确认)
-         //    这部分逻辑已在 useTestStore.ts 的 handleAnswer 中处理。
-         let finalLevel: number | undefined =
-           latestSnapshot.context?.level ?? latestSnapshot.output?.level;
-         console.log('[TestScreen] Final level confirmed:', finalLevel);
+      // 3. 逻辑处理：由 useTestStore 内部的 subscribe 和 nextWord 处理
+      //    - subscribe 会监听 L* 状态并保存最终进度
+      //    - nextWord 会更新 currentWordIndex 并创建新 actor
+      //    - isTestFinished 会变为 true 并触发完成效果
 
-         // 4. 移动到下一个单词或结束测试
-         const { currentWordIndex: currentIndexAfterAnswer, wordList: wordListAfterAnswer } = useTestStore.getState();
-         if (currentIndexAfterAnswer + 1 < wordListAfterAnswer.length) {
-             console.log('[TestScreen] Moving to next word...');
-             nextWord(); // 调用 store 的 nextWord action
-         } else {
-             // 所有单词都已完成，isTestCompleted 会变为 true，由上面的 useEffect 处理
-             console.log('[TestScreen] All words completed.');
-         }
+    } catch (err) {
+       console.error('[TestScreen] Error in handleAnswer:', err);
+       Alert.alert('错误', '处理答题结果时发生错误');
     }
-    // 如果是 'flowX_*' 状态，则 UI 会自动更新以显示下一个测试，无需额外操作
-  }, [storeHandleAnswer, nextWord, currentWordObj, setStoreError]); // 依赖 currentWordObj 很重要
 
-  // --- 处理暂停按钮点击 ---
+  }, [storeHandleAnswer, currentWordObj, currentTestActivityType, authAppwriteUser, setStoreError, type]);
+
+
   const handlePause = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
@@ -224,8 +249,7 @@ export default function TestScreen() {
     );
   }, [router]);
 
-  // --- 显示加载状态 (结合外部 store 和内部 store 的 loading) ---
-  // ✅ 现在 sessionLoading 是直接从 useDailyLearningStore 获取的
+  // --- Rendering ---
   if (sessionLoading || storeIsLoading) {
     return (
       <View style={styles.center}>
@@ -235,8 +259,6 @@ export default function TestScreen() {
     );
   }
 
-  // --- 显示错误状态 (结合 store 和外部 store 的错误) ---
-  // ✅ 现在 sessionError 是直接从 useDailyLearningStore 获取的
   if (sessionError || storeError) {
     return (
       <View style={styles.center}>
@@ -259,9 +281,8 @@ export default function TestScreen() {
     );
   }
 
-  // --- 无数据状态 ---
   if (wordList.length === 0 || !session || !currentWordObj || !CurrentTestComponent) {
-    // 如果 store 加载完成但没有单词，可能是正常情况（如单词列表为空）
+    console.log('[TestScreen] Render check - wordList.length:', wordList.length, 'session:', !!session, 'currentWordObj:', !!currentWordObj, 'CurrentTestComponent:', !!CurrentTestComponent);
     if (!storeIsLoading) {
         return (
           <View style={styles.center}>
@@ -276,13 +297,11 @@ export default function TestScreen() {
           </View>
         );
     }
-    // 否则，仍在加载中，上面的 loading 状态会处理
     return null;
   }
 
   return (
     <View style={styles.container}>
-      {/* 顶部进度条 */}
       <View style={styles.topBar}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
@@ -297,13 +316,11 @@ export default function TestScreen() {
           <Ionicons name="pause" size={24} color="#4A90E2" />
         </TouchableOpacity>
       </View>
-      {/* 测试区域 */}
       <View style={styles.testArea}>
-        {/* 传递从状态机解析出的 currentTestActivity */}
         <CurrentTestComponent
-          word={currentWordObj} // 传递当前单词对象
+          word={currentWordObj}
           onAnswer={handleAnswer}
-          testType={currentTestActivityType} // 传递当前活动类型
+          testType={currentTestActivityType}
         />
       </View>
     </View>
@@ -311,7 +328,6 @@ export default function TestScreen() {
 }
 
 // ... styles 部分保持不变 ...
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,

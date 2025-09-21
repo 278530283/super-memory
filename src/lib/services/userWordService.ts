@@ -20,6 +20,7 @@ class UserWordService {
         queries: [
           Query.equal('user_id', userId),
           Query.equal('word_id', wordId),
+          Query.equal('phase', 1), // 仅查询 phase 1 的记录
           Query.orderAsc('test_date') // 按测评时间排序
         ]
       });
@@ -215,6 +216,72 @@ class UserWordService {
       throw error;
     }
   }
+
+  /**
+   * 根据 user_id 和 word_id 获取 UserWordProgress 记录
+   * @param userId 用户 ID
+   * @param wordId 单词 ID
+   * @returns Promise<UserWordProgress | null>
+   */
+  async getUserWordProgressByUserAndWord(userId: string, wordId: string): Promise<UserWordProgress | null> {
+    try {
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_PROGRESS,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.equal('word_id', wordId),
+          Query.limit(1) // 只需要一条记录
+        ]
+      });
+
+      if (response.rows.length === 0) {
+        return null;
+      }
+      return response.rows[0] as unknown as UserWordProgress;
+    } catch (error: any) {
+      // 如果是 404 错误，也视为未找到
+      if (error.code === 404) {
+        return null;
+      }
+      console.error("UserWordService.getUserWordProgressByUserAndWord error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 创建或更新 UserWordProgress (upsert)
+   * 如果存在 user_id 和 word_id 相同的记录，则更新；否则创建新记录。
+   * @param data 要创建或更新的数据 (不包含 $id)
+   * @returns Promise<UserWordProgress>
+   */
+  async upsertUserWordProgress(data: Partial<Omit<UserWordProgress,'$id'>>): Promise<UserWordProgress> { // 注意：这里假设 CreateUserWordProgress 不包含 $id
+    try {
+      // 1. 尝试查找现有记录 (基于 user_id 和 word_id)
+      const existingRecord = await this.getUserWordProgressByUserAndWord(data.user_id!, data.word_id!);
+
+      if (existingRecord) {
+        // 2a. 如果记录已存在，则更新 (排除 user_id 和 word_id，因为它们通常是不变的主键部分)
+        // 注意：需要定义 UpdateUserWordProgress 类型，排除 user_id, word_id, $id
+        // 这里假设 data 包含了所有需要更新的字段
+        const updateData: Partial<Omit<UserWordProgress, '$id' | 'user_id' | 'word_id'>> = {
+          current_level: data.current_level,
+          current_speed: data.current_speed,
+        };
+
+        console.log(`[UserWordService] Updating existing progress for user ${data.user_id}, word ${data.word_id}`);
+        return await this.updateUserWordProgress(existingRecord.$id, updateData);
+      } else {
+        // 2b. 如果记录不存在，则创建
+        console.log(`[UserWordService] Creating new progress for user ${data.user_id}, word ${data.word_id}`);
+        return await this.createUserWordProgress(data);
+      }
+    } catch (error) {
+      console.error("UserWordService.upsertUserWordProgress error:", error);
+      throw error;
+    }
+  }
+  
 }
 
 export default new UserWordService();
