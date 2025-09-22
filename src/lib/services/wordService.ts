@@ -25,21 +25,11 @@ class WordService {
       const response = await tablesDB.listRows({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, queries:[
         Query.equal('$id', wordIds)
       ]});
-      return response.rows as unknown as Word[];
-    } catch (error) {
-      console.error("WordService.getWordsByIds error:", error);
-      throw error;
-    }
-  }
-
-  async getWordsBySpellings(spellingIds: string[]): Promise<Word[]> {
-    if (spellingIds.length === 0) return [];
-    try {
-      // Appwrite Query.equal with array checks if the field value is IN the array
-      const response = await tablesDB.listRows({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, queries:[
-        Query.equal('spelling', spellingIds)
-      ]});
-      return response.rows as unknown as Word[];
+      let words = response.rows as unknown as Word[];
+      words.map(word => {
+        this.generateRandomOptions(word, 4);
+      });
+      return words;
     } catch (error) {
       console.error("WordService.getWordsByIds error:", error);
       throw error;
@@ -76,16 +66,15 @@ parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning:
 /**
  * 生成指定单词的随机选项（包括正确选项和错误选项）
  * @param correctWord 正确的 Word 对象
- * @param optionType 选项类型: 'en' 表示英文拼写, 'ch' 表示中文翻译
  * @param count 所需选项的总数量 (包括正确选项)
  * @returns Promise<WordOption[]> 包含选项对象的数组
  */
-async generateRandomOptions(correctWord: Word, optionType: 'en' | 'ch', count: number): Promise<WordOption[]> {
+async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
   try {
     // 1. 参数校验
     if (count <= 0) {
       console.warn('[WordService] Requested option count is <= 0, returning empty array.');
-      return [];
+      return correctWord;
     }
 
     const totalOptionsNeeded = count;
@@ -121,20 +110,13 @@ async generateRandomOptions(correctWord: Word, optionType: 'en' | 'ch', count: n
 
     // 5. 将选中的单词转换为 WordOption 对象
     let allOptions: WordOption[] = selectedWordsForOptions.map(word => {
-      if (optionType === 'en') {
-        return {
-          partOfSpeech: '', // 使用单词本身的词性
-          meaning: word.spelling,                     // 英文拼写作为含义
-          id: word.$id                               // 使用单词ID
-        };
-      } else { // optionType === 'ch'
         const parsed = this.parseChineseMeaning(word.chinese_meaning || '');
         return {
           partOfSpeech: parsed.partOfSpeech, // 解析出的词性
-          meaning: parsed.meaning,           // 解析出的含义
+          spelling: word.spelling,
+          chinese_meaning: parsed.meaning,           // 解析出的含义
           id: word.$id                      // 使用单词ID
         };
-      }
     });
 
     // 6. 随机打乱所有选项
@@ -142,13 +124,14 @@ async generateRandomOptions(correctWord: Word, optionType: 'en' | 'ch', count: n
     console.log(`[WordService] Generated and shuffled ${shuffledOptions.length} total options.`);
 
     // 7. 返回所需数量的选项
-    return shuffledOptions.slice(0, totalOptionsNeeded);
-
+    let options = shuffledOptions.slice(0, totalOptionsNeeded);
+    correctWord.options = options;
     // --- 简化逻辑结束 ---
+    return correctWord;
 
   } catch (error: any) {
-    console.error(`[WordService] generateRandomOptions error for word ${correctWord?.$id}, type ${optionType}, count ${count}:`, error);
-    return [];
+    console.error(`[WordService] generateRandomOptions error for word ${correctWord?.$id}, count ${count}:`, error);
+    return correctWord;
   }
 }
 }

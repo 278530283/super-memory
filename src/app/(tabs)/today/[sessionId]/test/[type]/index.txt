@@ -94,7 +94,6 @@ export default function TestScreen() {
   }, [currentWordIndex]);
 
   const isTestFinished = useMemo<boolean>(() => {
-    console.log('[TestScreen] isTestFinished computed. wordList.length:', wordList.length, 'currentWordIndex:', currentWordIndex);
     return wordList.length > 0 && currentWordIndex >= wordList.length;
   }, [wordList.length, currentWordIndex]);
 

@@ -139,8 +139,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
   // --- 内部 Helper: 为当前单词创建并启动 actor ---
   createActorForCurrentWord: async () => {
-    // 这确保了在创建新 actor 期间，UI 不会显示旧的快照内容
-    set({ isLoading: true, currentActorSnapshot: null }); 
     const { wordList, currentWordIndex, appwriteUser, session } = get();
     const currentWord = wordList[currentWordIndex];
 
@@ -207,13 +205,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
                             console.log('[TestStore] Saving user word progress for word:', wordId);
                             await userWordService.upsertUserWordProgress(progressData);
                             console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
-
-                            // --- 关键修改：在成功保存进度后，调用 nextWord ---
-                            console.log('[TestStore] Calling nextWord after saving progress for word:', wordId);
-                            // 使用 setTimeout 确保状态更新后再调用 nextWord
-                            setTimeout(() => {
-                              get().nextWord(); // 调用 store 的 nextWord action
-                            }, 0);
                         } catch (progressError: any) {
                              console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
                              set({ error: `保存单词 ${currentWord.spelling} 进度时出现问题` });
@@ -243,13 +234,11 @@ export const useTestStore = create<TestState>()((set, get) => ({
         console.error(`[TestStore] Failed to create actor for word ${wordId}:`, err);
         set({ error: `为单词 ${currentWord?.spelling || wordId} 创建测试时出错: ${err.message}` });
     }
-    // 确保加载状态被设置为 false
-    set({isLoading: false});
   },
 
   handleAnswer: async (result) => {
     console.log('[TestStore] handleAnswer called with result:', result);
-    const { currentActor, appwriteUser, session, testType } = get();
+    const { currentActor, appwriteUser, session } = get();
 
     if (!currentActor || !appwriteUser || !session) {
       const errorMsg = '[TestStore] Missing data for handling answer (actor, user, or session)';
@@ -259,7 +248,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     }
 
     const userId = appwriteUser.$id;
-    const phase = testType === 'pre_test' ? 1 : 2;
+    const phase = session.phase || 1;
     const testDate = new Date().toISOString().split('T')[0];
 
     try {
