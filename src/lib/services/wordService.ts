@@ -47,7 +47,7 @@ parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning:
     return { partOfSpeech: '', meaning: '' };
   }
   // 匹配第一个 "词性. 含义" 的部分
-  const match = chineseMeaning.match(/^(\w+)\.\s*(.+)$/);
+  const match = chineseMeaning.match(/^(\w+\.)\s*(.+)$/);
   if (match && match[1] && match[2]) {
     return {
       partOfSpeech: match[1], // 例如 'n'
@@ -124,8 +124,7 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     console.log(`[WordService] Generated and shuffled ${shuffledOptions.length} total options.`);
 
     // 7. 返回所需数量的选项
-    let options = shuffledOptions.slice(0, totalOptionsNeeded);
-    correctWord.options = options;
+    correctWord.options = shuffledOptions;
     // --- 简化逻辑结束 ---
     return correctWord;
 

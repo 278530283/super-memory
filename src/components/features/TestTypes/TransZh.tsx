@@ -1,4 +1,4 @@
-// src/components/features/today/TestTypes/TranslateEnToZh.tsx
+// src/components/features/today/TestTypes/TransZh.tsx
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -24,7 +24,7 @@ interface WordWithExtraInfo extends Word {
   example_sentence?: string;
 }
 
-interface TranslateEnToZhProps {
+interface TransZhProps {
   word: WordWithExtraInfo;
   onAnswer: (result: { 
     type: string; 
@@ -66,7 +66,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
   onSelect,
   testID
 }) => {
-  const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`;
+  const optionKey = `${option.partOfSpeech} ${option.spelling}`;
   
   const handlePress = useCallback(() => {
     onSelect(optionKey);
@@ -84,13 +84,13 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
       ]}
       onPress={handlePress}
       disabled={!!showFeedback}
-      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.chinese_meaning}`}
+      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.spelling}`}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
     >
       <Text style={styles.optionText}>
         <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
-        <Text style={styles.meaningText}>{option.chinese_meaning}</Text>
+        <Text style={styles.meaningText}>{option.spelling}</Text>
       </Text>
     </TouchableOpacity>
   );
@@ -99,7 +99,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ 
+const TransZh: React.FC<TransZhProps> = ({ 
   word, 
   onAnswer, 
   testType = 'translate' // 默认值为 'translate'
@@ -174,7 +174,7 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 单词 + 音标区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.spelling || 'property'}</Text>
+        <Text style={styles.wordText}>{word.chinese_meaning || 'property'}</Text>
         <Text style={styles.phoneticText}>
           美 {word.american_phonetic || '/prap rti/'}
         </Text>
@@ -188,7 +188,7 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options!.map((option, index) => {
-          const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`;
+          const optionKey = `${option.partOfSpeech} ${option.spelling}`;
           const isSelected = selectedOption === optionKey;
           const isCorrect = optionKey === correctOptionKey;
           
@@ -240,10 +240,10 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({
 };
 
 // 使用错误边界包装组件
-const TranslateEnToZhWithErrorBoundary: React.FC<TranslateEnToZhProps> = (props) => {
+const TransZhWithErrorBoundary: React.FC<TransZhProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <TranslateEnToZh {...props} />
+      <TransZh {...props} />
     </ErrorBoundary>
   );
 };
@@ -403,4 +403,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TranslateEnToZhWithErrorBoundary;
+export default TransZhWithErrorBoundary;

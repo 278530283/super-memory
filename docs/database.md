@@ -43,6 +43,7 @@ CREATE TABLE `word` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '单词唯一标识',
   `spelling` varchar(50) NOT NULL COMMENT '单词拼写（唯一）',
   `chinese_meaning` varchar(200) NOT NULL COMMENT '中文释义',
+  `chinese_meaning` varchar(200) NOT NULL COMMENT '中文释义',
   `syllable_count` int NOT NULL COMMENT '音节数',
   `is_abstract` tinyint NOT NULL DEFAULT 0 COMMENT '是否抽象词（1=是，0=否）',
   `letter_count` int NOT NULL COMMENT '字母总数',
