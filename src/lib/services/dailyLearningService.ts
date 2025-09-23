@@ -243,7 +243,6 @@ class DailyLearningService {
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [Query.equal('user_id', userId)]
-        // Add limit/pagination if needed
       });
       const userProgress: UserWordProgress[] = progressResponse.rows as unknown as UserWordProgress[];
 

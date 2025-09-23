@@ -101,7 +101,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
         set({ wordList: [], isLoading: false });
         return;
       }
-
+      console.log(`[TestStore] Found ${wordIds.length} words for test, fetching details...`, wordIds);
       console.log('[TestStore] Fetching words by ids...');
       const fetchedWords = await wordService.getWordsByIds(wordIds); // 确保使用正确的方法
       console.log(`[TestStore] Fetched ${fetchedWords.length} words.`);

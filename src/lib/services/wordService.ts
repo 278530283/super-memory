@@ -39,25 +39,36 @@ class WordService {
   // --- 新增的辅助函数 (如果之前没有) ---
 /**
  * 从中文翻译字符串中解析出词性和含义 (简化版)
- * @param chineseMeaning 中文翻译字符串，格式如 "n.苹果 v.动作"
+ * @param chineseMeaning 中文翻译字符串，格式如 "nn. 苹果 v. 动作 v./n. 玩"
  * @returns { partOfSpeech: string; meaning: string } 解析结果
  */
 parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning: string } => {
-  if (!chineseMeaning) {
+  if (!chineseMeaning?.trim()) {
     return { partOfSpeech: '', meaning: '' };
   }
-  // 匹配第一个 "词性. 含义" 的部分
-  const match = chineseMeaning.match(/^(\w+\.)\s*(.+)$/);
-  if (match && match[1] && match[2]) {
-    return {
-      partOfSpeech: match[1], // 例如 'n'
-      meaning: match[2].split(' ')[0] || match[2] // 取空格前的第一个词或整个含义部分，可根据需要调整
-    };
+  const trimmedMeaning = chineseMeaning.trim();
+  // 查找第一个点空格的位置
+  const dotSpaceIndex = trimmedMeaning.indexOf('. ');
+  if (dotSpaceIndex !== -1) {
+    // 词性部分：从开始到点空格之前的点（包括点）
+    let partOfSpeech = trimmedMeaning.substring(0, dotSpaceIndex + 1); // 包括点，但不包括空格
+    // 含义部分：从点空格之后开始
+    let meaningPart = trimmedMeaning.substring(dotSpaceIndex + 2); // 跳过点空格
+
+    // 检查词性部分是否只包含允许的字符（字母、点、斜杠）
+    if (/^[a-z./]+$/i.test(partOfSpeech)) {
+      // 如果含义部分还有下一个词性，我们可以尝试拆分，但这里我们简单取第一个空格前的词？不，含义可能包含空格。
+      // 我们暂时不处理，直接返回整个含义部分
+      return {
+        partOfSpeech: partOfSpeech,
+        meaning: meaningPart
+      };
+    }
   }
-  // 如果无法解析，返回默认值
+  // 如果没有点空格，返回整个字符串作为含义，词性为空
   return {
     partOfSpeech: '',
-    meaning: chineseMeaning
+    meaning: trimmedMeaning
   };
 };
 // ---------------------------------------

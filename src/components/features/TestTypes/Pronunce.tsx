@@ -85,7 +85,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
     >
       <Text style={styles.optionText}>
         <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
-        <Text style={styles.meaningText}>{option.chinese_meaning}</Text>
+        <Text style={styles.meaningText}> {option.chinese_meaning}</Text>
       </Text>
     </TouchableOpacity>
   );
