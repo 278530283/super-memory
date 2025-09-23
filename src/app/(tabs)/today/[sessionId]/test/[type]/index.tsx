@@ -12,8 +12,11 @@ import {
   View
 } from 'react-native';
 // 导入测试组件 (根据实际组件和 TestActivity 调整)
-import ListenWord from '@/src/components/features/TestTypes/ListenWord';
-import TranslateEnToZh from '@/src/components/features/TestTypes/TranslateEnToZh';
+import Listen from '@/src/components/features/TestTypes/Listen';
+import Pronunce from '@/src/components/features/TestTypes/Pronunce';
+import Spelling from '@/src/components/features/TestTypes/Spelling';
+import TransCh from '@/src/components/features/TestTypes/TransCh';
+import TransEn from '@/src/components/features/TestTypes/TransEn';
 // 导入服务和存储
 import userWordService from '@/src/lib/services/userWordService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
@@ -28,11 +31,11 @@ type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen'; 
 
 // 测试类型到组件名称的映射
 const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
-  listen: ListenWord,
-  transEn: TranslateEnToZh,
-  transCh: TranslateEnToZh,
-  spelling: TranslateEnToZh,
-  pronunce: TranslateEnToZh,
+  listen: Listen,
+  transEn: TransEn,
+  transCh: TransCh,
+  spelling: Spelling,
+  pronunce: Pronunce,
 };
 
 // 测试活动类型到数据库 test_type 数字的映射
@@ -309,13 +312,13 @@ export default function TestScreen() {
             单词 {currentWordNum}/{totalWordsCount}
           </Text>
         </View>
-        <TouchableOpacity
+        {<TouchableOpacity
           onPress={handlePause}
           accessibilityLabel="暂停测试"
           accessibilityHint="暂停当前测试并返回首页"
         >
           <Ionicons name="pause" size={24} color="#4A90E2" />
-        </TouchableOpacity>
+        </TouchableOpacity>}
       </View>
       <View style={styles.testArea}>
         <CurrentTestComponent

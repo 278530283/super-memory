@@ -1,6 +1,11 @@
-// src/components/features/today/TestTypes/TransZh.tsx
+// src/components/features/today/TestTypes/Listen.tsx
+import actionLogService from '@/src/lib/services/actionLogService';
+import useAuthStore from '@/src/lib/stores/useAuthStore';
+import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
+import { Word, WordOption } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech'; // 引入 expo-speech
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
@@ -13,19 +18,8 @@ import {
   View
 } from 'react-native';
 
-import actionLogService from '@/src/lib/services/actionLogService';
-import useAuthStore from '@/src/lib/stores/useAuthStore';
-import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
-import { Word, WordOption } from '@/src/types/Word';
-
-// 扩展 Word 类型，支持音标和例句
-interface WordWithExtraInfo extends Word {
-  american_phonetic?: string;
-  example_sentence?: string;
-}
-
-interface TransZhProps {
-  word: WordWithExtraInfo;
+interface ListenProps {
+  word: Word;
   onAnswer: (result: { 
     type: string; 
     correct: boolean; 
@@ -57,7 +51,6 @@ interface OptionCardProps {
   onSelect: (optionKey: string) => void;
   testID?: string;
 }
-
 const OptionCard: React.FC<OptionCardProps> = React.memo(({
   option,
   isSelected,
@@ -66,13 +59,11 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
   onSelect,
   testID
 }) => {
-  const optionKey = `${option.partOfSpeech} ${option.spelling}`;
-  
+  const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`;
   const handlePress = useCallback(() => {
     onSelect(optionKey);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [onSelect, optionKey]);
-
   return (
     <TouchableOpacity
       testID={testID}
@@ -84,22 +75,21 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
       ]}
       onPress={handlePress}
       disabled={!!showFeedback}
-      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.spelling}`}
+      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.chinese_meaning}`}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
     >
       <Text style={styles.optionText}>
         <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
-        <Text style={styles.meaningText}>{option.spelling}</Text>
+        <Text style={styles.meaningText}>{option.chinese_meaning}</Text>
       </Text>
     </TouchableOpacity>
   );
 });
-
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TransZh: React.FC<TransZhProps> = ({ 
+const Listen: React.FC<ListenProps> = ({ 
   word, 
   onAnswer, 
   testType = 'translate' // 默认值为 'translate'
@@ -109,6 +99,11 @@ const TransZh: React.FC<TransZhProps> = ({
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  // 新增状态：控制播放和播放计数
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playCount, setPlayCount] = useState(0);
+  const playIntervalRef = useRef<NodeJS.Timeout | null>(null); // 存储播放间隔定时器
+
   // 动画效果
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -117,6 +112,53 @@ const TransZh: React.FC<TransZhProps> = ({
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // 播放单词发音函数 (简化版)
+  const playWordSound = useCallback(async () => {
+    try {
+      setIsPlaying(true);
+      await Speech.speak(word.spelling || 'property', {
+        language: 'en-US',
+        rate: 0.9,
+        onDone: () => {
+          setIsPlaying(false);
+          // 在播放完成时增加计数
+          setPlayCount(prev => prev + 1);
+        },
+        onError: (error) => {
+          console.error('播放失败:', error);
+          setIsPlaying(false);
+          setPlayCount(prev => prev + 1); // 出错也增加计数，避免卡死
+        }
+      });
+    } catch (error) {
+      console.error('播放失败:', error);
+      setIsPlaying(false);
+      setPlayCount(prev => prev + 1); // 出错也增加计数，避免卡死
+    }
+  }, [word.spelling]);
+
+  // 自动播放单词3次
+  useEffect(() => {
+    // 如果组件已挂载且播放次数小于3次，则启动播放
+    if (playCount < 3) {
+      playWordSound(); // 启动第一次播放
+      
+      // 设置下一次播放的间隔（1500ms）
+      playIntervalRef.current = setTimeout(() => {
+        if (playCount < 2) { // 确保只播放3次
+          playWordSound(); // 启动下一次播放
+        }
+      }, 1500);
+    }
+
+    // 清理函数：组件卸载时清除定时器
+    return () => {
+      if (playIntervalRef.current) {
+        clearTimeout(playIntervalRef.current);
+      }
+    };
+  }, [playCount, playWordSound]); // 依赖 playCount 和 playWordSound
 
   const correctOptionKey = word.chinese_meaning; // 正确选项标识
   console.log('Correct option key:', correctOptionKey);
@@ -133,7 +175,6 @@ const TransZh: React.FC<TransZhProps> = ({
       return;
     }
     if (showFeedback) return;
-
     const isCorrect = selectedOption === correctOptionKey;
     const responseTimeMs = Date.now() - startTime;
     const result = {
@@ -143,7 +184,6 @@ const TransZh: React.FC<TransZhProps> = ({
       wordId: word.$id,
       responseTimeMs,
     };
-
     // 日志记录
     const sessionId = useDailyLearningStore.getState().session?.$id || null;
     const userId = useAuthStore.getState().user?.$id || 'unknown_user';
@@ -157,12 +197,10 @@ const TransZh: React.FC<TransZhProps> = ({
       response_time_ms:responseTimeMs,
       speed_used:100,
     });
-
     setShowFeedback({
       correct: isCorrect,
       message: isCorrect ? '✅ 正确！' : '❌ 再试试',
     });
-
     setTimeout(() => {
       onAnswer(result);
       setSelectedOption(null);
@@ -172,26 +210,23 @@ const TransZh: React.FC<TransZhProps> = ({
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* 单词 + 音标区域 */}
+      {/* 单词 + 音标区域 - 修改为播放指示器 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.chinese_meaning || 'property'}</Text>
-        <Text style={styles.phoneticText}>
-          美 {word.american_phonetic || '/prap rti/'}
-        </Text>
+        {/* 显示播放状态指示器 */}
+        <View style={styles.wordTextContainer}>
+          <Text style={styles.wordText}>{'*****'}</Text>
+        </View>
       </View>
-
       {/* 例句区域 */}
       <Text style={styles.exampleText}>
-        {word.example_sentence || 'Glitter is one of the properties of gold.'}
+        {'请听音频，选择正确的中文释义。'}
       </Text>
-
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options!.map((option, index) => {
-          const optionKey = `${option.partOfSpeech} ${option.spelling}`;
+          const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`;
           const isSelected = selectedOption === optionKey;
           const isCorrect = optionKey === correctOptionKey;
-          
           return (
             <OptionCard
               key={option.id}
@@ -205,7 +240,6 @@ const TransZh: React.FC<TransZhProps> = ({
           );
         })}
       </View>
-
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
@@ -218,7 +252,6 @@ const TransZh: React.FC<TransZhProps> = ({
       >
         <Text style={styles.submitButtonText}>提交</Text>
       </TouchableOpacity>
-
       {/* 答题反馈 */}
       {showFeedback && (
         <View style={styles.feedbackContainer}>
@@ -240,10 +273,10 @@ const TransZh: React.FC<TransZhProps> = ({
 };
 
 // 使用错误边界包装组件
-const TransZhWithErrorBoundary: React.FC<TransZhProps> = (props) => {
+const ListenWithErrorBoundary: React.FC<ListenProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <TransZh {...props} />
+      <Listen {...props} />
     </ErrorBoundary>
   );
 };
@@ -291,10 +324,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 20,
   },
+  wordTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   wordText: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#1A1A1A',
+    marginRight: 10, // 给播放指示器留点空间
+  },
+  playingIndicator: {
+    fontSize: 20, // 调整指示器大小
+    color: '#4A90E2', // 使用主题色
   },
   phoneticText: {
     fontSize: 16,
@@ -386,7 +429,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -50 }],
+    transform: [{ translateY: -30 }],
     zIndex: 10,
   },
   feedbackText: {
@@ -403,4 +446,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TransZhWithErrorBoundary;
+export default ListenWithErrorBoundary;

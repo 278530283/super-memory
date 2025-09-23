@@ -1,6 +1,16 @@
 {
-  "plugins": [
-    "expo-audio",
-    "expo-router"
-  ]
+	"name": "Super Memory",
+	"slug": "super-memory",
+	"version": "1.0.0",
+	"orientation": "portrait",
+	"scheme": "supermemory",
+	"platforms": [
+		"ios",
+		"android",
+		"web"
+	],
+	"plugins": [
+		"expo-audio",
+		"expo-router"
+	]
 }

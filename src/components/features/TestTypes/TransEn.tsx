@@ -1,4 +1,4 @@
-// src/components/features/today/TestTypes/TranslateEnToZh.tsx
+// src/components/features/today/TestTypes/TransEn.tsx
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,14 +18,9 @@ import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { Word, WordOption } from '@/src/types/Word';
 
-// 扩展 Word 类型，支持音标和例句
-interface WordWithExtraInfo extends Word {
-  american_phonetic?: string;
-  example_sentence?: string;
-}
 
-interface TranslateEnToZhProps {
-  word: WordWithExtraInfo;
+interface TransEnProps {
+  word: Word;
   onAnswer: (result: { 
     type: string; 
     correct: boolean; 
@@ -99,10 +94,10 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({ 
+const TransEn: React.FC<TransEnProps> = ({ 
   word, 
   onAnswer, 
-  testType = 'translate' // 默认值为 'translate'
+  testType = 'transEn'
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
@@ -240,10 +235,10 @@ const TranslateEnToZh: React.FC<TranslateEnToZhProps> = ({
 };
 
 // 使用错误边界包装组件
-const TranslateEnToZhWithErrorBoundary: React.FC<TranslateEnToZhProps> = (props) => {
+const TransEnWithErrorBoundary: React.FC<TransEnProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <TranslateEnToZh {...props} />
+      <TransEn {...props} />
     </ErrorBoundary>
   );
 };
@@ -403,4 +398,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TranslateEnToZhWithErrorBoundary;
+export default TransEnWithErrorBoundary;
