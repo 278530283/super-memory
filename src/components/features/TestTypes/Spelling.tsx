@@ -13,22 +13,7 @@ import {
   View
 } from 'react-native';
 
-import actionLogService from '@/src/lib/services/actionLogService';
-import useAuthStore from '@/src/lib/stores/useAuthStore';
-import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
-import { Word, WordOption } from '@/src/types/Word';
-
-interface SpellingProps {
-  word: Word;
-  onAnswer: (result: { 
-    type: string; 
-    correct: boolean; 
-    selectedOption: string; 
-    wordId: string; 
-    responseTimeMs?: number 
-  }) => void;
-  testType?: string; // 新增测试类型参数
-}
+import { TestTypeProps, WordOption } from '@/src/types/Word';
 
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
@@ -93,7 +78,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const Spelling: React.FC<SpellingProps> = ({ 
+const Spelling: React.FC<TestTypeProps> = ({ 
   word, 
   onAnswer, 
   testType = 'spelling'
@@ -137,20 +122,6 @@ const Spelling: React.FC<SpellingProps> = ({
       wordId: word.$id,
       responseTimeMs,
     };
-
-    // 日志记录
-    const sessionId = useDailyLearningStore.getState().session?.$id || null;
-    const userId = useAuthStore.getState().user?.$id || 'unknown_user';
-    actionLogService.logAction({
-      user_id:userId,
-      word_id: word.$id,
-      session_id:sessionId,
-      phase: 1,
-      action_type: 2, // 英译中活动类型
-      is_correct:isCorrect,
-      response_time_ms:responseTimeMs,
-      speed_used:100,
-    });
 
     setShowFeedback({
       correct: isCorrect,
@@ -234,7 +205,7 @@ const Spelling: React.FC<SpellingProps> = ({
 };
 
 // 使用错误边界包装组件
-const SpellingWithErrorBoundary: React.FC<SpellingProps> = (props) => {
+const SpellingWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <Spelling {...props} />

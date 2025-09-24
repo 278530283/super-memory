@@ -83,3 +83,16 @@ export enum SpeedSensitivity {
   MEDIUM = 2,     // 中
   HIGH = 3        // 高
 }
+
+export interface TestTypeProps {
+  word: Word;
+  onAnswer: (result: { 
+    type: string; 
+    correct: boolean; 
+    selectedOption: string; 
+    wordId: string; 
+    responseTimeMs?: number;
+    speedUsed?: number; // 新增速度使用参数
+  }) => void;
+  testType?: string; // 新增测试类型参数
+}

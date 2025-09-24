@@ -18,11 +18,9 @@ import Spelling from '@/src/components/features/TestTypes/Spelling';
 import TransCh from '@/src/components/features/TestTypes/TransCh';
 import TransEn from '@/src/components/features/TestTypes/TransEn';
 // 导入服务和存储
-import userWordService from '@/src/lib/services/userWordService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useTestStore } from '@/src/lib/stores/useTestStore';
-import { CreateUserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Word } from '@/src/types/Word';
 
 // --- 类型定义 ---
@@ -36,15 +34,6 @@ const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
   transCh: TransCh,
   spelling: Spelling,
   pronunce: Pronunce,
-};
-
-// 测试活动类型到数据库 test_type 数字的映射
-const testActivityTypeMap: Record<TestActivity, number> = {
-  listen: 1,
-  transEn: 2,
-  transCh: 3,
-  spelling: 4,
-  pronunce: 5,
 };
 
 export default function TestScreen() {
@@ -71,14 +60,9 @@ export default function TestScreen() {
     currentActorSnapshot,
     isLoading: storeIsLoading,
     error: storeError,
-    session: testStoreSession,
-    userPreferences: testStoreUserPreferences,
-    appwriteUser: testStoreAppwriteUser,
-    testType: testStoreTestType,
     // 获取 Actions
     initializeTest,
     handleAnswer: storeHandleAnswer,
-    nextWord,
     setError: setStoreError,
     reset: resetStore,
   } = useTestStore();
@@ -189,32 +173,7 @@ export default function TestScreen() {
     }
 
     try {
-      // 1. 保存测试历史记录 (在 TestScreen 中处理，因为它需要解析当前活动类型)
-      const userId = authAppwriteUser?.$id;
-      const sessionPhase = type === 'pre_test' ? 1 : 3;
-      const testDate = new Date().toISOString().split('T')[0];
-
-      if (userId && currentTestActivityType) {
-          const testTypeNumeric = testActivityTypeMap[currentTestActivityType];
-          if (testTypeNumeric !== undefined) {
-              const testData: CreateUserWordTestHistory = {
-                user_id: userId,
-                word_id: currentWordObj.$id,
-                test_date: testDate,
-                phase: sessionPhase,
-                test_level: 0,
-              };
-              console.log('[TestScreen] Saving test history before sending to actor:', testData);
-              await userWordService.upsertUserWordTestHistory(testData);
-              console.log('[TestScreen] Test history saved for word:', currentWordObj.$id, 'Activity:', currentTestActivityType);
-          } else {
-              console.warn(`[TestScreen] No test_type mapping for activity: ${currentTestActivityType}`);
-          }
-      } else {
-          console.warn('[TestScreen] Could not save test history: missing userId or currentTestActivityType');
-      }
-
-      // 2. 调用 store 的 handleAnswer action (发送事件给 actor)
+      // 调用 store 的 handleAnswer action (发送事件给 actor)
       await storeHandleAnswer({
         correct: result.correct,
         wordId: result.wordId,
@@ -222,17 +181,12 @@ export default function TestScreen() {
       });
       console.log('[TestScreen] useTestStore.handleAnswer completed.');
 
-      // 3. 逻辑处理：由 useTestStore 内部的 subscribe 和 nextWord 处理
-      //    - subscribe 会监听 L* 状态并保存最终进度
-      //    - nextWord 会更新 currentWordIndex 并创建新 actor
-      //    - isTestFinished 会变为 true 并触发完成效果
-
     } catch (err) {
        console.error('[TestScreen] Error in handleAnswer:', err);
        Alert.alert('错误', '处理答题结果时发生错误');
     }
 
-  }, [storeHandleAnswer, currentWordObj, currentTestActivityType, authAppwriteUser, setStoreError, type]);
+  }, [storeHandleAnswer, currentWordObj, setStoreError]);
 
 
   const handlePause = useCallback(() => {

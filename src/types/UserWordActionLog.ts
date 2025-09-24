@@ -11,5 +11,5 @@ export interface UserWordActionLog {
   is_correct?: boolean | null;
   response_time_ms?: number | null;
   study_duration_ms?: number | null;
-  speed_used: number; // Percentage
+  speed_used?: number; // Percentage
 }
