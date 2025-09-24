@@ -100,7 +100,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
       set({
         wordList: fetchedWords,
         currentWordIndex: 0,
-        isLoading: false,
         error: null,
         activityType: null,
         lastAnswerResult: null,
@@ -333,7 +332,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
                         };
                         console.log('[TestStore] Saving test history in final state:', testData);
                         try {
-                            await userWordService.createUserWordTestHistory(testData);
+                            await userWordService.upsertUserWordTestHistory(testData);
                             console.log('[TestStore] Test history saved for word:', wordId);
                         } catch (historyError: any) {
                             console.error('[TestStore] Failed to save user word test history for word:', wordId, historyError);
