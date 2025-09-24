@@ -44,17 +44,17 @@ export default function TodayLayout() {
           // 从 route.params 中获取 type 参数
           const { type } = route.params || {};
           
-          const titleMap: Record<string, string> = {
-            pre_test: "前置评测",
-            post_test: "当日评测",
-            listen: "听力测试",
-            translate: "翻译测试",
-          };
+          // const titleMap: Record<string, string> = {
+          //   pre_test: "前置评测",
+          //   post_test: "当日评测",
+          //   listen: "听力测试",
+          //   translate: "翻译测试",
+          // };
           
-          // 构建完整的标题
-          const subTitle = titleMap[type] || "单词评测";
+          // // 构建完整的标题
+          // const subTitle = titleMap[type] || "单词评测";
           return {
-            title: ` 今日学习 / ${subTitle}`, // 返回一个包含 title 字符串的对象
+            title: ` 今日学习`, // 返回一个包含 title 字符串的对象  ${subTitle}
           };
         }}
       />

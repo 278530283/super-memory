@@ -92,7 +92,7 @@ OptionCard.displayName = 'OptionCard';
 const Listen: React.FC<ListenProps> = ({ 
   word, 
   onAnswer, 
-  testType = 'translate' // 默认值为 'translate'
+  testType = 'listen'
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
@@ -199,7 +199,7 @@ const Listen: React.FC<ListenProps> = ({
     });
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '❌ 再试试',
+      message: isCorrect ? '✅ 正确！' : '错误！',
     });
     setTimeout(() => {
       onAnswer(result);

@@ -155,7 +155,7 @@ const TransEn: React.FC<TransEnProps> = ({
 
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '❌ 再试试',
+      message: isCorrect ? '✅ 正确！' : '错误！',
     });
 
     setTimeout(() => {
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -50 }],
+    transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackText: {

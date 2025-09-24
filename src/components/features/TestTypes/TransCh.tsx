@@ -1,4 +1,4 @@
-// src/components/features/today/TestTypes/TransZh.tsx
+// src/components/features/today/TestTypes/TransCh.tsx
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -19,7 +19,7 @@ import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { Word, WordOption } from '@/src/types/Word';
 
 
-interface TransZhProps {
+interface TransChProps {
   word: Word;
   onAnswer: (result: { 
     type: string; 
@@ -94,10 +94,10 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TransZh: React.FC<TransZhProps> = ({ 
+const TransCh: React.FC<TransChProps> = ({ 
   word, 
   onAnswer, 
-  testType = 'translate' // 默认值为 'translate'
+  testType = 'transCh'
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
@@ -155,7 +155,7 @@ const TransZh: React.FC<TransZhProps> = ({
 
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '❌ 再试试',
+      message: isCorrect ? '✅ 正确！' : '错误！',
     });
 
     setTimeout(() => {
@@ -235,10 +235,10 @@ const TransZh: React.FC<TransZhProps> = ({
 };
 
 // 使用错误边界包装组件
-const TransZhWithErrorBoundary: React.FC<TransZhProps> = (props) => {
+const TransChWithErrorBoundary: React.FC<TransChProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <TransZh {...props} />
+      <TransCh {...props} />
     </ErrorBoundary>
   );
 };
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -50 }],
+    transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackText: {
@@ -398,4 +398,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TransZhWithErrorBoundary;
+export default TransChWithErrorBoundary;

@@ -96,7 +96,7 @@ OptionCard.displayName = 'OptionCard';
 const Spelling: React.FC<SpellingProps> = ({ 
   word, 
   onAnswer, 
-  testType = 'translate' // 默认值为 'translate'
+  testType = 'spelling'
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
