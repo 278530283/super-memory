@@ -40,6 +40,7 @@ interface TestState {
   // --- 新增状态 ---
   activityType: number | null; // 存储当前 XState Actor 的活动类型
   lastAnswerResult: LastAnswerResult | null; // 存储上一次答题的详情
+  isTestFinished: boolean; // 测试是否完成
   // --- Actions (修改状态的方法) ---
   initializeTest: (sessionId: string, testType: TestType) => Promise<void>;
   handleAnswer: (result: { correct: boolean; wordId: string; responseTimeMs?: number; speedUsed?: number }) => Promise<void>;
@@ -48,6 +49,7 @@ interface TestState {
   reset: () => void;
   // 内部 helper，不暴露给外部组件
   createActorForCurrentWord: () => Promise<void>;
+  setIsLoading: (isLoading: boolean) => void;
 }
 
 // --- Store 实现 ---
@@ -63,6 +65,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
   // --- 新增初始状态 ---
   activityType: null,
   lastAnswerResult: null,
+  isTestFinished: false,
 
   // --- Actions ---
   initializeTest: async (sessionId, testType) => {
@@ -97,19 +100,23 @@ export const useTestStore = create<TestState>()((set, get) => ({
       console.log('[TestStore] Fetching words by ids...');
       const fetchedWords = await wordService.getWordsByIds(wordIds); // 确保使用正确的方法
       console.log(`[TestStore] Fetched ${fetchedWords.length} words.`);
+      const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+      const initialProgress = fetchedSession[progressField] || `0/${wordIds.length}`;
+      const initialIndex = +(initialProgress.split('/')[0]);
       set({
         wordList: fetchedWords,
-        currentWordIndex: 0,
+        currentWordIndex: initialIndex,
         error: null,
         activityType: null,
         lastAnswerResult: null,
       });
       // 初始化进度
       console.log('[TestStore] Initializing session progress...');
-      const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+      const sessionStatus = testType === 'pre_test' ? 1 : 3;
       if (!fetchedSession[progressField] || fetchedSession[progressField]?.startsWith('0/')) {
         useDailyLearningStore.getState().updateSessionProgress(sessionId, {
-          [progressField]: `0/${wordIds.length}`,
+          status: sessionStatus,
+          [progressField]: initialProgress,
         });
         console.log('[TestStore] Session progress initialized.');
       } else {
@@ -176,22 +183,27 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
   nextWord: () => {
     console.log('[TestStore] nextWord called.');
-    set((state) => {
-      const nextIndex = state.currentWordIndex + 1;
-      if (nextIndex < state.wordList.length) {
-        console.log(`[TestStore] Moving to word index ${nextIndex}.`);
-        return { currentWordIndex: nextIndex, activityType: null, lastAnswerResult: null }; // 移动到下一词时重置活动和答题结果
+    const { currentWordIndex, wordList } = get();
+    const nextIndex = currentWordIndex+1;
+    set(() => {
+      if (nextIndex < wordList.length) {
+        console.log('[TestStore] Moving to word index ', nextIndex);
+        // 移动到下一词时重置活动和答题结果，并 **立即设置 isLoading 为 true**
+        // 这确保了在 createActorForCurrentWord 完成之前，UI 保持加载状态
+        return { currentWordIndex: nextIndex, activityType: null, lastAnswerResult: null, isLoading: true };
       }
       console.log('[TestStore] No more words, test completed.');
-      return {};
+      // 如果没有更多单词，可以设置 isLoading 为 false，但这通常由 TestScreen 的 isTestFinished 逻辑处理
+      // return { isLoading: false }; // 可选，取决于是否需要明确设置
+      return { isTestFinished: true, activityType: null, lastAnswerResult: null, isLoading: false }; // 明确设置为 false，表示加载完成且无更多单词
     });
     // 在状态更新后，触发创建下一个单词的 actor
-    setTimeout(async () => {
-        const { currentWordIndex, wordList } = get();
-        if (currentWordIndex < wordList.length) {
-            await get().createActorForCurrentWord();
-        }
-    }, 0);
+    // createActorForCurrentWord 会负责加载过程，并在完成后将 isLoading 设置回 false
+    if (nextIndex < wordList.length) {
+      setTimeout(async () => {
+        await get().createActorForCurrentWord()
+      }, 100);
+    }
   },
 
   setError: (error) => {
@@ -228,13 +240,15 @@ export const useTestStore = create<TestState>()((set, get) => ({
   // --- 内部 Helper: 为当前单词创建并启动 actor ---
   createActorForCurrentWord: async () => {
     // 这确保了在创建新 actor 期间，UI 不会显示旧的快照内容
-    set({ isLoading: true, currentActorSnapshot: null, activityType: null, lastAnswerResult: null }); // 重置活动和答题详情
+    set({ isLoading: true, activityType: null, lastAnswerResult: null }); // 重置活动和答题详情
     const { session } = useDailyLearningStore.getState();
     const { user: appwriteUser } = useAuthStore.getState();
     const { wordList, currentWordIndex, testType } = get();
     const currentWord = wordList[currentWordIndex];
     if (!currentWord || !appwriteUser || !session) {
         console.error('[TestStore] Cannot create actor: Missing data (word, user, or session)');
+        // **关键修改：确保加载状态被设置为 false**
+        set({ isLoading: false, error: '无法创建测试：缺少单词、用户或会话数据' });
         return;
     }
     const userId = appwriteUser.$id;
@@ -311,7 +325,17 @@ export const useTestStore = create<TestState>()((set, get) => ({
                 if (finalLevel !== undefined && !isNaN(finalLevel)) {
                     (async () => {
                         // --- 关键修改：在最终状态 L* 时，先保存 UserWordTestHistory ---
-                        const { activityType, lastAnswerResult } = get();
+                        const { wordList, currentWordIndex, activityType, lastAnswerResult } = get();
+                        const isTestFinished = currentWordIndex == wordList.length -1;
+                        if(isTestFinished){
+                          console.log('[TestStore] Test finished. isTestFinished is true...');
+                          set({ isTestFinished: isTestFinished });
+                        }
+                        const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+                        useDailyLearningStore.getState().updateSessionProgress(session.$id, {
+                          [progressField]: `${currentWordIndex+1}/${wordList.length}`,
+                        });
+
                         if (!activityType) {
                             console.error('[TestStore] Cannot save history in final state: activityType is not set.');
                             set({ error: `保存单词 ${currentWord.spelling} 的测试历史时出现问题：活动类型未知` });
@@ -386,9 +410,15 @@ export const useTestStore = create<TestState>()((set, get) => ({
         console.error(`[TestStore] Failed to create actor for word ${wordId}:`, err);
         set({ error: `为单词 ${currentWord?.spelling || wordId} 创建测试时出错: ${err.message}` });
     }
-
-    // 确保加载状态被设置为 false
+    const {isLoading} = get();
+    console.log('[TestStore] Exiting createActor for isLoading:', isLoading);``
+    console.log('[TestStore] Exiting createActor for word:', wordId);
+    console.log('[TestStore] Entering wordList:', wordList.length);
+    // **关键修改：确保加载状态被设置为 false**
+    // 无论成功还是失败，都需要将 isLoading 设置为 false，以便 UI 可以继续
     set({isLoading: false});
   },
+
+  setIsLoading: (isLoading) => set({ isLoading: isLoading }),
 
 }));

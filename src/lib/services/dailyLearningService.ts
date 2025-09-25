@@ -12,6 +12,7 @@ import { LearningMode } from '@/src/types/LearningMode';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { ID, Query } from 'appwrite';
 import learningModeService from './learningModeService';
+import userService from './userService';
 
 class DailyLearningService {
   /**
@@ -233,8 +234,12 @@ class DailyLearningService {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
       // This would typically be passed in or fetched by the caller
-      // const userPrefs = await userService.getUserPreferences(userId);
+      const user = await userService.getUserPreferences();
+      if(user?.userId !== userId){
+        throw new Error("Invalid userId");
+      }
       const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
+
 
       // 2. Fetch User's Word Progress
       // This fetches ALL progress, which might be inefficient for large vocabularies.
@@ -253,34 +258,30 @@ class DailyLearningService {
       // Select words that need to be re-evaluated.
       // Example: Words at L1, L2, or L3 that haven't been tested recently.
       const preTestCandidates = userProgress.filter(p =>
-        (p.current_level === 1 || p.current_level === 2 || p.current_level === 3) &&
+        (p.current_level === 0 || p.current_level === 1 || p.current_level === 2 || p.current_level === 3) &&
         (!p.last_review_time || (new Date().getTime() - new Date(p.last_review_time).getTime()) > 24 * 60 * 60 * 1000) // e.g., not reviewed in last 24h
-      );
+      ).sort((a, b) => a.current_level - b.current_level);
 
       console.log("Pre-test candidates:", preTestCandidates); // Log candidates for debugging
 
-      const preTestWordIds = preTestCandidates.map(p => p.word_id).slice(0, mode.word_count); // Limit by mode
+      const learnedWordIds = preTestCandidates.map(p => p.word_id).slice(0, mode.word_count); // Limit by mode
 
       // --- Learning Words ---
       // Select a mix of new words and words for review/upgrade.
       // Example: New words (L0) + Words to upgrade (L1->L2, L2->L3)
+      // Query.limit(mode.word_count) // Simplified limit
       const newWordCandidatesResponse = await tablesDB.listRows({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_WORDS,
         queries: [
-          //Query.notContains('spelling', userProgress.map(p => p.wordId)), // Words NOT in user's progress (simplified)
-          Query.limit(mode.word_count) // Simplified limit
+          Query.notContains('$id', userProgress.map(p => p.$id)), // Words NOT in user's progress (simplified)
         ]
       });
-      const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.$id);
+      const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.$id).sort((a, b) => Math.random() - 0.5).slice(0, mode.word_count);
 
-      const upgradeCandidates = userProgress.filter(p =>
-        (p.current_level === 1 || p.current_level === 2) &&
-        p.last_learn_time && (new Date().getTime() - new Date(p.last_learn_time).getTime()) < 7 * 24 * 60 * 60 * 1000 // e.g., learned recently
-      );
-      const upgradeWordIds = upgradeCandidates.map(p => p.word_id).slice(0, mode.word_count / 2); // Limit upgrades
 
-      const learningWordIds = [...newWordIds, ...upgradeWordIds].slice(0, mode.word_count); // Combine and limit
+      const preTestWordIds = [...newWordIds, ...learnedWordIds]; // Combine and limit
+      const learningWordIds = [...preTestWordIds]; // Combine and limit
 
       // --- Post-test Words ---
       // Test words that were just learned or reviewed in this session.

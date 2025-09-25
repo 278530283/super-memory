@@ -6,9 +6,10 @@ class UserService {
   async getUserPreferences(): Promise<UserPreferences | null> {
     try {
       const user = await account.get();
-      const { prefs = {}, name } = user;
+      const { prefs = {}, name, $id } = user;
       
       const defaultPreferences: UserPreferences = {
+        userId: $id,
         nickname: name,
         pronunciation: 1,
         role: 1,

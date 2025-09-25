@@ -90,19 +90,19 @@ export default function TodayScreen() {
       case 'pre_test':
         if (status === 0) return '待开始';
         if (status === 1) return `进行中... ${progress || ''}`;
-        if (status >= 1) return '已完成 ✅';
+        if (status > 1) return '已完成 ✅';
         break;
       case 'learning':
         if (status < 1) return '等待中... (🔒)';
+        if (status === 2 && progress?.startsWith('0')) return '待开始';
         if (status === 2) return `进行中... ${progress || ''}`;
         if (status > 2) return '已完成 ✅';
-        if (status === 1) return '待开始';
         break;
       case 'post_test':
-        if (status < 2) return '等待中... (🔒)';
+        if (status < 3) return '等待中... (🔒)';
+        if (status === 3 && progress?.startsWith('0')) return '待开始';
         if (status === 3) return `进行中... ${progress || ''}`;
         if (status === 4) return '已完成 ✅'; // Show completed when session is done
-        if (status === 2 || status === 3) return '待开始';
         break;
     }
     return '未知状态';
@@ -114,9 +114,9 @@ export default function TodayScreen() {
       case 'pre_test':
         return true;
       case 'learning':
-        return session.status >= 1;
+        return session.status > 1;
       case 'post_test':
-        return session.status >= 2;
+        return session.status > 2;
       default:
         return false;
     }

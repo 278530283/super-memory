@@ -2,6 +2,7 @@
 // Based on `user` and `user_preferences` tables from database.md and architecture.md
 
 export interface UserPreferences {
+  userId: string;
   nickname: string;
   pronunciation: number; // 发音偏好 1=英式, 2=美式
   role: number; // 1=学生, 2=家长

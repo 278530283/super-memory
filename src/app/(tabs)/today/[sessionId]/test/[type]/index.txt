@@ -2,7 +2,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -59,7 +59,6 @@ export default function TestScreen() {
     currentWordIndex,
     currentActorSnapshot,
     isLoading: storeIsLoading,
-    isTestFinished,
     error: storeError,
     // 获取 Actions
     initializeTest,
@@ -68,9 +67,6 @@ export default function TestScreen() {
     reset: resetStore,
     setIsLoading: setIsLoading,
   } = useTestStore();
-
-  // 使用 useState 来存储当前活动类型
-  const [currentTestActivityType, setCurrentTestActivityType] = useState<TestActivity | null>(null);
 
   // --- 使用 useMemo 计算派生值 ---
   const currentWordObj = useMemo<Word | null>(() => {
@@ -85,32 +81,35 @@ export default function TestScreen() {
     return currentWordIndex + 1;
   }, [currentWordIndex]);
 
+  const isTestFinished = useMemo<boolean>(() => {
+    console.log('[TestScreen] isTestFinished computed. wordList.length:', wordList.length, 'currentWordIndex:', currentWordIndex);
+    return wordList.length > 0 && currentWordIndex >= wordList.length;
+  }, [wordList.length, currentWordIndex]);
 
-  useEffect(() => {
-    const stateValue = currentActorSnapshot?.value;
-    console.log('[TestScreen] currentTestActivity effect triggered. stateValue:', stateValue);
-    // 检查 value 是否存在且以 "flow" 开头
-    if (typeof stateValue === 'string' && stateValue.startsWith('flow')) {
+  const currentTestActivityType = useMemo<TestActivity | null>(() => {
+    if (!currentActorSnapshot) return null;
+
+    const stateValue = currentActorSnapshot.value;
+    if (typeof stateValue === 'string') {
         const match = stateValue.match(/^flow\d+_(.+)$/);
         if (match) {
             const activityName = match[1] as TestActivity;
             // 确保 activityName 在预定义的列表中
             if (['transEn', 'transCh', 'spelling', 'pronunce', 'listen'].includes(activityName)) {
-                console.log('[TestScreen] Setting activity:', activityName);
-                setCurrentTestActivityType(activityName);
-                return; // 成功设置后返回
+                return activityName;
             } else {
                  console.warn(`[TestScreen] Unrecognized test activity from state: ${activityName}`);
             }
-        } else {
-             console.warn(`[TestScreen] Could not match activity from state: ${stateValue}`);
         }
     }
-    // 因此，当 stateValue 不以 "flow" 开头时，currentTestActivityType 保持不变
-  }, [currentActorSnapshot?.value]); // 依赖 currentActorSnapshot.value
+    return null;
+  }, [currentActorSnapshot]);
 
   const CurrentTestComponent = useMemo<React.ComponentType<any> | null>(() => {
     console.log('[TestScreen] CurrentTestComponent computed. currentTestActivityType:', currentTestActivityType);
+    if (currentTestActivityType){
+      setIsLoading(false)
+    }
     return currentTestActivityType ? testComponentMap[currentTestActivityType] : null;
   }, [currentTestActivityType]);
 
@@ -154,10 +153,8 @@ export default function TestScreen() {
         ]
       );
       if (sessionId) {
-          const sessionStatus = type === 'pre_test' ? 2 : 4;
           const progressField = type === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
           updateSessionProgress(sessionId, {
-            status: sessionStatus,
             [progressField]: `${totalWordsCount}/${totalWordsCount}`
           });
       }
@@ -247,10 +244,10 @@ export default function TestScreen() {
     );
   }
 
-  if (wordList.length === 0 || !session || !currentWordObj || !CurrentTestComponent || isTestFinished) {
+  if (wordList.length === 0 || !session || !currentWordObj || !CurrentTestComponent) {
     console.log('[TestScreen] Render check - wordList.length:', wordList.length, 'session:', !!session, 'currentWordObj:', !!currentWordObj, 'CurrentTestComponent:', !!CurrentTestComponent);
-    if (!storeIsLoading && !isTestFinished) {
-        console.log('[TestScreen] Render check - sessionId:', sessionId, 'type:', type, 'isLoading:', storeIsLoading);
+    if (!storeIsLoading) {
+        console.log('[TestScreen] Render check - sessionId:', sessionId, 'type:', type);
         return (
           <View style={styles.center}>
             <Ionicons name="document-text" size={48} color="#C5C5C7" />
@@ -266,8 +263,7 @@ export default function TestScreen() {
     }
     return null;
   }
- 
-  console.timeLog('[TestScreen] Render Main Content ...');
+
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
