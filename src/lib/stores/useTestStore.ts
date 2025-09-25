@@ -366,11 +366,13 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
                         // --- 然后保存 UserWordProgress ---
                         try {
+                          const isLongDifficult = currentWord.spelling.length > 8 && currentWord.syllable_count >= 3;
                             const progressData: Partial<Omit<CreateUserWordProgress, '$id'>> = {
                               user_id: userId,
                               word_id: wordId,
                               current_level: finalLevel!,
                               current_speed: 50,
+                              is_long_difficult: isLongDifficult
                             };
                             console.log('[TestStore] Saving user word progress for word:', wordId);
                             await userWordService.upsertUserWordProgress(progressData);

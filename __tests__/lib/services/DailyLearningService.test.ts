@@ -148,7 +148,14 @@ describe('DailyLearningService Integration Tests', () => {
   });
 
   test.only('generateTodaysWordLists generates word lists', async () => {
-    
+    // 模拟学习模式数据
+    const mockLearningMode = {
+      $id: '1',
+      name: 'Standard Mode',
+      word_count: 10,
+      description: 'Standard learning mode'
+    };
+
     // 模拟用户进度数据
     const mockUserProgress: UserWordProgress[] = [
       {
@@ -191,9 +198,10 @@ describe('DailyLearningService Integration Tests', () => {
     ];
     
     // 设置模拟返回值
-    // jest.spyOn(tablesDB, 'listRows')
-    //   .mockResolvedValueOnce({ rows: mockUserProgress } as any) // 第一次调用 - 用户进度
-    //   .mockResolvedValueOnce({ rows: mockNewWords } as any); // 第二次调用 - 新单词
+    jest.spyOn(learningModeService, 'getLearningMode').mockResolvedValue(mockLearningMode as any);
+    jest.spyOn(tablesDB, 'listRows')
+      .mockResolvedValueOnce({ rows: mockUserProgress } as any) // 第一次调用 - 用户进度
+      .mockResolvedValueOnce({ rows: mockNewWords } as any); // 第二次调用 - 新单词
     
     const result = await dailyLearningService.generateTodaysWordLists(testUserId, testModeId);
 
@@ -210,11 +218,26 @@ describe('DailyLearningService Integration Tests', () => {
     expect(Array.isArray(result.post_test)).toBe(true);
     
     // 验证学习模式服务被调用
-    //expect(learningModeService.getLearningMode).toHaveBeenCalledWith(testModeId);
+    expect(learningModeService.getLearningMode).toHaveBeenCalledWith(testModeId);
     
     // 验证数据库查询被调用
-    // expect(tablesDB.listRows).toHaveBeenCalledTimes(2);
+    expect(tablesDB.listRows).toHaveBeenCalledTimes(2);
 
+    // 验证预测试单词包含符合条件的单词
+    // 只有超过24小时未复习的单词才会被选入预测试
+    expect(result.pre_test).toContain('word1'); // 2天前复习过，符合条件
+    expect(result.pre_test).toContain('word3'); // 从未复习过，符合条件
+    expect(result.pre_test).not.toContain('word2'); // 12小时前复习过，不符合条件
+
+    // 验证学习单词包含预测试单词和新单词
+    expect(result.learning).toEqual(expect.arrayContaining(result.pre_test));
+    expect(result.learning).toEqual(expect.arrayContaining(mockNewWords.map(w => w.$id)));
+
+    // 验证后测试单词与学习单词相同
+    expect(result.post_test).toEqual(result.learning);
+
+    // 清理模拟
+    jest.restoreAllMocks();
   });
 
   test('generateTodaysWordLists handles errors gracefully', async () => {
@@ -229,5 +252,34 @@ describe('DailyLearningService Integration Tests', () => {
       learning: [],
       post_test: []
     });
+
+    // 清理模拟
+    jest.restoreAllMocks();
+  });
+
+  test('generateTodaysWordLists handles empty progress and word lists', async () => {
+    // 模拟学习模式数据
+    const mockLearningMode = {
+      $id: '1',
+      name: 'Standard Mode',
+      word_count: 10,
+      description: 'Standard learning mode'
+    };
+
+    // 模拟空数据
+    jest.spyOn(learningModeService, 'getLearningMode').mockResolvedValue(mockLearningMode as any);
+    jest.spyOn(tablesDB, 'listRows')
+      .mockResolvedValueOnce({ rows: [] } as any) // 空用户进度
+      .mockResolvedValueOnce({ rows: [] } as any); // 空新单词
+    
+    const result = await dailyLearningService.generateTodaysWordLists(testUserId, testModeId);
+    
+    // 验证返回空数组
+    expect(result.pre_test).toEqual([]);
+    expect(result.learning).toEqual([]);
+    expect(result.post_test).toEqual([]);
+
+    // 清理模拟
+    jest.restoreAllMocks();
   });
 });

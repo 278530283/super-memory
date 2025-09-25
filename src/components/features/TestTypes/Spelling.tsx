@@ -1,6 +1,6 @@
 // src/components/features/today/TestTypes/Spelling.tsx
+import { TestTypeProps } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
@@ -9,11 +9,10 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
-
-import { TestTypeProps, WordOption } from '@/src/types/Word';
 
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
@@ -27,66 +26,17 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
   </View>
 );
 
-// 选项卡片组件
-interface OptionCardProps {
-  option: WordOption;
-  isSelected: boolean;
-  isCorrect: boolean;
-  showFeedback: { correct: boolean; message: string } | null;
-  onSelect: (optionKey: string) => void;
-  testID?: string;
-}
-
-const OptionCard: React.FC<OptionCardProps> = React.memo(({
-  option,
-  isSelected,
-  isCorrect,
-  showFeedback,
-  onSelect,
-  testID
-}) => {
-  const optionKey = `${option.partOfSpeech} ${option.spelling}`;
-  
-  const handlePress = useCallback(() => {
-    onSelect(optionKey);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [onSelect, optionKey]);
-
-  return (
-    <TouchableOpacity
-      testID={testID}
-      style={[
-        styles.optionCard,
-        isSelected && !showFeedback && styles.selectedOptionCard,
-        showFeedback && isCorrect && styles.correctOptionCard,
-        showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
-      ]}
-      onPress={handlePress}
-      disabled={!!showFeedback}
-      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.spelling}`}
-      accessibilityRole="button"
-      accessibilityState={{ selected: isSelected }}
-    >
-      <Text style={styles.optionText}>
-        <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
-        <Text style={styles.meaningText}> {option.spelling}</Text>
-      </Text>
-    </TouchableOpacity>
-  );
-});
-
-OptionCard.displayName = 'OptionCard';
-
 // 主组件
 const Spelling: React.FC<TestTypeProps> = ({ 
   word, 
   onAnswer, 
   testType = 'spelling'
 }) => {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState<string>(''); // 存储用户输入
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const inputRef = useRef<TextInput>(null); // 用于聚焦输入框
 
   // 动画效果
   useEffect(() => {
@@ -97,49 +47,53 @@ const Spelling: React.FC<TestTypeProps> = ({
     }).start();
   }, []);
 
-  const correctOptionKey = word.chinese_meaning; // 正确选项标识
-  console.log('Correct option key:', correctOptionKey);
+  // 正确的英文拼写
+  const correctSpelling = word.spelling;
+  console.log('Correct spelling:', correctSpelling);
 
-  const handleSelect = useCallback((optionKey: string) => {
-    if (showFeedback) return;
-    console.log('Selected option:', optionKey);
-    setSelectedOption(optionKey);
-  }, [showFeedback]);
+  const handleInputChange = useCallback((text: string) => {
+    setUserInput(text);
+  }, []);
 
   const handleSubmit = useCallback(() => {
-    if (!selectedOption) {
-      Alert.alert('请选择一个选项');
+    if (!userInput.trim()) {
+      Alert.alert('请输入英文拼写');
       return;
     }
-    if (showFeedback) return;
+    if (showFeedback) return; // 防止重复提交
 
-    const isCorrect = selectedOption === correctOptionKey;
+    // 不区分大小写比较
+    const isCorrect = userInput.trim().toLowerCase() === correctSpelling.toLowerCase();
     const responseTimeMs = Date.now() - startTime;
     const result = {
       type: testType, // 使用传入的 testType
-      correct: isCorrect,
-      selectedOption,
-      wordId: word.$id,
-      responseTimeMs,
+      correct: isCorrect, // 是否正确
+      userAnswer: userInput.trim(), // 用户的输入
+      wordId: word.$id, // 传递 word 的 ID
+      responseTimeMs, // 反应时间
     };
 
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '❌ 再试试',
+      message: isCorrect ? '✅ 正确！' : `❌ 再试试`,
     });
 
     setTimeout(() => {
       onAnswer(result);
-      setSelectedOption(null);
+      setUserInput(''); // 清空输入
       setShowFeedback(null);
-    }, 1500);
-  }, [selectedOption, showFeedback, startTime, word, onAnswer, testType, correctOptionKey]);
+      // 可选：提交后重新聚焦输入框
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 1500); // 延迟 1.5 秒后继续
+  }, [userInput, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* 单词 + 音标区域 */}
+      {/* 中文意思区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.chinese_meaning || 'property'}</Text>
+        <Text style={styles.wordText}>{word.chinese_meaning || '中文意思'}</Text>
         <Text style={styles.phoneticText}>
           美 {word.american_phonetic || '/prap rti/'}
         </Text>
@@ -147,39 +101,36 @@ const Spelling: React.FC<TestTypeProps> = ({
 
       {/* 例句区域 */}
       <Text style={styles.exampleText}>
-        {word.example_sentence || 'Glitter is one of the properties of gold.'}
+        {word.example_sentence?.replace(word.spelling, '***') || 'Glitter is one of the properties of gold.'}
       </Text>
 
-      {/* 选项区域 */}
-      <View style={styles.optionsGrid}>
-        {word.options!.map((option, index) => {
-          const optionKey = `${option.partOfSpeech} ${option.spelling}`;
-          const isSelected = selectedOption === optionKey;
-          const isCorrect = optionKey === correctOptionKey;
-          
-          return (
-            <OptionCard
-              key={option.id}
-              option={word.options![index]}
-              isSelected={isSelected}
-              isCorrect={isCorrect}
-              showFeedback={showFeedback}
-              onSelect={handleSelect}
-              testID={`option-${index}`}
-            />
-          );
-        })}
+      {/* 拼写输入区域 */}
+      <View style={styles.inputContainer}>
+        <TextInput
+          ref={inputRef}
+          style={styles.textInput}
+          value={userInput}
+          onChangeText={handleInputChange}
+          placeholder="请输入英文拼写..."
+          placeholderTextColor="#C5C5C7"
+          autoCapitalize="none" // 关闭自动大写
+          autoCorrect={false}   // 关闭自动更正
+          // 可选：指定键盘类型
+          // keyboardType="ascii-capable"
+          // 可选：在输入框下方显示正确答案提示（仅在 showFeedback 时）
+          // editable={!showFeedback}
+        />
       </View>
 
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!selectedOption || showFeedback) && styles.submitButtonDisabled]}
+        style={[styles.submitButton, (!userInput.trim() || showFeedback) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
-        disabled={!selectedOption || !!showFeedback}
+        disabled={!userInput.trim() || !!showFeedback}
         accessibilityLabel="提交答案"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !selectedOption || !!showFeedback }}
+        accessibilityState={{ disabled: !userInput.trim() || !!showFeedback }}
       >
         <Text style={styles.submitButtonText}>提交</Text>
       </TouchableOpacity>
@@ -187,11 +138,11 @@ const Spelling: React.FC<TestTypeProps> = ({
       {/* 答题反馈 */}
       {showFeedback && (
         <View style={styles.feedbackContainer}>
-          <Ionicons 
+          {/* <Ionicons 
             name={showFeedback.correct ? "checkmark-circle" : "close-circle"} 
             size={32} 
             color={showFeedback.correct ? "#28A745" : "#DC3545"} 
-          />
+          /> */}
           <Text style={[
             styles.feedbackText,
             showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
@@ -275,58 +226,41 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: 'left',
   },
-  optionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 80,
-    rowGap: 12,
-  },
-  optionCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+  inputContainer: {
+    // 可选：为输入框添加背景色或边框
+    // backgroundColor: '#F8F9FA',
+    // borderWidth: 1,
     borderColor: '#E0E0E0',
     borderRadius: 8,
-    padding: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 20, // 与下面的提交按钮保持距离
+  },
+  textInput: {
+    fontSize: 18,
+    height: 50,
+    borderColor: '#E0E0E0',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    backgroundColor: '#FFFFFF',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: '#d0bebeff',
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
-        shadowRadius: 4,
+        shadowRadius: 2,
       },
       android: {
-        elevation: 2,
+        elevation: 12,
       },
     }),
   },
-  selectedOptionCard: {
-    borderColor: '#4A90E2',
-    backgroundColor: '#F0F8FF',
-  },
-  correctOptionCard: {
-    borderColor: '#28A745',
-    backgroundColor: '#F8FFF8',
-  },
-  incorrectOptionCard: {
-    borderColor: '#DC3545',
-    backgroundColor: '#FFF8F8',
-  },
-  optionText: {
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'left',
-  },
-  partOfSpeechText: {
-    color: '#4A90E2',
-    fontWeight: '500',
-    marginRight: 4,
-  },
-  meaningText: {
-    color: '#333333',
-    flexShrink: 1,
-  },
+  // 选项网格样式已移除
+  // optionsGrid: { ... },
+  // optionCard: { ... },
+  // ... (其他已移除的样式)
+
   submitButton: {
     position: 'absolute',
     bottom: 20,
@@ -351,7 +285,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -50 }],
+    transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackText: {

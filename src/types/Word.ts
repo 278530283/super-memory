@@ -89,7 +89,7 @@ export interface TestTypeProps {
   onAnswer: (result: { 
     type: string; 
     correct: boolean; 
-    selectedOption: string; 
+    userAnswer: string; 
     wordId: string; 
     responseTimeMs?: number;
     speedUsed?: number; // 新增速度使用参数

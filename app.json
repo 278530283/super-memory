@@ -10,7 +10,6 @@
 		"web"
 	],
 	"plugins": [
-		"expo-audio",
 		"expo-router"
 	]
 }

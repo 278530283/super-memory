@@ -27,7 +27,7 @@ class WordService {
       ]});
       let words = response.rows as unknown as Word[];
       words.map(word => {
-        this.generateRandomOptions(word, 4);
+        this.generateRandomOptions(word, 6);
       });
       return words;
     } catch (error) {

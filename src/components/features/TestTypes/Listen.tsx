@@ -165,7 +165,7 @@ const Listen: React.FC<TestTypeProps> = ({
     const result = {
       type: testType, // 使用传入的 testType
       correct: isCorrect,
-      selectedOption,
+      userAnswer: selectedOption,
       wordId: word.$id,
       responseTimeMs,
       speedUsed:50
@@ -173,7 +173,7 @@ const Listen: React.FC<TestTypeProps> = ({
     
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '错误！',
+      message: isCorrect ? '✅ 正确！' : '❌ 错误！',
     });
     
     setTimeout(() => {
@@ -230,11 +230,6 @@ const Listen: React.FC<TestTypeProps> = ({
       {/* 答题反馈 */}
       {showFeedback && (
         <View style={styles.feedbackContainer}>
-          <Ionicons 
-            name={showFeedback.correct ? "checkmark-circle" : "close-circle"} 
-            size={32} 
-            color={showFeedback.correct ? "#28A745" : "#DC3545"} 
-          />
           <Text style={[
             styles.feedbackText,
             showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
@@ -400,11 +395,11 @@ const styles = StyleSheet.create({
   },
   feedbackContainer: {
     position: 'absolute',
-    top: '50%',
+    top: '70%',
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -30 }],
+    transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackText: {

@@ -234,12 +234,7 @@ class DailyLearningService {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
       // This would typically be passed in or fetched by the caller
-      const user = await userService.getUserPreferences();
-      if(user?.userId !== userId){
-        throw new Error("Invalid userId");
-      }
       const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
-
 
       // 2. Fetch User's Word Progress
       // This fetches ALL progress, which might be inefficient for large vocabularies.

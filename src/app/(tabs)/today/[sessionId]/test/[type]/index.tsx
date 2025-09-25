@@ -12,7 +12,6 @@ import {
   View
 } from 'react-native';
 // 导入测试组件 (根据实际组件和 TestActivity 调整)
-import Listen from '@/src/components/features/TestTypes/Listen';
 import Pronunce from '@/src/components/features/TestTypes/Pronunce';
 import Spelling from '@/src/components/features/TestTypes/Spelling';
 import TransCh from '@/src/components/features/TestTypes/TransCh';
@@ -29,7 +28,7 @@ type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen'; 
 
 // 测试类型到组件名称的映射
 const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
-  listen: Listen,
+  listen: Pronunce,
   transEn: TransEn,
   transCh: TransCh,
   spelling: Spelling,
