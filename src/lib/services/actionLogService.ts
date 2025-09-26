@@ -10,6 +10,16 @@ class ActionLogService {
    * @param actionLog 
    */
   async logAction(actionLog: Omit<UserWordActionLog, '$id'>): Promise<void> {
+    console.log("Logging action for word:", actionLog.word_id, "Action Type:", actionLog.action_type);
+    // check response time no more than 1 hour
+    // if so, set it to 1 hour
+    if (actionLog.response_time_ms && actionLog.response_time_ms > 3600000) {
+      actionLog.response_time_ms = 3600000;
+    }
+    if(actionLog.study_duration_ms && actionLog.study_duration_ms > 3600000){
+      actionLog.study_duration_ms = 3600000;
+    }
+
     try {
       await tablesDB.createRow({
         databaseId:DATABASE_ID,

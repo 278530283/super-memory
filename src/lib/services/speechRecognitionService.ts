@@ -1,19 +1,20 @@
 // src/lib/services/speechRecognitionService.ts
+import baiduAIService from '@/src/lib/services/baiduAIService';
 import { Audio } from 'expo-av';
 import { AndroidAudioEncoder, AndroidOutputFormat, IOSAudioQuality, IOSOutputFormat } from 'expo-av/build/Audio';
-
-// 模拟语音识别的延迟时间（毫秒）
-const SIMULATED_RECOGNITION_DELAY = 1500;
+import { File } from 'expo-file-system';
 
 // 定义识别结果类型
 interface RecognitionResult {
   recognizedText: string;
   confidence?: number; // 如果识别库支持置信度
+  similarityScore?: number; // 添加相似度分数
+  isCorrect?: boolean; // 添加是否正确的判断
 }
 
 // 配置对象（如果需要）
 interface RecognitionConfig {
-  // language?: string; // 例如 'en-US'
+  language?: string; // 例如 'en-US'
   // ... 其他配置项
 }
 
@@ -48,6 +49,9 @@ const RECORDING_OPTIONS: Audio.RecordingOptions = {
 class SpeechRecognitionService {
   private recording: Audio.Recording | null = null;
   private isRecording: boolean = false;
+  private recordingUri: string | null = null; // <--- 新增：保存录音 URI
+  private playbackObject: Audio.Sound | null = null; // <--- 新增：用于播放
+  private isPlaying: boolean = false; // <--- 新增：跟踪播放状态
 
   /**
    * 开始录音
@@ -75,6 +79,8 @@ class SpeechRecognitionService {
       const { recording } = await Audio.Recording.createAsync(RECORDING_OPTIONS);
       this.recording = recording;
       this.isRecording = true;
+      // 重置 URI，因为新的录音会覆盖旧的
+      this.recordingUri = null;
       console.log('[SpeechRecognitionService] Recording started.');
     } catch (error) {
       console.error('[SpeechRecognitionService] Failed to start recording:', error);
@@ -99,6 +105,9 @@ class SpeechRecognitionService {
       const uri = this.recording.getURI();
       console.log('[SpeechRecognitionService] Recording stopped. URI:', uri);
 
+      // 保存 URI
+      this.recordingUri = uri;
+
       // 重置状态
       this.recording = null;
       this.isRecording = false;
@@ -117,50 +126,132 @@ class SpeechRecognitionService {
   }
 
   /**
-   * 模拟语音识别过程
+   * 使用百度ASR API识别语音，并与正确答案进行相似度比较
    * @param audioUri 音频文件 URI
+   * @param correctSpelling 正确的拼写（用于相似度比较）
    * @param config 识别配置（可选）
    * @returns Promise<RecognitionResult>
    */
-  async recognizeSpeech(audioUri: string | null, config?: RecognitionConfig): Promise<RecognitionResult> {
+  async recognizeSpeech(audioUri: string | null, correctSpelling: string, config?: RecognitionConfig): Promise<RecognitionResult> {
     if (!audioUri) {
       console.log('[SpeechRecognitionService] No audio URI provided for recognition.');
       return { recognizedText: '' };
     }
 
+    if (!correctSpelling) {
+        console.log('[SpeechRecognitionService] No correct spelling provided for similarity check.');
+        return { recognizedText: '' };
+    }
+
     console.log('[SpeechRecognitionService] Recognizing speech from URI:', audioUri);
-    // --- 模拟识别延迟 ---
-    await new Promise(resolve => setTimeout(resolve, SIMULATED_RECOGNITION_DELAY));
+    console.log('[SpeechRecognitionService] Comparing against correct spelling:', correctSpelling);
 
-    // --- 模拟识别结果 ---
-    // 在实际应用中，这里应该调用真实的语音识别 API 或库
-    // 例如，使用 react-native-voice 或者调用后端 API
-    // 以下是一个非常简化的模拟逻辑，实际应根据音频内容返回结果
-    const mockRecognizedText = 'property'; // 模拟识别出的文本
+    try {
 
-    console.log('[SpeechRecognitionService] Recognition result:', mockRecognizedText);
-    return { recognizedText: mockRecognizedText };
+      // 1. 读取文件
+      let fileSize = 0;
+      let base64Data = '';
+      try {
+        const fileInfo = new File(audioUri);
+        base64Data = fileInfo.base64Sync();
+        if (fileInfo.exists && fileInfo.size !== undefined) {
+          fileSize = fileInfo.size;
+        } else {
+          console.warn('[SpeechRecognitionService] File does not exist or size is undefined:', audioUri);
+        }
+      } catch (error) {
+        console.error('[SpeechRecognitionService] Failed to get file info for size using new API:', error);
+        fileSize = 0; // 设置为 0，让百度 API 处理错误
+      }
+      console.log('[SpeechRecognitionService] Audio file size:', fileSize);
+
+      // 2. 调用百度ASR API
+      console.log('[SpeechRecognitionService] Calling Baidu ASR API...');
+      const asrResult = await baiduAIService.recognizeSpeech(base64Data, fileSize);
+      const recognizedText = asrResult.recognizedText;
+
+      console.log('[SpeechRecognitionService] Baidu ASR result:', recognizedText);
+
+      // 3. 判断是否正确
+      const isCorrect = recognizedText == correctSpelling;
+
+      console.log('[SpeechRecognitionService] Recognition result - Text:', recognizedText, 'Is Correct:', isCorrect);
+
+      return { recognizedText, isCorrect };
+    } catch (error) {
+      console.error('[SpeechRecognitionService] Error during speech recognition or similarity check:', error);
+      // 如果任何步骤失败，返回空结果
+      return { recognizedText: '' };
+    }
   }
 
   /**
-   * 便捷方法：开始录音 -> 停止录音 -> 识别 -> 返回结果
-   * @param config 识别配置（可选）
-   * @returns Promise<RecognitionResult>
+   * 播放最近录制的音频
+   * @returns Promise<void>
    */
-  async startAndRecognize(config?: RecognitionConfig): Promise<RecognitionResult> {
+  async playRecording(): Promise<void> {
+    if (this.isPlaying) {
+      console.log('[SpeechRecognitionService] Playback already in progress.');
+      return;
+    }
+
+    if (!this.recordingUri) {
+      console.log('[SpeechRecognitionService] No recording URI to play.');
+      return;
+    }
+
     try {
-      await this.startRecording();
-      // 等待用户停止（实际应用中需要 UI 控制）
-      // 这里模拟一个录音时间，或者等待外部信号停止
-      // 为了简化，我们直接停止（实际应用需要外部调用 stop）
-      // 这个方法可能不太适合直接调用，因为停止录音的时机不确定
-      // 更适合在 UI 中分开调用 start 和 stop，然后在 stop 后调用 recognize
-      // 因此，我们主要提供 start, stop, recognize 三个独立的方法
-      console.warn('[SpeechRecognitionService] startAndRecognize is not fully implemented for UI control.');
-      return { recognizedText: '' };
+      console.log('[SpeechRecognitionService] Loading recording for playback:', this.recordingUri);
+      // 如果之前有播放对象，先卸载它
+      if (this.playbackObject) {
+        await this.playbackObject.unloadAsync();
+      }
+
+      const { sound, status } = await Audio.Sound.createAsync(
+        { uri: this.recordingUri },
+        { shouldPlay: true } // 创建后立即播放
+      );
+      this.playbackObject = sound;
+
+      // 监听播放完成事件，重置播放状态
+      sound.setOnPlaybackStatusUpdate((playbackStatus) => {
+        if ('didJustFinish' in playbackStatus && playbackStatus.didJustFinish) {
+          this.isPlaying = false;
+          console.log('[SpeechRecognitionService] Playback finished.');
+        }
+      });
+
+      this.isPlaying = true;
+      console.log('[SpeechRecognitionService] Playback started.');
     } catch (error) {
-      console.error('[SpeechRecognitionService] Error in startAndRecognize:', error);
-      return { recognizedText: '' };
+      console.error('[SpeechRecognitionService] Failed to play recording:', error);
+      this.isPlaying = false;
+      // 卸载失败的播放对象
+      if (this.playbackObject) {
+        this.playbackObject.unloadAsync().catch(console.error);
+        this.playbackObject = null;
+      }
+    }
+  }
+
+  /**
+   * 停止当前播放
+   * @returns Promise<void>
+   */
+  async stopPlayback(): Promise<void> {
+    if (!this.isPlaying || !this.playbackObject) {
+      console.log('[SpeechRecognitionService] No playback in progress to stop.');
+      return;
+    }
+
+    try {
+      console.log('[SpeechRecognitionService] Stopping playback.');
+      await this.playbackObject.stopAsync();
+      this.isPlaying = false;
+      // 通常在播放完成后，onPlaybackStatusUpdate 会自动将 this.isPlaying 设置为 false
+      // 但手动停止时也需要设置
+    } catch (error) {
+      console.error('[SpeechRecognitionService] Failed to stop playback:', error);
     }
   }
 
@@ -170,6 +261,22 @@ class SpeechRecognitionService {
    */
   isCurrentlyRecording(): boolean {
     return this.isRecording;
+  }
+
+  /**
+   * 检查是否正在播放
+   * @returns boolean
+   */
+  isCurrentlyPlaying(): boolean {
+    return this.isPlaying;
+  }
+
+  /**
+   * 获取最近录制的音频 URI
+   * @returns string | null
+   */
+  getRecordingUri(): string | null {
+    return this.recordingUri;
   }
 }
 

@@ -33,6 +33,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
   testType = 'pronunce'
 }) => {
   const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false); // <--- 新增：跟踪播放状态
   const [recognizedText, setRecognizedText] = useState<string>('');
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
   const [startTime] = useState<number>(Date.now());
@@ -86,7 +87,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
       console.log('[Pronunce] Recording stopped. Audio URI:', audioUri);
 
       // 调用识别服务
-      const recognitionResult = await speechRecognitionService.recognizeSpeech(audioUri);
+      const recognitionResult = await speechRecognitionService.recognizeSpeech(audioUri, word.spelling);
       setRecognizedText(recognitionResult.recognizedText || '');
       console.log('[Pronunce] Recognized text:', recognitionResult.recognizedText);
     } catch (error: any) {
@@ -94,6 +95,53 @@ const Pronunce: React.FC<TestTypeProps> = ({
       setIsRecording(false);
       Alert.alert('识别失败', error.message || '语音识别过程中出现错误。');
     }
+  }, []);
+
+  // <--- 新增：处理播放/停止自己录音 --->
+  const handlePlayRecording = useCallback(async () => {
+    // 检查是否正在录音，避免冲突
+    if (speechRecognitionService.isCurrentlyRecording()) {
+      console.log('[Pronunce] Cannot play while recording.');
+      return;
+    }
+
+    // 如果正在播放，则停止
+    if (speechRecognitionService.isCurrentlyPlaying()) {
+      try {
+        await speechRecognitionService.stopPlayback();
+        setIsPlaying(false);
+        console.log('[Pronunce] Playback stopped via button.');
+      } catch (error) {
+        console.error('[Pronunce] Failed to stop playback via button:', error);
+      }
+      return;
+    }
+
+    // 如果没有录音，提示用户
+    if (!speechRecognitionService.getRecordingUri()) {
+      Alert.alert('没有可播放的录音', '请先录制一段语音。');
+      return;
+    }
+
+    // 开始播放
+    try {
+      await speechRecognitionService.playRecording();
+      setIsPlaying(true);
+      console.log('[Pronunce] Playback started via button.');
+    } catch (error) {
+      console.error('[Pronunce] Failed to start playback via button:', error);
+      setIsPlaying(false);
+      Alert.alert('播放失败', '无法播放录音，请重试。');
+    }
+  }, []);
+
+  // 监听服务内部的播放状态变化
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsPlaying(speechRecognitionService.isCurrentlyPlaying());
+    }, 100); // 每100ms检查一次状态
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleSubmit = useCallback(() => {
@@ -112,7 +160,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
       wordId: word.$id, // 传递 word 的 ID
       responseTimeMs,
       // 可选：传递识别出的文本
-      recognizedText: recognizedText.trim(),
+      userAnswer: recognizedText.trim(),
     };
 
     setShowFeedback({
@@ -129,11 +177,14 @@ const Pronunce: React.FC<TestTypeProps> = ({
     }, 1500); // 延迟 1.5 秒后继续
   }, [recognizedText, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
 
-  // 组件卸载时停止录音和语音
+  // 组件卸载时停止录音、播放和语音
   useEffect(() => {
     return () => {
       if (speechRecognitionService.isCurrentlyRecording()) {
         speechRecognitionService.stopRecording();
+      }
+      if (speechRecognitionService.isCurrentlyPlaying()) {
+        speechRecognitionService.stopPlayback(); // 确保播放也被停止
       }
       Speech.stop(); // 停止任何正在进行的朗读
     };
@@ -171,6 +222,26 @@ const Pronunce: React.FC<TestTypeProps> = ({
         </TouchableOpacity>
         <Text style={styles.recognitionStatus}>
           {isRecording ? "录音中..." : recognizedText ? `识别结果: ${recognizedText}` : "等待识别..."}
+        </Text>
+      </View>
+
+      {/* 播放自己录音的按钮区域 */}
+      <View style={styles.playbackContainer}>
+        <TouchableOpacity
+          style={styles.playButton}
+          onPress={handlePlayRecording} // <--- 新增：调用播放/停止函数
+          disabled={isRecording} // 录音时禁用播放按钮
+          accessibilityLabel={isPlaying ? "停止播放录音" : "播放录音"}
+          accessibilityRole="button"
+        >
+          <Ionicons
+            name={isPlaying ? "stop-circle" : "play-circle"} // 播放时显示停止图标
+            size={48}
+            color={isPlaying ? "#FF3B30" : "#4A90E2"} // 播放时红色
+          />
+        </TouchableOpacity>
+        <Text style={styles.playbackStatus}>
+          {isRecording ? "录音中，无法播放" : isPlaying ? "播放中..." : "播放录音"}
         </Text>
       </View>
 
@@ -276,12 +347,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
     width: '100%',
-    textAlign: 'left',
+    textAlign: 'center',
   },
   recognitionContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 20,
+    marginVertical: 10, // 调整间距
   },
   recognitionLabel: {
     fontSize: 16,
@@ -294,6 +365,22 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   recognitionStatus: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  // <--- 新增：播放区域样式 --->
+  playbackContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10, // 调整间距
+  },
+  playButton: {
+    marginVertical: 10,
+    padding: 10,
+  },
+  playbackStatus: {
     fontSize: 14,
     color: '#666666',
     marginTop: 10,
