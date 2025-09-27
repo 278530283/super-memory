@@ -2,12 +2,13 @@
 import speechRecognitionService from '@/src/lib/services/speechRecognitionService';
 import { TestTypeProps } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
-import { AudioModule, AudioQuality, createAudioPlayer, RecordingOptions, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState } from 'expo-audio'; // 导入 expo-audio
+import { AudioModule, AudioQuality, createAudioPlayer, RecordingOptions, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
   Alert,
   Animated,
+  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -33,26 +34,26 @@ const Pronunce: React.FC<TestTypeProps> = ({
   testType = 'pronunce'
 }) => {
   const recordOptions: RecordingOptions = {
-  extension: '.m4a',
-  sampleRate: 8000,
-  numberOfChannels: 2,
-  bitRate: 48000,
-  android: {
-    outputFormat: 'mpeg4',
-    audioEncoder: 'aac',
-  },
-  ios: {
-    outputFormat: 'aac ',
-    audioQuality: AudioQuality.MAX,
-    linearPCMBitDepth: 16,
-    linearPCMIsBigEndian: false,
-    linearPCMIsFloat: false,
-  },
-  web: {
-    mimeType: 'audio/webm',
-    bitsPerSecond: 128000,
-  },
-};
+    extension: '.m4a',
+    sampleRate: 8000,
+    numberOfChannels: 2,
+    bitRate: 48000,
+    android: {
+      outputFormat: 'mpeg4',
+      audioEncoder: 'aac',
+    },
+    ios: {
+      outputFormat: 'aac ',
+      audioQuality: AudioQuality.MAX,
+      linearPCMBitDepth: 16,
+      linearPCMIsBigEndian: false,
+      linearPCMIsFloat: false,
+    },
+    web: {
+      mimeType: 'audio/webm',
+      bitsPerSecond: 128000,
+    },
+  };
 
   const audioRecorder = useAudioRecorder(recordOptions);
   const recorderState = useAudioRecorderState(audioRecorder);
@@ -61,7 +62,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
     (async () => {
       const status = await AudioModule.requestRecordingPermissionsAsync();
       if (!status.granted) {
-        Alert.alert('Permission to access microphone was denied');
+        Alert.alert('权限被拒绝', '请允许麦克风权限以进行语音评测');
       }
 
       setAudioModeAsync({
@@ -75,18 +76,13 @@ const Pronunce: React.FC<TestTypeProps> = ({
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
   const [audioSource, setAudioSource] = useState<string>('');
 
-  // --- 使用 useAudioPlayer Hook (动态更新源) ---
   let audioPlayer = useAudioPlayer(audioSource);
-  // --- 使用 useAudioPlayerStatus Hook 监听播放状态 ---
   let playerStatus = useAudioPlayerStatus(audioPlayer);
-
-  // 正确的英文拼写
   const correctSpelling = word.spelling;
 
-  // --- 初始化权限和音频模式 ---
+  // 初始化权限和音频模式
   useEffect(() => {
     (async () => {
       console.log('[Pronunce] Requesting recording permissions...');
@@ -100,11 +96,10 @@ const Pronunce: React.FC<TestTypeProps> = ({
         playsInSilentMode: true,
         allowsRecording: true,
       });
-      console.log('[Pronunce] Permissions granted and audio mode set.');
     })();
-  }, []); // 仅在组件挂载时执行一次
+  }, []);
 
-  // --- 动画效果 ---
+  // 动画效果
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -113,7 +108,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
     }).start();
   }, [fadeAnim]);
 
-  // --- 处理录音 ---
+  // 处理录音
   const handleStartRecording = async () => {
     console.log('[Pronunce] Preparing to record...');
     if (recorderState.isRecording) {
@@ -121,16 +116,11 @@ const Pronunce: React.FC<TestTypeProps> = ({
         return;
     }
     try {
-      // if (!hasUserInteracted.current) {
-      //   Speech.speak(word.spelling, { language: 'en' });
-      //   hasUserInteracted.current = true;
-      // }
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setRecognizedText('');
       setAudioSource('');
       setShowFeedback(null);
-      console.log('[Pronunce] Recording started.');
     } catch (error: any) {
       console.error('[Pronunce] Failed to start recording:', error);
       Alert.alert('录音失败', error.message || '无法开始录音。');
@@ -154,78 +144,42 @@ const Pronunce: React.FC<TestTypeProps> = ({
         }
         setAudioSource(uri);
         await audioRecorder.stop();
-        console.log('[Pronunce] stop() completed!');
-        console.log('[Pronunce] URI after stop:', uri);
         const result = await speechRecognitionService.recognizeSpeech(uri, correctSpelling);
         setRecognizedText(result.recognizedText || '');
-        // if (result.isCorrect !== undefined) {
-      //   const responseTimeMs = Date.now() - startTime;
-      //   const answerResult = {
-      //     type: testType,
-      //     correct: result.isCorrect,
-      //     wordId: word.$id,
-      //     responseTimeMs,
-      //     userAnswer: result.recognizedText?.trim()
-      //   };
-
-      //   setShowFeedback({
-      //     correct: result.isCorrect,
-      //     message: result.isCorrect ? '✅ 读音正确！' : `❌ 读音有误，正确拼写是: ${correctSpelling}`,
-      //   });
-
-      //   setTimeout(() => {
-      //     onAnswer(answerResult);
-      //     setRecognizedText('');
-      //     setShowFeedback(null);
-      //   }, 1500);
-
-      // } else {
-      //      Alert.alert('识别失败', '语音识别过程中出现错误。');
-      // }
-        
     } catch (serviceError: any) {
       console.error('[Pronunce] Error from speech recognition service or during stop:', serviceError);
       Alert.alert('录音/识别失败', serviceError.message || '处理录音时出现错误。');
     }
-};
+  };
 
-  // --- 处理播放自己录音 (使用 useAudioPlayer) ---
+  // 处理播放录音
   const handlePlayRecording = async () => {
     if (recorderState.isRecording) {
         console.log('[Pronunce] Cannot play while recording.');
         return;
     }
 
-    // 检查是否有录音 URI
     if (audioSource === null || audioSource.length === 0) {
         Alert.alert('没有可播放的录音', '请先录制一段语音。');
         return;
     }
 
     try {
-      console.log('[Pronunce] audioSource file is', audioSource);
       audioPlayer = createAudioPlayer(audioSource);
       audioPlayer.seekTo(0);
       audioPlayer.play();
-      //等待1s
       await new Promise(resolve => setTimeout(resolve, 500));
       playerStatus = audioPlayer.currentStatus;
-      console.log('[Pronunce] audioPlayer is ready to play', playerStatus);
-
     } catch (error) {
         console.error('[Pronunce] Failed to play recording:', error);
-        // 播放错误可能不会自动更新 playerStatus，需要手动处理
-        // 但通常 playerStatus.isError 会变为 true，可以由 UI 监听
         Alert.alert('播放失败', '无法播放录音，请重试。');
     }
   };
 
-  // --- 处理停止播放 (使用 useAudioPlayer) ---
+  // 处理停止播放
   const handleStopPlayback = async () => {
-      // 检查 playerStatus.isPlaying 以确保正在播放
       if (audioPlayer && playerStatus.isLoaded && playerStatus.playing) {
           try {
-              console.log('[Pronunce] Stopping playback.');
               audioPlayer.remove();
           } catch (error) {
               console.error('[Pronunce] Failed to stop playback:', error);
@@ -242,7 +196,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
       const isCorrect = recognizedText.trim() === correctSpelling;
       const responseTimeMs = Date.now() - startTime;
       const result = {
-        type: testType, // 使用传入的 testType
+        type: testType,
         correct: isCorrect,
         userAnswer: recognizedText,
         wordId: word.$id,
@@ -251,7 +205,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
       
       setShowFeedback({
         correct: isCorrect,
-        message: isCorrect ? '✅ 正确！' : '❌ 错误！',
+        message: isCorrect ? '正确！' : '错误！',
       });
       
       setTimeout(() => {
@@ -261,90 +215,91 @@ const Pronunce: React.FC<TestTypeProps> = ({
       }, 1500);
     }, [recognizedText, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
 
-  // --- 渲染 ---
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.spelling || 'property'}</Text>
-        <Text style={styles.phoneticText}>
-          美 {word.american_phonetic || '/prap rti/'}
-        </Text>
-      </View>
-
-      <Text style={styles.exampleText}>
-        {word.example_sentence || 'Glitter is one of the properties of gold.'}
-      </Text>
-
-      <View style={styles.recognitionContainer}>
-        <Text style={styles.recognitionLabel}>请朗读单词</Text>
-        <TouchableOpacity
-          style={styles.recordButton}
-          onPress={recorderState.isRecording ? handleStopRecording : handleStartRecording}
-          accessibilityLabel={recorderState.isRecording ? "停止录音" : "开始录音"}
-          accessibilityRole="button"
-        >
-          <Ionicons
-            name={recorderState.isRecording ? "mic" : "mic-outline"}
-            size={48}
-            color={recorderState.isRecording ? "#FF3B30" : "#4A90E2"}
-          />
-          <Text>{recorderState.isRecording}</Text>
-        </TouchableOpacity>
-        <Text style={styles.recognitionStatus}>
-          {recorderState.isRecording ? "录音中..." : recognizedText ? `识别结果: ${recognizedText}` : "等待识别..."}
-        </Text>
-      </View>
-
-      <View style={styles.playbackContainer}>
-        <TouchableOpacity
-          style={styles.playButton}
-          onPress={playerStatus.playing ? handleStopPlayback : handlePlayRecording} // <--- 根据 playerStatus.playing 状态切换按钮功能
-          disabled={recorderState.isRecording}
-          accessibilityLabel={playerStatus.playing ? "停止播放录音" : "播放录音"}
-          accessibilityRole="button"
-        >
-          <Ionicons
-            name={playerStatus.playing ? "stop-circle" : "play-circle"} // <--- 根据 playerStatus.playing 状态切换图标
-            size={48}
-            color={playerStatus.playing ? "#FF3B30" : "#4A90E2"} // <--- 根据 playerStatus.playing 状态切换颜色
-          />
-        </TouchableOpacity>
-        <View>
-    </View>
-        <Text style={styles.playbackStatus}>
-          {recorderState.isRecording ? "录音中，无法播放" : playerStatus.playing ? "播放中..." : "播放录音"}
-        </Text>
-      </View>
-
-      {/* 提交按钮 */}
-      <TouchableOpacity
-        testID="submit-button"
-        style={[styles.submitButton, (!recognizedText || showFeedback) && styles.submitButtonDisabled]}
-        onPress={handleSubmit}
-        disabled={!recognizedText || !!showFeedback}
-        accessibilityLabel="提交答案"
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !recognizedText || !!showFeedback }}
-      >
-        <Text style={styles.submitButtonText}>提交</Text>
-      </TouchableOpacity>
-      {/* 答题反馈 */}
-      {showFeedback && (
-        <View style={styles.feedbackContainer}>
-          <Ionicons 
-            name={showFeedback.correct ? "checkmark-circle" : "close-circle"} 
-            size={32} 
-            color={showFeedback.correct ? "#28A745" : "#DC3545"} 
-          />
-          <Text style={[
-            styles.feedbackText,
-            showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
-          ]}>
-            {showFeedback.message}
+    <SafeAreaView style={styles.safeArea}>
+      <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        {/* 单词信息卡片 */}
+        <View style={styles.wordCard}>
+          <Text style={styles.wordText}>{word.spelling || 'property'}</Text>
+          <Text style={styles.phoneticText}>
+            美 {word.american_phonetic || '/ˈprɑːpərti/'}
           </Text>
+          
+          <View style={styles.exampleContainer}>
+            <Text style={styles.exampleText}>
+              {word.example_sentence || 'Glitter is one of the properties of gold.'}
+            </Text>
+          </View>
         </View>
-      )}
-    </Animated.View>
+
+        {/* 录音区域 */}
+        <View style={styles.recordingSection}>
+          <Text style={styles.sectionTitle}>请朗读单词</Text>
+          
+          <TouchableOpacity
+            style={[styles.recordButton, recorderState.isRecording && styles.recordingActive]}
+            onPress={recorderState.isRecording ? handleStopRecording : handleStartRecording}
+            accessibilityLabel={recorderState.isRecording ? "停止录音" : "开始录音"}
+          >
+            <Ionicons
+              name={recorderState.isRecording ? "mic" : "mic-outline"}
+              size={56}
+              color="#fff"
+            />
+          </TouchableOpacity>
+           {/* 新增行容器：将识别结果和播放按钮放到同一行 */}
+        <View style={styles.resultAndPlayRow}>
+            <Text style={styles.statusText}>
+              {recorderState.isRecording 
+                ? "正在录音..." 
+                : recognizedText 
+                  ? `识别结果: ${recognizedText}` 
+                  : "点击麦克风开始录音"}
+            </Text>
+            {audioSource && (
+              <TouchableOpacity
+                  style={styles.playButton}
+                  onPress={playerStatus.playing ? handleStopPlayback : handlePlayRecording}
+                  disabled={recorderState.isRecording}
+                  accessibilityLabel={playerStatus.playing ? "停止播放录音" : "播放录音"}
+                >
+                  <Ionicons
+                    name={playerStatus.playing ? "stop-circle" : "play-circle"}
+                    size={30}
+                    color={playerStatus.playing ? "#FF3B30" : "#4A90E2"}
+                  />
+                </TouchableOpacity>
+            )}
+        </View>
+        </View>
+
+        {/* 提交按钮 */}
+        <TouchableOpacity
+          testID="submit-button"
+          style={[styles.submitButton, (!recognizedText || showFeedback) && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={!recognizedText || !!showFeedback}
+        >
+          <Text style={styles.submitButtonText}>提交答案</Text>
+        </TouchableOpacity>
+
+        {/* 答题反馈 */}
+        {showFeedback && (
+          <View style={styles.feedbackContainer}>
+            <View style={[styles.feedbackBubble, showFeedback.correct ? styles.correctBubble : styles.incorrectBubble]}>
+              <Ionicons 
+                name={showFeedback.correct ? "checkmark-circle" : "close-circle"} 
+                size={32} 
+                color="#fff" 
+              />
+              <Text style={styles.feedbackText}>
+                {showFeedback.message}
+              </Text>
+            </View>
+          </View>
+        )}
+      </Animated.View>
+    </SafeAreaView>
   );
 };
 
@@ -357,20 +312,182 @@ const PronunceWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
 };
 
 const styles = StyleSheet.create({
-  // ... (样式保持不变)
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f7fa',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    padding: 20,
     position: 'relative',
   },
+  // 单词信息卡片
+  wordCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  wordText: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  phoneticText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  exampleContainer: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 16,
+  },
+  exampleText: {
+    fontSize: 14,
+    color: '#555',
+    fontStyle: 'italic',
+    lineHeight: 22,
+  },
+  
+  // 录音区域
+  recordingSection: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 20,
+  },
+  recordButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#4A90E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  recordingActive: {
+    backgroundColor: '#FF3B30',
+    shadowColor: '#FF3B30',
+  },
+  resultAndPlayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',       // 垂直居中对齐
+    justifyContent: 'center',   // 整体水平居中
+    gap: 12,                    // 文本与按钮间距
+    marginTop: 8,               // 与上方录音按钮保持原有间距
+    width: '100%',              // 占满父容器宽度
+  },
+  statusText: {
+    fontSize: 15,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  
+  // 播放区域
+  playbackSection: {
+    alignItems: 'center',
+    marginVertical: 10,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+  },
+  playButton: {
+    marginBottom: -10,
+  },
+  playbackStatus: {
+    fontSize: 14,
+    color: '#555',
+  },
+  
+  // 提交按钮
+  submitButton: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    backgroundColor: '#4A90E2',
+    borderRadius: 30,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#C5C5C7',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  
+  // 反馈样式
+  feedbackContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    transform: [{ translateY: -50 }],
+    zIndex: 10,
+  },
+  feedbackBubble: {
+    backgroundColor: '#28A745',
+    borderRadius: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: 'rgba(0,0,0,0.2)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  correctBubble: {
+    backgroundColor: '#28A745',
+  },
+  incorrectBubble: {
+    backgroundColor: '#DC3545',
+  },
+  feedbackText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 12,
+  },
+  
+  // 错误处理样式
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f5f7fa',
   },
   errorText: {
     fontSize: 18,
@@ -395,104 +512,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  wordPhoneticContainer: {
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  wordText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-  },
-  phoneticText: {
-    fontSize: 16,
-    color: '#666666',
-    marginTop: 5,
-  },
-  exampleText: {
-    fontSize: 14,
-    color: '#666666',
-    fontStyle: 'italic',
-    marginBottom: 20,
-    lineHeight: 20,
-    width: '100%',
-    textAlign: 'left',
-  },
-  recognitionContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
-  },
-  recognitionLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 10,
-  },
-  recordButton: {
-    marginVertical: 10,
-    padding: 10,
-  },
-  recognitionStatus: {
-    fontSize: 14,
-    color: '#666666',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  playbackContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
-  },
-  playButton: {
-    marginVertical: 10,
-    padding: 10,
-  },
-  playbackStatus: {
-    fontSize: 14,
-    color: '#666666',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  submitButton: {
-    position: 'absolute',
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: '#4A90E2',
-    borderRadius: 24,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#C5C5C7',
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  feedbackContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    transform: [{ translateY: -20 }],
-    zIndex: 10,
-  },
-  feedbackText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  correctFeedbackText: {
-    color: '#28A745',
-  },
-  incorrectFeedbackText: {
-    color: '#DC3545',
   },
 });
 
