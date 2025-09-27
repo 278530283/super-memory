@@ -46,7 +46,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
   onSelect,
   testID
 }) => {
-  const optionKey = `${option.partOfSpeech} ${option.spelling}`;
+  const optionKey = `${option.spelling}`;
   
   const handlePress = useCallback(() => {
     onSelect(optionKey);
@@ -59,7 +59,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
       style={[
         styles.optionCard,
         isSelected && !showFeedback && styles.selectedOptionCard,
-        showFeedback && isCorrect && styles.correctOptionCard,
+        showFeedback && isCorrect && isSelected && styles.correctOptionCard,
         showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
       ]}
       onPress={handlePress}
@@ -98,8 +98,8 @@ const TransCh: React.FC<TestTypeProps> = ({
     }).start();
   }, []);
 
-  const correctOptionKey = word.chinese_meaning; // 正确选项标识
-  console.log('Correct option key:', correctOptionKey);
+  const correctOptionKey = word.spelling; // 正确选项标识
+  console.log('Correct option:', correctOptionKey);
 
   const handleSelect = useCallback((optionKey: string) => {
     if (showFeedback) return;
@@ -113,6 +113,8 @@ const TransCh: React.FC<TestTypeProps> = ({
       return;
     }
     if (showFeedback) return;
+    console.log('Correct option:', correctOptionKey);
+    console.log('User answer:', selectedOption);
 
     const isCorrect = selectedOption === correctOptionKey;
     const responseTimeMs = Date.now() - startTime;
@@ -154,7 +156,7 @@ const TransCh: React.FC<TestTypeProps> = ({
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options!.map((option, index) => {
-          const optionKey = `${option.partOfSpeech} ${option.spelling}`;
+          const optionKey = `${option.spelling}`;
           const isSelected = selectedOption === optionKey;
           const isCorrect = optionKey === correctOptionKey;
           
@@ -343,7 +345,7 @@ const styles = StyleSheet.create({
   },
   feedbackContainer: {
     position: 'absolute',
-    top: '50%',
+    top: '70%',
     left: 0,
     right: 0,
     alignItems: 'center',

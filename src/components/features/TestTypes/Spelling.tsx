@@ -101,7 +101,7 @@ const Spelling: React.FC<TestTypeProps> = ({
 
       {/* 例句区域 */}
       <Text style={styles.exampleText}>
-        {word.example_sentence?.replace(word.spelling, '***') || 'Glitter is one of the properties of gold.'}
+        {word.example_sentence?.toLowerCase().replace(word.spelling, '***') || 'Glitter is one of the properties of gold.'}
       </Text>
 
       {/* 拼写输入区域 */}

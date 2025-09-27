@@ -249,13 +249,21 @@ const Pronunce: React.FC<TestTypeProps> = ({
           </TouchableOpacity>
            {/* 新增行容器：将识别结果和播放按钮放到同一行 */}
         <View style={styles.resultAndPlayRow}>
-            <Text style={styles.statusText}>
-              {recorderState.isRecording 
-                ? "正在录音..." 
-                : recognizedText 
-                  ? `识别结果: ${recognizedText}` 
-                  : "点击麦克风开始录音"}
-            </Text>
+          <Text style={styles.statusText}>
+            {recorderState.isRecording 
+              ? "正在录音..." 
+              : recognizedText 
+                ? <>
+                    识别结果: 
+                    <Text style={[
+                      styles.recognizedTextValue,
+                      showFeedback && (showFeedback.correct ? styles.correctText : styles.incorrectText)
+                    ]}>
+                      {recognizedText}
+                    </Text>
+                  </>
+                : "点击麦克风开始录音"}
+          </Text>
             {audioSource && (
               <TouchableOpacity
                   style={styles.playButton}
@@ -401,7 +409,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  
+  recognizedTextValue: {
+    // 可根据需要添加基础样式，如字体粗细等
+    fontWeight: '500',
+  },
+  // 正确时的颜色
+  correctText: {
+    color: '#28A745', // 绿色
+  },
+  // 错误时的颜色
+  incorrectText: {
+    color: '#DC3545', // 红色
+  },
   // 播放区域
   playbackSection: {
     alignItems: 'center',
@@ -452,7 +471,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    transform: [{ translateY: -50 }],
+    transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackBubble: {
