@@ -1,8 +1,8 @@
 // src/components/features/today/TestTypes/Pronunce.tsx
-import speechRecognitionService from '@/src/lib/services/speechRecognitionService'; // 导入服务
+import speechRecognitionService from '@/src/lib/services/speechRecognitionService';
 import { TestTypeProps } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
-import * as Speech from 'expo-speech';
+import { AudioModule, AudioQuality, createAudioPlayer, RecordingOptions, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState } from 'expo-audio'; // 导入 expo-audio
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
@@ -32,167 +32,238 @@ const Pronunce: React.FC<TestTypeProps> = ({
   onAnswer, 
   testType = 'pronunce'
 }) => {
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [isPlaying, setIsPlaying] = useState<boolean>(false); // <--- 新增：跟踪播放状态
-  const [recognizedText, setRecognizedText] = useState<string>('');
+  const recordOptions: RecordingOptions = {
+  extension: '.m4a',
+  sampleRate: 8000,
+  numberOfChannels: 2,
+  bitRate: 48000,
+  android: {
+    outputFormat: 'mpeg4',
+    audioEncoder: 'aac',
+  },
+  ios: {
+    outputFormat: 'aac ',
+    audioQuality: AudioQuality.MAX,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {
+    mimeType: 'audio/webm',
+    bitsPerSecond: 128000,
+  },
+};
+
+  const audioRecorder = useAudioRecorder(recordOptions);
+  const recorderState = useAudioRecorderState(audioRecorder);
+
+  useEffect(() => {
+    (async () => {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        Alert.alert('Permission to access microphone was denied');
+      }
+
+      setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+    })();
+  }, []);
+
+  const [recognizedText, setRecognizedText] = useState<string|null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const hasUserInteracted = useRef(false); // 防止组件挂载时自动朗读
 
-  // 动画效果
+  const [audioSource, setAudioSource] = useState<string>('');
+
+  // --- 使用 useAudioPlayer Hook (动态更新源) ---
+  let audioPlayer = useAudioPlayer(audioSource);
+  // --- 使用 useAudioPlayerStatus Hook 监听播放状态 ---
+  let playerStatus = useAudioPlayerStatus(audioPlayer);
+
+  // 正确的英文拼写
+  const correctSpelling = word.spelling;
+
+  // --- 初始化权限和音频模式 ---
+  useEffect(() => {
+    (async () => {
+      console.log('[Pronunce] Requesting recording permissions...');
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        Alert.alert('权限被拒绝', '请允许麦克风权限以进行语音评测');
+        return;
+      }
+      console.log('[Pronunce] Setting audio mode...');
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+      console.log('[Pronunce] Permissions granted and audio mode set.');
+    })();
+  }, []); // 仅在组件挂载时执行一次
+
+  // --- 动画效果 ---
   useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
-  // 正确的英文拼写
-  const correctSpelling = word.spelling;
-  console.log('Correct spelling:', correctSpelling);
-
-  const handleStartRecording = useCallback(async () => {
-    if (speechRecognitionService.isCurrentlyRecording()) {
+  // --- 处理录音 ---
+  const handleStartRecording = async () => {
+    console.log('[Pronunce] Preparing to record...');
+    if (recorderState.isRecording) {
         console.log('[Pronunce] Recording already in progress.');
-        return; // 防止重复开始
-    }
-    try {
-      if (!hasUserInteracted.current) {
-        // 第一次交互时朗读单词
-        console.log('[Pronunce] Speaking word:', word.spelling);
-        Speech.speak(word.spelling, { language: 'en' }); // 指定语言为英语
-        hasUserInteracted.current = true;
-      }
-      await speechRecognitionService.startRecording();
-      setIsRecording(true);
-      setRecognizedText(''); // 清空之前的识别结果
-      setShowFeedback(null); // 清空反馈
-      console.log('[Pronunce] Recording started.');
-    } catch (error: any) {
-      console.error('[Pronunce] Failed to start recording:', error);
-      Alert.alert('录音失败', error.message || '无法开始录音，请检查权限。');
-    }
-  }, [word.spelling]);
-
-  const handleStopRecording = useCallback(async () => {
-    if (!speechRecognitionService.isCurrentlyRecording()) {
-        console.log('[Pronunce] No recording in progress to stop.');
         return;
     }
     try {
-      const audioUri = await speechRecognitionService.stopRecording();
-      setIsRecording(false);
-      console.log('[Pronunce] Recording stopped. Audio URI:', audioUri);
-
-      // 调用识别服务
-      const recognitionResult = await speechRecognitionService.recognizeSpeech(audioUri, word.spelling);
-      setRecognizedText(recognitionResult.recognizedText || '');
-      console.log('[Pronunce] Recognized text:', recognitionResult.recognizedText);
+      // if (!hasUserInteracted.current) {
+      //   Speech.speak(word.spelling, { language: 'en' });
+      //   hasUserInteracted.current = true;
+      // }
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setRecognizedText('');
+      setAudioSource('');
+      setShowFeedback(null);
+      console.log('[Pronunce] Recording started.');
     } catch (error: any) {
-      console.error('[Pronunce] Failed to stop recording or recognize speech:', error);
-      setIsRecording(false);
-      Alert.alert('识别失败', error.message || '语音识别过程中出现错误。');
+      console.error('[Pronunce] Failed to start recording:', error);
+      Alert.alert('录音失败', error.message || '无法开始录音。');
     }
-  }, []);
+  };
 
-  // <--- 新增：处理播放/停止自己录音 --->
-  const handlePlayRecording = useCallback(async () => {
-    // 检查是否正在录音，避免冲突
-    if (speechRecognitionService.isCurrentlyRecording()) {
-      console.log('[Pronunce] Cannot play while recording.');
-      return;
+  const handleStopRecording = async () => {
+    console.log('[Pronunce] Stopping recording, current state:', recorderState);
+    
+    if (!recorderState.isRecording) {
+        console.log('[Pronunce] No recording in progress to stop.');
+        return;
     }
-
-    // 如果正在播放，则停止
-    if (speechRecognitionService.isCurrentlyPlaying()) {
-      try {
-        await speechRecognitionService.stopPlayback();
-        setIsPlaying(false);
-        console.log('[Pronunce] Playback stopped via button.');
-      } catch (error) {
-        console.error('[Pronunce] Failed to stop playback via button:', error);
-      }
-      return;
-    }
-
-    // 如果没有录音，提示用户
-    if (!speechRecognitionService.getRecordingUri()) {
-      Alert.alert('没有可播放的录音', '请先录制一段语音。');
-      return;
-    }
-
-    // 开始播放
+    
     try {
-      await speechRecognitionService.playRecording();
-      setIsPlaying(true);
-      console.log('[Pronunce] Playback started via button.');
-    } catch (error) {
-      console.error('[Pronunce] Failed to start playback via button:', error);
-      setIsPlaying(false);
-      Alert.alert('播放失败', '无法播放录音，请重试。');
+        const uri = audioRecorder.uri;
+        if (!uri) {
+            console.error('[Pronunce] URI is null or undefined');
+            Alert.alert('录音失败', '无法获取录音文件路径。');
+            return;
+        }
+        setAudioSource(uri);
+        await audioRecorder.stop();
+        console.log('[Pronunce] stop() completed!');
+        console.log('[Pronunce] URI after stop:', uri);
+        const result = await speechRecognitionService.recognizeSpeech(uri, correctSpelling);
+        setRecognizedText(result.recognizedText || '');
+        // if (result.isCorrect !== undefined) {
+      //   const responseTimeMs = Date.now() - startTime;
+      //   const answerResult = {
+      //     type: testType,
+      //     correct: result.isCorrect,
+      //     wordId: word.$id,
+      //     responseTimeMs,
+      //     userAnswer: result.recognizedText?.trim()
+      //   };
+
+      //   setShowFeedback({
+      //     correct: result.isCorrect,
+      //     message: result.isCorrect ? '✅ 读音正确！' : `❌ 读音有误，正确拼写是: ${correctSpelling}`,
+      //   });
+
+      //   setTimeout(() => {
+      //     onAnswer(answerResult);
+      //     setRecognizedText('');
+      //     setShowFeedback(null);
+      //   }, 1500);
+
+      // } else {
+      //      Alert.alert('识别失败', '语音识别过程中出现错误。');
+      // }
+        
+    } catch (serviceError: any) {
+      console.error('[Pronunce] Error from speech recognition service or during stop:', serviceError);
+      Alert.alert('录音/识别失败', serviceError.message || '处理录音时出现错误。');
     }
-  }, []);
+};
 
-  // 监听服务内部的播放状态变化
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIsPlaying(speechRecognitionService.isCurrentlyPlaying());
-    }, 100); // 每100ms检查一次状态
+  // --- 处理播放自己录音 (使用 useAudioPlayer) ---
+  const handlePlayRecording = async () => {
+    if (recorderState.isRecording) {
+        console.log('[Pronunce] Cannot play while recording.');
+        return;
+    }
 
-    return () => clearInterval(interval);
-  }, []);
+    // 检查是否有录音 URI
+    if (audioSource === null || audioSource.length === 0) {
+        Alert.alert('没有可播放的录音', '请先录制一段语音。');
+        return;
+    }
+
+    try {
+      console.log('[Pronunce] audioSource file is', audioSource);
+      audioPlayer = createAudioPlayer(audioSource);
+      audioPlayer.seekTo(0);
+      audioPlayer.play();
+      //等待1s
+      await new Promise(resolve => setTimeout(resolve, 500));
+      playerStatus = audioPlayer.currentStatus;
+      console.log('[Pronunce] audioPlayer is ready to play', playerStatus);
+
+    } catch (error) {
+        console.error('[Pronunce] Failed to play recording:', error);
+        // 播放错误可能不会自动更新 playerStatus，需要手动处理
+        // 但通常 playerStatus.isError 会变为 true，可以由 UI 监听
+        Alert.alert('播放失败', '无法播放录音，请重试。');
+    }
+  };
+
+  // --- 处理停止播放 (使用 useAudioPlayer) ---
+  const handleStopPlayback = async () => {
+      // 检查 playerStatus.isPlaying 以确保正在播放
+      if (audioPlayer && playerStatus.isLoaded && playerStatus.playing) {
+          try {
+              console.log('[Pronunce] Stopping playback.');
+              audioPlayer.remove();
+          } catch (error) {
+              console.error('[Pronunce] Failed to stop playback:', error);
+          }
+      }
+  };
 
   const handleSubmit = useCallback(() => {
-    if (!recognizedText.trim()) {
-      Alert.alert('请先朗读并识别单词');
-      return;
-    }
-    if (showFeedback) return; // 防止重复提交
-
-    // 不区分大小写比较
-    const isCorrect = recognizedText.trim().toLowerCase() === correctSpelling.toLowerCase();
-    const responseTimeMs = Date.now() - startTime;
-    const result = {
-      type: testType, // 使用传入的 testType
-      correct: isCorrect,
-      wordId: word.$id, // 传递 word 的 ID
-      responseTimeMs,
-      // 可选：传递识别出的文本
-      userAnswer: recognizedText.trim(),
-    };
-
-    setShowFeedback({
-      correct: isCorrect,
-      message: isCorrect ? '✅ 读音正确！' : `❌ 读音有误，正确拼写是: ${correctSpelling}`,
-    });
-
-    setTimeout(() => {
-      onAnswer(result);
-      setRecognizedText(''); // 清空识别结果
-      setShowFeedback(null);
-      // 可选：重置 hasUserInteracted.current 如果需要每次点击都朗读
-      // hasUserInteracted.current = false;
-    }, 1500); // 延迟 1.5 秒后继续
-  }, [recognizedText, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
-
-  // 组件卸载时停止录音、播放和语音
-  useEffect(() => {
-    return () => {
-      if (speechRecognitionService.isCurrentlyRecording()) {
-        speechRecognitionService.stopRecording();
+      if (!recognizedText) {
+        Alert.alert('请朗读单词');
+        return;
       }
-      if (speechRecognitionService.isCurrentlyPlaying()) {
-        speechRecognitionService.stopPlayback(); // 确保播放也被停止
-      }
-      Speech.stop(); // 停止任何正在进行的朗读
-    };
-  }, []);
+      if (showFeedback) return;
+      const isCorrect = recognizedText.trim() === correctSpelling;
+      const responseTimeMs = Date.now() - startTime;
+      const result = {
+        type: testType, // 使用传入的 testType
+        correct: isCorrect,
+        userAnswer: recognizedText,
+        wordId: word.$id,
+        responseTimeMs
+      };
+      
+      setShowFeedback({
+        correct: isCorrect,
+        message: isCorrect ? '✅ 正确！' : '❌ 错误！',
+      });
+      
+      setTimeout(() => {
+        onAnswer(result);
+        setRecognizedText(null);
+        setShowFeedback(null);
+      }, 1500);
+    }, [recognizedText, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
 
+  // --- 渲染 ---
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* 单词 + 音标区域 */}
       <View style={styles.wordPhoneticContainer}>
         <Text style={styles.wordText}>{word.spelling || 'property'}</Text>
         <Text style={styles.phoneticText}>
@@ -200,64 +271,63 @@ const Pronunce: React.FC<TestTypeProps> = ({
         </Text>
       </View>
 
-      {/* 例句区域 */}
       <Text style={styles.exampleText}>
         {word.example_sentence || 'Glitter is one of the properties of gold.'}
       </Text>
 
-      {/* 语音识别区域 */}
       <View style={styles.recognitionContainer}>
         <Text style={styles.recognitionLabel}>请朗读单词</Text>
         <TouchableOpacity
           style={styles.recordButton}
-          onPress={isRecording ? handleStopRecording : handleStartRecording}
-          accessibilityLabel={isRecording ? "停止录音" : "开始录音"}
+          onPress={recorderState.isRecording ? handleStopRecording : handleStartRecording}
+          accessibilityLabel={recorderState.isRecording ? "停止录音" : "开始录音"}
           accessibilityRole="button"
         >
           <Ionicons
-            name={isRecording ? "mic" : "mic-outline"} // 录音时图标不同
+            name={recorderState.isRecording ? "mic" : "mic-outline"}
             size={48}
-            color={isRecording ? "#FF3B30" : "#4A90E2"} // 录音时红色
+            color={recorderState.isRecording ? "#FF3B30" : "#4A90E2"}
           />
+          <Text>{recorderState.isRecording}</Text>
         </TouchableOpacity>
         <Text style={styles.recognitionStatus}>
-          {isRecording ? "录音中..." : recognizedText ? `识别结果: ${recognizedText}` : "等待识别..."}
+          {recorderState.isRecording ? "录音中..." : recognizedText ? `识别结果: ${recognizedText}` : "等待识别..."}
         </Text>
       </View>
 
-      {/* 播放自己录音的按钮区域 */}
       <View style={styles.playbackContainer}>
         <TouchableOpacity
           style={styles.playButton}
-          onPress={handlePlayRecording} // <--- 新增：调用播放/停止函数
-          disabled={isRecording} // 录音时禁用播放按钮
-          accessibilityLabel={isPlaying ? "停止播放录音" : "播放录音"}
+          onPress={playerStatus.playing ? handleStopPlayback : handlePlayRecording} // <--- 根据 playerStatus.playing 状态切换按钮功能
+          disabled={recorderState.isRecording}
+          accessibilityLabel={playerStatus.playing ? "停止播放录音" : "播放录音"}
           accessibilityRole="button"
         >
           <Ionicons
-            name={isPlaying ? "stop-circle" : "play-circle"} // 播放时显示停止图标
+            name={playerStatus.playing ? "stop-circle" : "play-circle"} // <--- 根据 playerStatus.playing 状态切换图标
             size={48}
-            color={isPlaying ? "#FF3B30" : "#4A90E2"} // 播放时红色
+            color={playerStatus.playing ? "#FF3B30" : "#4A90E2"} // <--- 根据 playerStatus.playing 状态切换颜色
           />
         </TouchableOpacity>
+        <View>
+    </View>
         <Text style={styles.playbackStatus}>
-          {isRecording ? "录音中，无法播放" : isPlaying ? "播放中..." : "播放录音"}
+          {recorderState.isRecording ? "录音中，无法播放" : playerStatus.playing ? "播放中..." : "播放录音"}
         </Text>
       </View>
 
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!recognizedText.trim() || showFeedback) && styles.submitButtonDisabled]}
+        style={[styles.submitButton, (!recognizedText || showFeedback) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
-        disabled={!recognizedText.trim() || !!showFeedback}
+        disabled={!recognizedText || !!showFeedback}
         accessibilityLabel="提交答案"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !recognizedText.trim() || !!showFeedback }}
+        accessibilityState={{ disabled: !recognizedText || !!showFeedback }}
       >
         <Text style={styles.submitButtonText}>提交</Text>
       </TouchableOpacity>
-
       {/* 答题反馈 */}
       {showFeedback && (
         <View style={styles.feedbackContainer}>
@@ -278,7 +348,6 @@ const Pronunce: React.FC<TestTypeProps> = ({
   );
 };
 
-// 使用错误边界包装组件
 const PronunceWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -288,6 +357,7 @@ const PronunceWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
 };
 
 const styles = StyleSheet.create({
+  // ... (样式保持不变)
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -347,12 +417,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     lineHeight: 20,
     width: '100%',
-    textAlign: 'center',
+    textAlign: 'left',
   },
   recognitionContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10, // 调整间距
+    marginVertical: 10,
   },
   recognitionLabel: {
     fontSize: 16,
@@ -370,11 +440,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-  // <--- 新增：播放区域样式 --->
   playbackContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10, // 调整间距
+    marginVertical: 10,
   },
   playButton: {
     marginVertical: 10,
@@ -386,11 +455,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     textAlign: 'center',
   },
-  // 选项网格样式已移除
-  // optionsGrid: { ... },
-  // optionCard: { ... },
-  // ... (其他已移除的样式)
-
   submitButton: {
     position: 'absolute',
     bottom: 20,
