@@ -12,7 +12,6 @@ import { LearningMode } from '@/src/types/LearningMode';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { ID, Query } from 'appwrite';
 import learningModeService from './learningModeService';
-import userService from './userService';
 
 class DailyLearningService {
   /**
@@ -64,7 +63,7 @@ class DailyLearningService {
    */
   async createSession(
     userId: string,
-    modeId: number,
+    modeId: string,
     initialWordIds: { pre_test: string[]; learning: string[]; post_test: string[] }
   ): Promise<DailyLearningSession> {
     try {
@@ -230,7 +229,7 @@ class DailyLearningService {
    * @param modeId The ID of the selected learning mode.
    * @returns An object containing arrays of word IDs for pre-test, learning, and post-test.
    */
-  async generateTodaysWordLists(userId: string, modeId: number): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
+  async generateTodaysWordLists(userId: string, modeId: string): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
       // This would typically be passed in or fetched by the caller

@@ -15,7 +15,7 @@ class UserService {
         role: 1,
         englishLevel: 1,
         grade: null,
-        learningMode: 1,
+        learningMode: '1',
         enableSpelling: false
       };
 
@@ -44,17 +44,6 @@ class UserService {
       return newPrefs as UserPreferences;
     } catch (error) {
       console.error("UserService.updateUserPreferences error:", error);
-      throw error;
-    }
-  }
-
-  // Create initial preferences
-  async createUserPreferences(initialData: UserPreferences): Promise<UserPreferences> {
-    try {
-      await account.updatePrefs({prefs:initialData});
-      return initialData;
-    } catch (error) {
-      console.error("UserService.createUserPreferences error:", error);
       throw error;
     }
   }

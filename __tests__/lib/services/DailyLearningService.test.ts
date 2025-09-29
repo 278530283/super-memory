@@ -10,7 +10,7 @@ jest.setTimeout(30000);
 describe('DailyLearningService Integration Tests', () => {
   let testSessionId: string;
   const testUserId = '68c19de90027e9732ea0';
-  const testModeId = 1;
+  const testModeId = "1";
   const testDate = new Date().toISOString().split('T')[0];
 
   // 清理测试数据

@@ -11,7 +11,6 @@ class AuthService {
     try {
       const user = await account.create({userId:userId, email:email, password:password, name:name});
       // Optionally, create a session immediately after registration
-      // await account.createEmailSession(email, password);
       return user;
     } catch (error) {
       console.error("AuthService.register error:", error);

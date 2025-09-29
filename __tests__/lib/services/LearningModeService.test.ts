@@ -8,11 +8,11 @@ test('LearningModeService Integration Tests', async () => {
 
   // 使用真实的数据ID进行测试
   // 假设数据库中存在ID为1的学习模式
-  const result = await learningModeService.getLearningMode(1);
+  const result = await learningModeService.getLearningMode("1");
   console.log("getLearningMode result:", result);
   
   expect(result).not.toBeNull();
-  expect(result?.mode_id).toBe(1);
+  expect(result?.$id).toBe(1);
   expect(result?.mode_name).toBeDefined();
   expect(result?.word_count).toBeDefined();
 });

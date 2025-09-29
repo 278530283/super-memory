@@ -15,6 +15,8 @@ export default function RegisterStep2() {
   
   const { updateUserPreferences } = useAuthStore();
 
+  console.log('RegisterStep2, ', updateUserPreferences);
+
   const handleNext = async () => {
     // 数据校验
     if (englishLevel === '2' && !grade) {

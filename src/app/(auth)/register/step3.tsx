@@ -20,7 +20,7 @@ export default function RegisterStep3() {
     try {
       // 准备用户偏好数据，将字符串转换为数字
       const updates: Partial<UserPreferences> = {
-        learningMode: parseInt(learningMode, 10), // 转换为数字
+        learningMode: learningMode,
         pronunciation: parseInt(pronunciation, 10), // 转换为数字
         enableSpelling,
       };

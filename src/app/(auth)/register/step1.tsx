@@ -14,23 +14,23 @@ export default function RegisterStep1() {
     // Implement SMS sending logic here (or mock it)
     // For now, just simulate
     if (!phone) {
-      Alert.alert('Error', 'Please enter phone number.');
+      Alert.alert('出错了', '请输入手机号');
       return;
     }
-    Alert.alert('Info', `Code sent to ${phone} (mock)`);
+    Alert.alert('信息', `验证码 123456 已发送到手机${phone} (mock)`);
     setVerificationId('mock_verification_id'); // Set a mock ID
   };
 
   const handleRegister = async () => {
     if (!phone || !code || !verificationId) { // Check verification ID
-      Alert.alert('Error', 'Please enter phone, code, and verify first.');
+      Alert.alert('出错了', '请输入手机号和验证码');
       return;
     }
     // Here you would typically verify the code against the verificationId
     // Mock verification success
     const isCodeValid = code === '123456'; // Example mock code
     if (!isCodeValid) {
-        Alert.alert('Error', 'Invalid verification code.');
+        Alert.alert('出错了', '验证码不正确！');
         return;
     }
 
@@ -42,7 +42,8 @@ export default function RegisterStep1() {
       // Or navigate to next step if registration doesn't auto-login
       router.push('/(auth)/register/step2');
     } catch (err) {
-      Alert.alert('Registration Failed', error || 'An error occurred.');
+      console.error('Registration error:', err);
+      Alert.alert('注册失败', '系统错误，请稍后重试');
     }
   };
 

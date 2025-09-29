@@ -11,7 +11,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!phone || !password) {
-      Alert.alert('Error', 'Please enter phone and password.');
+      Alert.alert('出错了', '请输入手机号和密码');
       return;
     }
     try {
@@ -20,7 +20,8 @@ export default function LoginScreen() {
       router.replace('/(tabs)/today');
     } catch (err) {
       // Error handled by store, but you can show an alert too if needed
-      Alert.alert('Login Failed', error || 'An error occurred.');
+      console.error('Login error:', err);
+      Alert.alert('登录失败', '手机号或密码错误！');
     }
   };
 
@@ -32,11 +33,11 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Login</Text>
+      <Text style={styles.title}>登录</Text>
       {error && <Text style={styles.error}>{error}</Text>}
       <TextInput
         style={styles.input}
-        placeholder="Phone"
+        placeholder="手机号"
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
@@ -45,17 +46,17 @@ export default function LoginScreen() {
       />
       <TextInput
         style={styles.input}
-        placeholder="Password"
+        placeholder="密码"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
         onFocus={clearError}
       />
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
+        <Text style={styles.buttonText}>{loading ? '登录中...' : '登录'}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={handleRegister}>
-        <Text style={styles.link}>{"Don't have an account? Register"}</Text>
+        <Text style={styles.link}>{"没有账号? 去注册"}</Text>
       </TouchableOpacity>
     </View>
   );

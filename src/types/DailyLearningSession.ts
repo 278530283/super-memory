@@ -15,7 +15,7 @@ export interface DailyLearningSession {
   session_date: string;
   
   /** 学习模式ID：1=轻松，2=正常，3=努力 */
-  mode_id: number;
+  mode_id: string;
   
   /** 会话状态：0=待开始，1=前置评测中，2=学习中，3=当日评测中，4=已完成 */
   status: number;

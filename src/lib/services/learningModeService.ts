@@ -2,26 +2,22 @@
 import { COLLECTION_LEARNING_MODES, DATABASE_ID } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
 import { LearningMode } from '@/src/types/LearningMode';
-import { Query } from 'appwrite';
 
 class LearningModeService {
   /**
    * 根据模式ID获取学习模式详情
-   * @param modeId 学习模式ID
+   * @param id 学习模式ID
    * @returns 
    */
-  async getLearningMode(modeId: number): Promise<LearningMode | null> {
+  async getLearningMode(id: string): Promise<LearningMode | null> {
     try {
         // Assuming 'id' is a number field in the Appwrite collection
-        const response = await tablesDB.listRows({
+        const response = await tablesDB.getRow({
             databaseId:DATABASE_ID,
             tableId:COLLECTION_LEARNING_MODES,
-            queries:[Query.equal('mode_id', modeId)]
-    });
-        if (response.rows.length > 0) {
-            return response.rows[0] as unknown as LearningMode;
-        }
-        return null;
+            rowId:id
+        });
+        return response as unknown as LearningMode;
     } catch (error) {
         console.error("LearningModeService.getLearningMode error:", error);
         throw error; // Or return null and handle in calling code
