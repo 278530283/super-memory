@@ -39,10 +39,11 @@ export default function TodayScreen() {
             // Assume we have user preferences to get default mode
             const userPrefs = useAuthStore.getState().userPreferences;
             const modeId = userPrefs?.learningMode || "2"; // Default to Normal
+            const difficultyLevel = userPrefs?.englishLevel || 1;
 
             try {
                 setIsLoading(true); // Set loading while creating
-                const initialWordIds = await dailyLearningService.generateTodaysWordLists(user.$id, modeId);
+                const initialWordIds = await dailyLearningService.generateTodaysWordLists(user.$id, modeId, difficultyLevel);
                 // Call the store's createSession method with initialWordIds
                 await createSession(user.$id, modeId, initialWordIds);
             } catch (err) {

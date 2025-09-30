@@ -229,7 +229,7 @@ class DailyLearningService {
    * @param modeId The ID of the selected learning mode.
    * @returns An object containing arrays of word IDs for pre-test, learning, and post-test.
    */
-  async generateTodaysWordLists(userId: string, modeId: string): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
+  async generateTodaysWordLists(userId: string, modeId: string, difficultyLevel: number): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
       // This would typically be passed in or fetched by the caller
@@ -264,12 +264,23 @@ class DailyLearningService {
       // Select a mix of new words and words for review/upgrade.
       // Example: New words (L0) + Words to upgrade (L1->L2, L2->L3)
       // Query.limit(mode.word_count) // Simplified limit
+      // 构建查询条件
+      const queries = [
+        Query.limit(mode.word_count*10),
+        Query.orderAsc('frequency'),
+        Query.equal('difficulty_level', difficultyLevel)
+      ];
+
+      // 只有当用户有学习记录时才排除已学过的词
+      if (userProgress && userProgress.length > 0) {
+          const excludedIds = userProgress.map(p => p.$id);
+          queries.push(Query.notContains('$id', excludedIds));
+      }
+      // 获取候选新单词
       const newWordCandidatesResponse = await tablesDB.listRows({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_WORDS,
-        queries: [
-          Query.notContains('$id', userProgress.map(p => p.$id)), // Words NOT in user's progress (simplified)
-        ]
+        queries: queries
       });
       const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.$id).sort((a, b) => Math.random() - 0.5).slice(0, mode.word_count);
 
