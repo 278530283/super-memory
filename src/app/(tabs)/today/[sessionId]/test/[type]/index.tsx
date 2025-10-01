@@ -215,7 +215,7 @@ export default function TestScreen() {
   }, [router]);
 
   // --- Rendering ---
-  if (sessionLoading || storeIsLoading) {
+  if (storeIsLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#4A90E2" />

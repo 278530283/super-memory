@@ -47,12 +47,12 @@ const useDailyLearningStore = create<DailyLearningState>((set) => ({
     }
   },
   updateSessionProgress: async (sessionId, updates) => {
-    set({ loading: true, error: null });
+    set({ error: null });
     try {
       const updatedSession = await dailyLearningService.updateSession(sessionId, updates);
-      set({ session: updatedSession, loading: false });
+      set({ session: updatedSession});
     } catch (error: any) {
-      set({ error: error.message || 'Failed to update session', loading: false });
+      set({ error: error.message || 'Failed to update session' });
     }
   },
   recordWordAction: async (actionData) => {

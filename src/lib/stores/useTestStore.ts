@@ -5,7 +5,7 @@ import { preTestMachine } from '@/src/lib/statemachines/preTestMachine';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { CreateUserWordProgress } from '@/src/types/UserWordProgress';
-import { CreateUserWordTestHistory } from '@/src/types/UserWordTestHistory'; // 导入类型
+import { CreateUserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Word } from '@/src/types/Word';
 import { Actor, createActor } from 'xstate';
 import { create } from 'zustand';
@@ -190,7 +190,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
         console.log('[TestStore] Moving to word index ', nextIndex);
         // 移动到下一词时重置活动和答题结果，并 **立即设置 isLoading 为 true**
         // 这确保了在 createActorForCurrentWord 完成之前，UI 保持加载状态
-        return { currentWordIndex: nextIndex, activityType: null, lastAnswerResult: null, isLoading: true };
+        return { currentWordIndex: nextIndex, activityType: null, lastAnswerResult: null, isLoading: true, currentActor:null, currentActorSnapshot: null };
       }
       console.log('[TestStore] No more words, test completed.');
       // 如果没有更多单词，可以设置 isLoading 为 false，但这通常由 TestScreen 的 isTestFinished 逻辑处理
@@ -281,8 +281,8 @@ export const useTestStore = create<TestState>()((set, get) => ({
         console.log(`[TestStore] Setting up subscription for actor of word ${wordId}`);
         const unsubscribe = newActor.subscribe((state) => {
             console.log(`[TestStore] Actor state changed for word ${wordId}: VALUE = '${state.value}' TYPEOF = ${typeof state.value}`);
+            
             set({ currentActorSnapshot: state });
-
             // --- 解析并更新当前活动类型 ---
             const stateValue: PreTestMachineStateValue = state.value as PreTestMachineStateValue;
             if (typeof stateValue === 'string' && stateValue.includes('_') && !stateValue.startsWith('L')) {
@@ -331,10 +331,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
                           console.log('[TestStore] Test finished. isTestFinished is true...');
                           set({ isTestFinished: isTestFinished });
                         }
-                        const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
-                        useDailyLearningStore.getState().updateSessionProgress(session.$id, {
-                          [progressField]: `${currentWordIndex+1}/${wordList.length}`,
-                        });
 
                         if (!activityType) {
                             console.error('[TestStore] Cannot save history in final state: activityType is not set.');
@@ -383,11 +379,16 @@ export const useTestStore = create<TestState>()((set, get) => ({
                             // 使用 setTimeout 确保状态更新后再调用 nextWord
                             setTimeout(() => {
                               get().nextWord(); // 调用 store 的 nextWord action
-                            }, 0);
+                            }, 100);
                         } catch (progressError: any) {
                              console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
                              set({ error: `保存单词 ${currentWord.spelling} 进度时出现问题` });
                         }
+                        // 更新 DailyLearningStore 的进度
+                        const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+                        useDailyLearningStore.getState().updateSessionProgress(session.$id, {
+                          [progressField]: `${currentWordIndex+1}/${wordList.length}`,
+                        });
                     })();
                 } else {
                     console.warn(`[TestStore] Could not determine final level for word ${wordId} from state '${stateValue}'`);

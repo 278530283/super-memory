@@ -220,14 +220,17 @@ const Pronunce: React.FC<TestTypeProps> = ({
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
         {/* 单词信息卡片 */}
         <View style={styles.wordCard}>
-          <Text style={styles.wordText}>{word.spelling || 'property'}</Text>
-          <Text style={styles.phoneticText}>
-            美 {word.american_phonetic || '/ˈprɑːpərti/'}
-          </Text>
+          <Text style={styles.wordText}>{word.spelling || ''}</Text>
+          {/* --- 修改：条件渲染音标 --- */}
+          {(word.american_phonetic || word.british_phonetic) && (
+            <Text style={styles.phoneticText}>
+              {word.american_phonetic ? `美 ${word.american_phonetic}` : `英 ${word.british_phonetic}`}
+            </Text>
+          )}
           
           <View style={styles.exampleContainer}>
             <Text style={styles.exampleText}>
-              {word.example_sentence || 'Glitter is one of the properties of gold.'}
+              {word.example_sentence || ''}
             </Text>
           </View>
         </View>

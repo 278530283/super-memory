@@ -98,15 +98,20 @@ const Spelling: React.FC<TestTypeProps> = ({
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 中文意思区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.chinese_meaning || '中文意思'}</Text>
-        <Text style={styles.phoneticText}>
-          美 {word.american_phonetic || '/prap rti/'}
-        </Text>
+        <Text style={styles.wordText}>{word.chinese_meaning || ''}</Text>
+        {/* --- 修改：条件渲染音标 --- */}
+        {(word.american_phonetic || word.british_phonetic) && (
+          <Text style={styles.phoneticText}>
+            {word.american_phonetic ? `美 ${word.american_phonetic}` : `英 ${word.british_phonetic}`}
+          </Text>
+        )}
       </View>
       {/* 例句区域 */}
-      <Text style={styles.exampleText}>
-        {word.example_sentence?.toLowerCase().replace(word.spelling, '***') || 'Glitter is one of the properties of gold.'}
-      </Text>
+      {word.example_sentence && (
+        <Text style={styles.exampleText}>
+          {word.example_sentence?.toLowerCase().replace(word.spelling, '***') || ''}
+        </Text>
+      )}
       {/* 拼写输入区域 */}
       <View style={styles.inputContainer}>
         <TextInput
