@@ -76,8 +76,8 @@ export const useTestStore = create<TestState>()((set, get) => ({
       if (!fetchedSession || fetchedSession.$id !== sessionId) {
         throw new Error('Session not found or mismatch');
       }
-      const { userPreferences: fetchedUserPreferences, user: fetchedAppwriteUser } = useAuthStore.getState();
-      if (!fetchedUserPreferences || !fetchedAppwriteUser) {
+      const { user } = useAuthStore.getState();
+      if (!user) {
          throw new Error('User not authenticated');
       }
       let wordIds: string[] = [];
@@ -326,7 +326,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
                     (async () => {
                         // --- 关键修改：在最终状态 L* 时，先保存 UserWordTestHistory ---
                         const { wordList, currentWordIndex, activityType, lastAnswerResult } = get();
-                        const isTestFinished = currentWordIndex == wordList.length -1;
+                        const isTestFinished = currentWordIndex === wordList.length -1;
                         if(isTestFinished){
                           console.log('[TestStore] Test finished. isTestFinished is true...');
                           set({ isTestFinished: isTestFinished });
@@ -424,3 +424,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
   setIsLoading: (isLoading) => set({ isLoading: isLoading }),
 
 }));
+
+
+export default useTestStore;

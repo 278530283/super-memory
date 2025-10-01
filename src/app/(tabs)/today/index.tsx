@@ -37,7 +37,7 @@ export default function TodayScreen() {
     const createNewSessionIfNeeded = async () => {
         if (!sessionLoading && !session && user?.$id && !isLoading) {
             // Assume we have user preferences to get default mode
-            const userPrefs = useAuthStore.getState().userPreferences;
+            const userPrefs = useAuthStore.getState().user?.prefs;
             const modeId = userPrefs?.learningMode || "2"; // Default to Normal
             const difficultyLevel = userPrefs?.englishLevel || 1;
 
@@ -60,7 +60,7 @@ export default function TodayScreen() {
 
   useEffect(() => {
     if (sessionError) {
-      Alert.alert('Error', sessionError, [{ text: 'OK', onPress: clearSessionError }]);
+      Alert.alert('出错了', sessionError, [{ text: '知道了', onPress: clearSessionError }]);
     }
   }, [sessionError, clearSessionError]);
 

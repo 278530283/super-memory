@@ -1,4 +1,5 @@
 // src/components/features/today/TestTypes/TransEn.tsx
+import { TestTypeProps, WordOption } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -12,9 +13,6 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-
-import { TestTypeProps, WordOption } from '@/src/types/Word';
-
 
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
@@ -32,9 +30,9 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
 interface OptionCardProps {
   option: WordOption;
   isSelected: boolean;
-  isCorrect: boolean;
+  isCorrect: boolean; // 现在 isCorrect 表示选项是否对应正确单词的 ID
   showFeedback: { correct: boolean; message: string } | null;
-  onSelect: (optionKey: string) => void;
+  onSelect: (optionId: string) => void; // onSelect 回调现在接收选项的 ID
   testID?: string;
 }
 
@@ -46,12 +44,13 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
   onSelect,
   testID
 }) => {
-  const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`;
-  
+  // const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`; // 旧方式
+  const optionId = option.id; // 使用选项的 id 作为唯一标识
+
   const handlePress = useCallback(() => {
-    onSelect(optionKey);
+    onSelect(optionId); // 传递选项 ID
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [onSelect, optionKey]);
+  }, [onSelect, optionId]);
 
   return (
     <TouchableOpacity
@@ -59,7 +58,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
       style={[
         styles.optionCard,
         isSelected && !showFeedback && styles.selectedOptionCard,
-        showFeedback && isCorrect && styles.correctOptionCard,
+        showFeedback && isCorrect && isSelected && styles.correctOptionCard, // 根据 isCorrect 和 isSelected 显示状态
         showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
       ]}
       onPress={handlePress}
@@ -79,12 +78,12 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TransEn: React.FC<TestTypeProps> = ({ 
-  word, 
-  onAnswer, 
+const TransEn: React.FC<TestTypeProps> = ({
+  word,
+  onAnswer,
   testType = 'transEn'
 }) => {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null); // 存储选中的选项 ID
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -96,31 +95,34 @@ const TransEn: React.FC<TestTypeProps> = ({
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
-  const correctOptionKey = word.chinese_meaning; // 正确选项标识
-  console.log('Correct option key:', correctOptionKey);
+  // 正确答案的单词 ID
+  const correctWordId = word.$id;
+  console.log('Correct word ID:', correctWordId);
 
-  const handleSelect = useCallback((optionKey: string) => {
+  const handleSelect = useCallback((optionId: string) => {
     if (showFeedback) return;
-    console.log('Selected option:', optionKey);
-    setSelectedOption(optionKey);
+    console.log('Selected option ID:', optionId);
+    setSelectedOptionId(optionId);
   }, [showFeedback]);
 
   const handleSubmit = useCallback(() => {
-    if (!selectedOption) {
+    if (!selectedOptionId) {
       Alert.alert('请选择一个选项');
       return;
     }
     if (showFeedback) return;
 
-    const isCorrect = selectedOption === correctOptionKey;
+    // 判断选中的选项是否对应正确单词的 ID
+    const isCorrect = selectedOptionId === correctWordId;
+
     const responseTimeMs = Date.now() - startTime;
     const result = {
-      type: testType, // 使用传入的 testType
+      type: testType,
       correct: isCorrect,
-      userAnswer: selectedOption,
-      wordId: word.$id,
+      userAnswer: selectedOptionId, // 保存选中的选项 ID
+      wordId: word.$id, // 保存当前测试的单词 ID
       responseTimeMs,
     };
 
@@ -131,10 +133,10 @@ const TransEn: React.FC<TestTypeProps> = ({
 
     setTimeout(() => {
       onAnswer(result);
-      setSelectedOption(null);
-      setShowFeedback(null);
-    }, 1500);
-  }, [selectedOption, showFeedback, startTime, word, onAnswer, testType, correctOptionKey]);
+      // setSelectedOptionId(null); // 可选：提交后清除选择
+      // setShowFeedback(null);  // 可选：提交后清除反馈
+    }, 500);
+  }, [selectedOptionId, showFeedback, startTime, word, onAnswer, testType, correctWordId]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -145,25 +147,25 @@ const TransEn: React.FC<TestTypeProps> = ({
           美 {word.american_phonetic || '/prap rti/'}
         </Text>
       </View>
-
       {/* 例句区域 */}
       <Text style={styles.exampleText}>
         {word.example_sentence || 'Glitter is one of the properties of gold.'}
       </Text>
-
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
-        {word.options!.map((option, index) => {
-          const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`;
-          const isSelected = selectedOption === optionKey;
-          const isCorrect = optionKey === correctOptionKey;
-          
+        {word.options?.map((option, index) => {
+          // const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`; // 旧方式
+          const optionId = option.id; // 使用选项 ID
+          const isSelected = selectedOptionId === optionId;
+          // 判断选项是否正确：选项的 wordId 是否等于当前单词的 $id
+          const isCorrect = option.id === correctWordId;
+
           return (
             <OptionCard
-              key={option.id}
-              option={word.options![index]}
+              key={optionId} // 使用 optionId 作为 key
+              option={option}
               isSelected={isSelected}
-              isCorrect={isCorrect}
+              isCorrect={isCorrect} // 传递 isCorrect 状态
               showFeedback={showFeedback}
               onSelect={handleSelect}
               testID={`option-${index}`}
@@ -171,22 +173,20 @@ const TransEn: React.FC<TestTypeProps> = ({
           );
         })}
       </View>
-
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!selectedOption || showFeedback) && styles.submitButtonDisabled]}
+        style={[styles.submitButton, (!selectedOptionId || showFeedback) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
-        disabled={!selectedOption || !!showFeedback}
+        disabled={!selectedOptionId || !!showFeedback}
         accessibilityLabel="提交答案"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !selectedOption || !!showFeedback }}
+        accessibilityState={{ disabled: !selectedOptionId || !!showFeedback }}
       >
         <Text style={styles.submitButtonText}>提交</Text>
       </TouchableOpacity>
-
       {/* 答题反馈 */}
-      {showFeedback && (
+      {/* {showFeedback && (
         <View style={styles.feedbackContainer}>
           <Text style={[
             styles.feedbackText,
@@ -195,7 +195,7 @@ const TransEn: React.FC<TestTypeProps> = ({
             {showFeedback.message}
           </Text>
         </View>
-      )}
+      )} */}
     </Animated.View>
   );
 };

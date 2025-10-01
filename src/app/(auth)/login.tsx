@@ -20,7 +20,7 @@ export default function LoginScreen() {
       router.replace('/(tabs)/today');
     } catch (err) {
       // Error handled by store, but you can show an alert too if needed
-      console.error('Login error:', err);
+      console.info('Login error:', err);
       Alert.alert('登录失败', '手机号或密码错误！');
     }
   };
@@ -34,7 +34,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>登录</Text>
-      {error && <Text style={styles.error}>{error}</Text>}
+      {/* {error && <Text style={styles.error}>{error}</Text>} */}
       <TextInput
         style={styles.input}
         placeholder="手机号"

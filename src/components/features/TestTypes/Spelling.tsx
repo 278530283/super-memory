@@ -81,13 +81,18 @@ const Spelling: React.FC<TestTypeProps> = ({
     setTimeout(() => {
       onAnswer(result);
       setUserInput(''); // 清空输入
-      setShowFeedback(null);
+      setShowFeedback(null); // 清除反馈状态，边框颜色也会重置
       // 可选：提交后重新聚焦输入框
       if (inputRef.current) {
         inputRef.current.focus();
       }
     }, 1500); // 延迟 1.5 秒后继续
   }, [userInput, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
+
+  // --- 新增逻辑：根据 showFeedback 状态确定输入框边框颜色 ---
+  const inputBorderColor = showFeedback
+    ? (showFeedback.correct ? '#28A745' : '#DC3545') // 正确时绿色，错误时红色
+    : '#E0E0E0'; // 默认灰色
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -98,30 +103,24 @@ const Spelling: React.FC<TestTypeProps> = ({
           美 {word.american_phonetic || '/prap rti/'}
         </Text>
       </View>
-
       {/* 例句区域 */}
       <Text style={styles.exampleText}>
         {word.example_sentence?.toLowerCase().replace(word.spelling, '***') || 'Glitter is one of the properties of gold.'}
       </Text>
-
       {/* 拼写输入区域 */}
       <View style={styles.inputContainer}>
         <TextInput
           ref={inputRef}
-          style={styles.textInput}
+          style={[styles.textInput, { borderColor: inputBorderColor }]} // 应用动态边框颜色
           value={userInput}
           onChangeText={handleInputChange}
           placeholder="请输入英文拼写..."
           placeholderTextColor="#C5C5C7"
           autoCapitalize="none" // 关闭自动大写
           autoCorrect={false}   // 关闭自动更正
-          // 可选：指定键盘类型
-          // keyboardType="ascii-capable"
-          // 可选：在输入框下方显示正确答案提示（仅在 showFeedback 时）
-          // editable={!showFeedback}
+          // editable={!showFeedback} // 可选：提交后禁用编辑
         />
       </View>
-
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
@@ -134,7 +133,6 @@ const Spelling: React.FC<TestTypeProps> = ({
       >
         <Text style={styles.submitButtonText}>提交</Text>
       </TouchableOpacity>
-
       {/* 答题反馈 */}
       {showFeedback && (
         <View style={styles.feedbackContainer}>
@@ -230,7 +228,7 @@ const styles = StyleSheet.create({
     // 可选：为输入框添加背景色或边框
     // backgroundColor: '#F8F9FA',
     // borderWidth: 1,
-    borderColor: '#E0E0E0',
+    // borderColor: '#E0E0E0', // 不再需要默认边框色，由 TextInput 自己控制
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -239,8 +237,9 @@ const styles = StyleSheet.create({
   textInput: {
     fontSize: 18,
     height: 50,
-    borderColor: '#E0E0E0',
-    borderWidth: 1,
+    // 移除 borderWidth 和 borderColor，由 props 动态设置
+    // borderWidth: 1,
+    // borderColor: '#E0E0E0',
     borderRadius: 8,
     paddingHorizontal: 15,
     backgroundColor: '#FFFFFF',
@@ -260,7 +259,6 @@ const styles = StyleSheet.create({
   // optionsGrid: { ... },
   // optionCard: { ... },
   // ... (其他已移除的样式)
-
   submitButton: {
     position: 'absolute',
     bottom: 20,

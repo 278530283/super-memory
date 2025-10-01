@@ -47,29 +47,28 @@ parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning:
     return { partOfSpeech: '', meaning: '' };
   }
   const trimmedMeaning = chineseMeaning.trim();
+  let partOfSpeech = '';
+  let meaningPart = trimmedMeaning;
   // 查找第一个点空格的位置
   const dotSpaceIndex = trimmedMeaning.indexOf('. ');
   if (dotSpaceIndex !== -1) {
     // 词性部分：从开始到点空格之前的点（包括点）
-    let partOfSpeech = trimmedMeaning.substring(0, dotSpaceIndex + 1); // 包括点，但不包括空格
-    // 含义部分：从点空格之后开始
-    let meaningPart = trimmedMeaning.substring(dotSpaceIndex + 2); // 跳过点空格
-
-    // 检查词性部分是否只包含允许的字符（字母、点、斜杠）
-    if (/^[a-z./]+$/i.test(partOfSpeech)) {
-      // 如果含义部分还有下一个词性，我们可以尝试拆分，但这里我们简单取第一个空格前的词？不，含义可能包含空格。
-      // 我们暂时不处理，直接返回整个含义部分
-      return {
-        partOfSpeech: partOfSpeech,
-        meaning: meaningPart
-      };
+    const partOfSpeechTemp = trimmedMeaning.substring(0, dotSpaceIndex + 1); // 包括点，但不包括空格
+    if (/^[a-z./]+$/i.test(partOfSpeechTemp)) {
+      partOfSpeech = partOfSpeechTemp;
     }
+    // 含义部分：从点空格之后开始
+    meaningPart = trimmedMeaning.substring(dotSpaceIndex + 2); // 跳过点空格
   }
-  // 如果没有点空格，返回整个字符串作为含义，词性为空
+  // 只获取 第一个含义
+  let meaningSeparator = meaningPart.search(/[,;\\]/); // 查找第一个逗号或分号
+  if(meaningSeparator !== -1)
+    meaningPart = meaningPart.substring(0, meaningSeparator);
+
   return {
-    partOfSpeech: '',
-    meaning: trimmedMeaning
-  };
+      partOfSpeech: partOfSpeech,
+      meaning: meaningPart
+    };
 };
 // ---------------------------------------
 
@@ -87,6 +86,8 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
       console.warn('[WordService] Requested option count is <= 0, returning empty array.');
       return correctWord;
     }
+    const parsed = this.parseChineseMeaning(correctWord.chinese_meaning || '');
+    correctWord.chinese_meaning = `${parsed.partOfSpeech} ${parsed.meaning}`;
 
     const totalOptionsNeeded = count;
     const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);

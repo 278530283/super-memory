@@ -17,6 +17,7 @@ import Spelling from '@/src/components/features/TestTypes/Spelling';
 import TransCh from '@/src/components/features/TestTypes/TransCh';
 import TransEn from '@/src/components/features/TestTypes/TransEn';
 // 导入服务和存储
+import Listen from '@/src/components/features/TestTypes/Listen';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useTestStore } from '@/src/lib/stores/useTestStore';
@@ -28,7 +29,7 @@ type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen'; 
 
 // 测试类型到组件名称的映射
 const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
-  listen: Pronunce,
+  listen: Listen,
   transEn: TransEn,
   transCh: TransCh,
   spelling: Spelling,
@@ -43,7 +44,7 @@ export default function TestScreen() {
   }>();
 
   // --- 从 Hooks 获取原始状态 ---
-  const { userPreferences: authUserPreferences, user: authAppwriteUser } = useAuthStore();
+  const { user } = useAuthStore();
 
   const {
     session,
@@ -64,8 +65,7 @@ export default function TestScreen() {
     initializeTest,
     handleAnswer: storeHandleAnswer,
     setError: setStoreError,
-    reset: resetStore,
-    setIsLoading: setIsLoading,
+    reset: resetStore
   } = useTestStore();
 
   // 使用 useState 来存储当前活动类型
@@ -116,7 +116,7 @@ export default function TestScreen() {
   // --- Effects ---
   useEffect(() => {
     console.log('[TestScreen] useEffect triggered. sessionId:', sessionId, 'type:', type);
-    if (!authUserPreferences || !authAppwriteUser) {
+    if (!user) {
         console.log('[TestScreen] User not authenticated, redirecting...');
         Alert.alert('未登录', '请先登录以开始测试。', [
             { text: '确定', onPress: () => router.replace('/login') }
@@ -132,7 +132,7 @@ export default function TestScreen() {
       console.log('[TestScreen] Component unmounting, calling resetStore...');
       resetStore();
     };
-  }, [sessionId, type, initializeTest, resetStore, authUserPreferences, authAppwriteUser, router]);
+  }, [sessionId, type, initializeTest, resetStore, user, router]);
 
   useEffect(() => {
     if (isTestFinished && wordList.length > 0) {

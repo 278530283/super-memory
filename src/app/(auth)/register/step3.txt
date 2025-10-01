@@ -2,49 +2,32 @@
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import { UserPreferences } from '@/src/types/User';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 
 export default function RegisterStep3() {
-  // 状态现在使用字符串类型以匹配 picker 的值
-  const [learningMode, setLearningMode] = useState<string>('2');
-  const [enableSpelling, setEnableSpelling] = useState<boolean>(false);
-  const [pronunce, setPronunce] = useState<string>('1'); // 注意：这里应该是 'pronounce'
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { user } = useAuthStore(); // 获取当前用户
-
-  // 组件挂载时，尝试从 store 的 user 状态中加载现有偏好
-  useEffect(() => {
-    // console.log("Current user in Step3:", user); // 调试用
-    if (user && user.prefs) {
-      // 从用户偏好中加载数据
-      // 注意：这里需要处理可能未定义的情况，并提供默认值
-      setLearningMode(user.prefs.learningMode?.toString() || '2'); // 假设 learningMode 存储为数字，需要转为字符串
-      setEnableSpelling(!!user.prefs.enableSpelling); // 确保布尔值
-      // 注意：你的 UserPreferences 类型中定义的是 'pronounce'，但这里使用了 'pronunce'
-      // 如果实际存储的键是 'pronunce'，则按此处理；如果是 'pronounce'，则应修改
-      // 假设实际存储的键是 'pronounce'
-      setPronunce(user.prefs.pronounce?.toString() || '1'); // 假设 pronounce 存储为数字，需要转为字符串
-    }
-  }, [user]); // 依赖于 user 对象，当 user 更新时重新加载
+  const [learningMode, setLearningMode] = useState('2'); // 使用字符串状态
+  const [enableSpelling, setEnableSpelling] = useState(false);
+  const [pronunce, setPronunce] = useState('1'); // 使用字符串状态
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { user, updatePreferences } = useAuthStore();
 
   const handleFinish = async () => {
     setIsLoading(true);
+    
     try {
       // 准备用户偏好数据，将字符串转换为数字
-      // 注意：确保 UserPreferences 类型中定义的字段名与这里一致
       const updates: Partial<UserPreferences> = {
-        learningMode,
-        pronounce: parseInt(pronunce, 10), // 转换为数字，注意字段名
-        enableSpelling, // 布尔值
+        learningMode: learningMode,
+        pronunce: parseInt(pronunce, 10), // 转换为数字
+        enableSpelling,
       };
 
-      // console.log("Updates being sent:", updates); // 调试用
-
-      // 保存到状态管理 (这会调用 userService.updateUserPreferences)
-      await useAuthStore.getState().updatePreferences(updates);
-
+      // 保存到状态管理
+      await updatePreferences(updates);
+      
       // 导航到主应用
       router.replace('/(tabs)/today');
     } catch (error: any) {
@@ -58,6 +41,7 @@ export default function RegisterStep3() {
     <View style={styles.container}>
       <Text style={styles.title}>定制你的学习计划</Text>
       <Text style={styles.subtitle}>步骤 3/3</Text>
+
       <Text style={styles.label}>选择学习模式</Text>
       <View style={styles.modeCardContainer}>
         {[
@@ -75,6 +59,7 @@ export default function RegisterStep3() {
           </TouchableOpacity>
         ))}
       </View>
+
       <View style={styles.switchContainer}>
         <Text style={styles.label}>启用拼写测试</Text>
         <Switch
@@ -84,6 +69,7 @@ export default function RegisterStep3() {
           value={enableSpelling}
         />
       </View>
+
       <Text style={styles.label}>发音偏好</Text>
       <View style={styles.pickerContainer}>
         <RNPickerSelect
@@ -97,8 +83,9 @@ export default function RegisterStep3() {
           useNativeAndroidPickerStyle={false}
         />
       </View>
-      <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
+
+      <TouchableOpacity 
+        style={[styles.button, isLoading && styles.buttonDisabled]} 
         onPress={handleFinish}
         disabled={isLoading}
       >

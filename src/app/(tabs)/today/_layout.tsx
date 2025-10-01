@@ -42,7 +42,7 @@ export default function TodayLayout() {
         name="[sessionId]/test/[type]/index" // 这会匹配 today/test/[type]/index.tsx
         options={({ route }: any) => { // options 本身是一个函数
           // 从 route.params 中获取 type 参数
-          const { type } = route.params || {};
+          // const { type } = route.params || {};
           
           // const titleMap: Record<string, string> = {
           //   pre_test: "前置评测",
