@@ -24,13 +24,15 @@ export interface Word {
   is_analyzed: boolean; // 1=true, 0=false -> boolean
   // Add other fields if present in Appwrite collection
   options?: WordOption[];
+  partOfSpeech?: string;
+  meaning?: string;
 }
 
 // 定义选项对象的类型
 export interface WordOption {
   partOfSpeech: string;
   spelling: string;
-  chinese_meaning: string;
+  meaning: string;
   id: string; // 单词的 $id 或生成的唯一 ID
 }
 

@@ -6,6 +6,7 @@ import { AudioModule, AudioQuality, createAudioPlayer, RecordingOptions, setAudi
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   SafeAreaView,
@@ -74,6 +75,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
 
   const [recognizedText, setRecognizedText] = useState<string|null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // 新增：提交状态
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [audioSource, setAudioSource] = useState<string>('');
@@ -192,7 +194,10 @@ const Pronunce: React.FC<TestTypeProps> = ({
         Alert.alert('请朗读单词');
         return;
       }
-      if (showFeedback) return;
+      if (showFeedback || isSubmitting) return;
+      
+      setIsSubmitting(true); // 开始提交
+      
       const isCorrect = recognizedText.trim() === correctSpelling;
       const responseTimeMs = Date.now() - startTime;
       const result = {
@@ -210,10 +215,11 @@ const Pronunce: React.FC<TestTypeProps> = ({
       
       setTimeout(() => {
         onAnswer(result);
-        setRecognizedText(null);
-        setShowFeedback(null);
-      }, 1500);
-    }, [recognizedText, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
+        // setIsSubmitting(false); // 提交完成
+        // setRecognizedText(null);
+        // setShowFeedback(null);
+      }, 0);
+    }, [recognizedText, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctSpelling]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -237,7 +243,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
 
         {/* 录音区域 */}
         <View style={styles.recordingSection}>
-          <Text style={styles.sectionTitle}>请朗读单词</Text>
+          {/* <Text style={styles.sectionTitle}>请朗读单词</Text> */}
           
           <TouchableOpacity
             style={[styles.recordButton, recorderState.isRecording && styles.recordingActive]}
@@ -257,7 +263,6 @@ const Pronunce: React.FC<TestTypeProps> = ({
               ? "正在录音..." 
               : recognizedText 
                 ? <>
-                    识别结果: 
                     <Text style={[
                       styles.recognizedTextValue,
                       showFeedback && (showFeedback.correct ? styles.correctText : styles.incorrectText)
@@ -287,15 +292,19 @@ const Pronunce: React.FC<TestTypeProps> = ({
         {/* 提交按钮 */}
         <TouchableOpacity
           testID="submit-button"
-          style={[styles.submitButton, (!recognizedText || showFeedback) && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (!recognizedText || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={!recognizedText || !!showFeedback}
+          disabled={!recognizedText || !!showFeedback || isSubmitting}
         >
-          <Text style={styles.submitButtonText}>提交答案</Text>
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>提交答案</Text>
+          )}
         </TouchableOpacity>
 
         {/* 答题反馈 */}
-        {showFeedback && (
+        {/* {showFeedback && (
           <View style={styles.feedbackContainer}>
             <View style={[styles.feedbackBubble, showFeedback.correct ? styles.correctBubble : styles.incorrectBubble]}>
               <Ionicons 
@@ -308,7 +317,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
               </Text>
             </View>
           </View>
-        )}
+        )} */}
       </Animated.View>
     </SafeAreaView>
   );
@@ -400,44 +409,29 @@ const styles = StyleSheet.create({
   },
   resultAndPlayRow: {
     flexDirection: 'row',
-    alignItems: 'center',       // 垂直居中对齐
-    justifyContent: 'center',   // 整体水平居中
-    gap: 12,                    // 文本与按钮间距
-    marginTop: 8,               // 与上方录音按钮保持原有间距
-    width: '100%',              // 占满父容器宽度
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 8,
+    width: '100%',
   },
   statusText: {
-    fontSize: 15,
+    fontSize: 18,
     color: '#666',
     textAlign: 'center',
     marginTop: 8,
   },
   recognizedTextValue: {
-    // 可根据需要添加基础样式，如字体粗细等
     fontWeight: '500',
   },
-  // 正确时的颜色
   correctText: {
-    color: '#28A745', // 绿色
+    color: '#28A745',
   },
-  // 错误时的颜色
   incorrectText: {
-    color: '#DC3545', // 红色
-  },
-  // 播放区域
-  playbackSection: {
-    alignItems: 'center',
-    marginVertical: 10,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(74, 144, 226, 0.05)',
+    color: '#DC3545',
   },
   playButton: {
     marginBottom: -10,
-  },
-  playbackStatus: {
-    fontSize: 14,
-    color: '#555',
   },
   
   // 提交按钮

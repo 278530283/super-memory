@@ -87,7 +87,8 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
       return correctWord;
     }
     const parsed = this.parseChineseMeaning(correctWord.chinese_meaning || '');
-    correctWord.chinese_meaning = `${parsed.partOfSpeech} ${parsed.meaning}`;
+    correctWord.partOfSpeech = parsed.partOfSpeech;
+    correctWord.meaning = `${parsed.partOfSpeech} ${parsed.meaning}`;
 
     const totalOptionsNeeded = count;
     const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);
@@ -126,7 +127,7 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
         return {
           partOfSpeech: parsed.partOfSpeech, // 解析出的词性
           spelling: word.spelling,
-          chinese_meaning: parsed.meaning,           // 解析出的含义
+          meaning: parsed.meaning,           // 解析出的含义
           id: word.$id                      // 使用单词ID
         };
     });

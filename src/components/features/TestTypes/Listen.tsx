@@ -6,6 +6,7 @@ import * as Speech from 'expo-speech'; // 引入 expo-speech
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Platform,
@@ -45,7 +46,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
   onSelect,
   testID
 }) => {
-  // const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`; // 旧方式
+  // const optionKey = `${option.partOfSpeech} ${option.meaning}`; // 旧方式
   const optionId = option.id; // 使用选项的 id 作为唯一标识
 
   const handlePress = useCallback(() => {
@@ -64,13 +65,13 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
       ]}
       onPress={handlePress}
       disabled={!!showFeedback}
-      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.chinese_meaning}`}
+      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.meaning}`}
       accessibilityRole="button"
       accessibilityState={{ selected: isSelected }}
     >
       <Text style={styles.optionText}>
         <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text>
-        <Text style={styles.meaningText}> {option.chinese_meaning}</Text>
+        <Text style={styles.meaningText}> {option.meaning}</Text>
       </Text>
     </TouchableOpacity>
   );
@@ -86,6 +87,7 @@ const Listen: React.FC<TestTypeProps> = ({
 }) => {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null); // 存储选中的选项 ID
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // 新增：提交状态
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -164,7 +166,9 @@ const Listen: React.FC<TestTypeProps> = ({
       Alert.alert('请选择一个选项');
       return;
     }
-    if (showFeedback) return;
+    if (showFeedback || isSubmitting) return;
+
+    setIsSubmitting(true); // 开始提交
 
     // 判断选中的选项是否对应正确单词的 ID
     const isCorrect = selectedOptionId === correctWordId;
@@ -186,10 +190,11 @@ const Listen: React.FC<TestTypeProps> = ({
 
     setTimeout(() => {
       onAnswer(result);
+      // setIsSubmitting(false); // 提交完成
       // setSelectedOptionId(null); // 可选：提交后清除选择
       // setShowFeedback(null);  // 可选：提交后清除反馈
-    }, 500);
-  }, [selectedOptionId, showFeedback, startTime, word, onAnswer, testType, correctWordId]);
+    }, 100);
+  }, [selectedOptionId, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctWordId]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -207,7 +212,7 @@ const Listen: React.FC<TestTypeProps> = ({
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options?.map((option, index) => {
-          // const optionKey = `${option.partOfSpeech} ${option.chinese_meaning}`; // 旧方式
+          // const optionKey = `${option.partOfSpeech} ${option.meaning}`; // 旧方式
           const optionId = option.id; // 使用选项 ID
           const isSelected = selectedOptionId === optionId;
           // 判断选项是否正确：选项的 wordId 是否等于当前单词的 $id
@@ -229,14 +234,18 @@ const Listen: React.FC<TestTypeProps> = ({
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!selectedOptionId || showFeedback) && styles.submitButtonDisabled]}
+        style={[styles.submitButton, (!selectedOptionId || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
-        disabled={!selectedOptionId || !!showFeedback}
+        disabled={!selectedOptionId || !!showFeedback || isSubmitting}
         accessibilityLabel="提交答案"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !selectedOptionId || !!showFeedback }}
+        accessibilityState={{ disabled: !selectedOptionId || !!showFeedback || isSubmitting }}
       >
-        <Text style={styles.submitButtonText}>提交</Text>
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.submitButtonText}>提交</Text>
+        )}
       </TouchableOpacity>
       {/* 答题反馈 */}
       {/* {showFeedback && (

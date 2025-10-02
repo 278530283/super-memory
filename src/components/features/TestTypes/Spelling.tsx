@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Platform,
@@ -34,6 +35,7 @@ const Spelling: React.FC<TestTypeProps> = ({
 }) => {
   const [userInput, setUserInput] = useState<string>(''); // 存储用户输入
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // 新增：提交状态
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const inputRef = useRef<TextInput>(null); // 用于聚焦输入框
@@ -45,7 +47,7 @@ const Spelling: React.FC<TestTypeProps> = ({
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   // 正确的英文拼写
   const correctSpelling = word.spelling;
@@ -60,7 +62,10 @@ const Spelling: React.FC<TestTypeProps> = ({
       Alert.alert('请输入英文拼写');
       return;
     }
-    if (showFeedback) return; // 防止重复提交
+    if (isSubmitting) return; // 防止重复提交
+
+    // 设置提交状态
+    setIsSubmitting(true);
 
     // 不区分大小写比较
     const isCorrect = userInput.trim().toLowerCase() === correctSpelling.toLowerCase();
@@ -80,26 +85,35 @@ const Spelling: React.FC<TestTypeProps> = ({
 
     setTimeout(() => {
       onAnswer(result);
-      setUserInput(''); // 清空输入
-      setShowFeedback(null); // 清除反馈状态，边框颜色也会重置
-      // 可选：提交后重新聚焦输入框
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
-    }, 1500); // 延迟 1.5 秒后继续
-  }, [userInput, showFeedback, startTime, word, onAnswer, testType, correctSpelling]);
+      // setUserInput(''); // 清空输入
+      // setShowFeedback(null); // 清除反馈状态，边框颜色也会重置
+      // setIsSubmitting(false); // 重置提交状态
+      // // 可选：提交后重新聚焦输入框
+      // if (inputRef.current) {
+      //   inputRef.current.focus();
+      // }
+    }, 100); // 延迟 1.5 秒后继续
+  }, [userInput, isSubmitting, startTime, word, onAnswer, testType, correctSpelling]);
 
-  // --- 新增逻辑：根据 showFeedback 状态确定输入框边框颜色 ---
-  const inputBorderColor = showFeedback
-    ? (showFeedback.correct ? '#28A745' : '#DC3545') // 正确时绿色，错误时红色
-    : '#E0E0E0'; // 默认灰色
+  // 根据 showFeedback 状态确定输入框样式
+  const getInputStyle = () => {
+    if (!showFeedback) {
+      return [styles.textInput, { borderColor: '#E0E0E0', backgroundColor: '#FFFFFF' }];
+    }
+    
+    if (showFeedback.correct) {
+      return [styles.textInput, { borderColor: '#28A745', backgroundColor: '#F8FFF8' }];
+    } else {
+      return [styles.textInput, { borderColor: '#DC3545', backgroundColor: '#FFF8F8' }];
+    }
+  };
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 中文意思区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.chinese_meaning || ''}</Text>
-        {/* --- 修改：条件渲染音标 --- */}
+        <Text style={styles.wordText}>{word.meaning || ''}</Text>
+        {/* 条件渲染音标 */}
         {(word.american_phonetic || word.british_phonetic) && (
           <Text style={styles.phoneticText}>
             {word.american_phonetic ? `美 ${word.american_phonetic}` : `英 ${word.british_phonetic}`}
@@ -116,36 +130,38 @@ const Spelling: React.FC<TestTypeProps> = ({
       <View style={styles.inputContainer}>
         <TextInput
           ref={inputRef}
-          style={[styles.textInput, { borderColor: inputBorderColor }]} // 应用动态边框颜色
+          style={getInputStyle()} // 应用动态样式
           value={userInput}
           onChangeText={handleInputChange}
           placeholder="请输入英文拼写..."
           placeholderTextColor="#C5C5C7"
           autoCapitalize="none" // 关闭自动大写
           autoCorrect={false}   // 关闭自动更正
-          // editable={!showFeedback} // 可选：提交后禁用编辑
+          editable={!isSubmitting} // 提交时禁用编辑
         />
       </View>
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!userInput.trim() || showFeedback) && styles.submitButtonDisabled]}
+        style={[
+          styles.submitButton, 
+          (!userInput.trim() || isSubmitting) && styles.submitButtonDisabled
+        ]}
         onPress={handleSubmit}
-        disabled={!userInput.trim() || !!showFeedback}
-        accessibilityLabel="提交答案"
+        disabled={!userInput.trim() || isSubmitting}
+        accessibilityLabel={isSubmitting ? "提交中..." : "提交答案"}
         accessibilityRole="button"
-        accessibilityState={{ disabled: !userInput.trim() || !!showFeedback }}
+        accessibilityState={{ disabled: !userInput.trim() || isSubmitting }}
       >
-        <Text style={styles.submitButtonText}>提交</Text>
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.submitButtonText}>提交</Text>
+        )}
       </TouchableOpacity>
       {/* 答题反馈 */}
-      {showFeedback && (
+      {/* {showFeedback && (
         <View style={styles.feedbackContainer}>
-          {/* <Ionicons 
-            name={showFeedback.correct ? "checkmark-circle" : "close-circle"} 
-            size={32} 
-            color={showFeedback.correct ? "#28A745" : "#DC3545"} 
-          /> */}
           <Text style={[
             styles.feedbackText,
             showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
@@ -153,7 +169,7 @@ const Spelling: React.FC<TestTypeProps> = ({
             {showFeedback.message}
           </Text>
         </View>
-      )}
+      )} */}
     </Animated.View>
   );
 };
@@ -230,24 +246,18 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   inputContainer: {
-    // 可选：为输入框添加背景色或边框
-    // backgroundColor: '#F8F9FA',
-    // borderWidth: 1,
-    // borderColor: '#E0E0E0', // 不再需要默认边框色，由 TextInput 自己控制
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    marginBottom: 20, // 与下面的提交按钮保持距离
+    marginBottom: 20,
   },
   textInput: {
     fontSize: 18,
     height: 50,
-    // 移除 borderWidth 和 borderColor，由 props 动态设置
-    // borderWidth: 1,
-    // borderColor: '#E0E0E0',
+    borderWidth: 2,
     borderRadius: 8,
     paddingHorizontal: 15,
-    backgroundColor: '#FFFFFF',
+    letterSpacing: 2,
     ...Platform.select({
       ios: {
         shadowColor: '#d0bebeff',
@@ -260,10 +270,6 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  // 选项网格样式已移除
-  // optionsGrid: { ... },
-  // optionCard: { ... },
-  // ... (其他已移除的样式)
   submitButton: {
     position: 'absolute',
     bottom: 20,
@@ -273,6 +279,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 50, // 确保按钮高度一致
   },
   submitButtonDisabled: {
     backgroundColor: '#C5C5C7',

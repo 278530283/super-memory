@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
+  ActivityIndicator,
   Alert,
   Animated,
   Platform,
@@ -86,6 +87,7 @@ const TransCh: React.FC<TestTypeProps> = ({
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // 新增：提交状态
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -112,7 +114,10 @@ const TransCh: React.FC<TestTypeProps> = ({
       Alert.alert('请选择一个选项');
       return;
     }
-    if (showFeedback) return;
+    if (showFeedback || isSubmitting) return;
+    
+    setIsSubmitting(true); // 开始提交
+    
     console.log('Correct option:', correctOptionKey);
     console.log('User answer:', selectedOption);
 
@@ -133,25 +138,31 @@ const TransCh: React.FC<TestTypeProps> = ({
 
     setTimeout(() => {
       onAnswer(result);
-      setSelectedOption(null);
-      setShowFeedback(null);
-    }, 1500);
-  }, [selectedOption, showFeedback, startTime, word, onAnswer, testType, correctOptionKey]);
+      // setIsSubmitting(false); // 提交完成
+      // setSelectedOption(null);
+      // setShowFeedback(null);
+    }, 0);
+  }, [selectedOption, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctOptionKey]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 单词 + 音标区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.chinese_meaning || 'property'}</Text>
-        <Text style={styles.phoneticText}>
-          美 {word.american_phonetic || '/prap rti/'}
-        </Text>
+        <Text style={styles.wordText}>{word.meaning || ''}</Text>
+        {/* --- 修改：条件渲染音标 --- */}
+        {(word.american_phonetic || word.british_phonetic) && (
+          <Text style={styles.phoneticText}>
+            {word.american_phonetic ? `美 ${word.american_phonetic}` : `英 ${word.british_phonetic}`}
+          </Text>
+        )}
       </View>
 
       {/* 例句区域 */}
-      <Text style={styles.exampleText}>
-        {word.example_sentence || 'Glitter is one of the properties of gold.'}
-      </Text>
+      {word.example_sentence && (
+              <Text style={styles.exampleText}>
+                {word.example_sentence}
+              </Text>
+            )}
 
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
@@ -177,18 +188,22 @@ const TransCh: React.FC<TestTypeProps> = ({
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!selectedOption || showFeedback) && styles.submitButtonDisabled]}
+        style={[styles.submitButton, (!selectedOption || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
         onPress={handleSubmit}
-        disabled={!selectedOption || !!showFeedback}
+        disabled={!selectedOption || !!showFeedback || isSubmitting}
         accessibilityLabel="提交答案"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !selectedOption || !!showFeedback }}
+        accessibilityState={{ disabled: !selectedOption || !!showFeedback || isSubmitting }}
       >
-        <Text style={styles.submitButtonText}>提交</Text>
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.submitButtonText}>提交</Text>
+        )}
       </TouchableOpacity>
 
       {/* 答题反馈 */}
-      {showFeedback && (
+      {/* {showFeedback && (
         <View style={styles.feedbackContainer}>
           <Text style={[
             styles.feedbackText,
@@ -197,7 +212,7 @@ const TransCh: React.FC<TestTypeProps> = ({
             {showFeedback.message}
           </Text>
         </View>
-      )}
+      )} */}
     </Animated.View>
   );
 };

@@ -157,13 +157,13 @@ export default function TodayScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.header}>
+      {/* <Text style={styles.header}>
         今日目标：{modeDetails.word_count}个单词 + {modeDetails.phrase_count}词组 + {modeDetails.sentence_count}句型
-      </Text>
+      </Text> */}
       <Text style={styles.mode}>当前模式：{modeDetails.mode_name}模式</Text>
 
       <SessionCard
-        title="第一步：摸底评测"
+        title="摸底评测"
         subtitle="测一测还记得多少？"
         status={getStatusText(session.status, session.pre_test_progress, 'pre_test')}
         onStart={() => handleStartPhase('pre_test')}
@@ -171,7 +171,7 @@ export default function TodayScreen() {
       />
 
       <SessionCard
-        title="第二步：针对性学习"
+        title="针对性学习"
         subtitle="根据你的水平定制学习内容"
         status={getStatusText(session.status, session.learning_progress, 'learning')}
         onStart={() => handleStartPhase('learning')}
@@ -179,7 +179,7 @@ export default function TodayScreen() {
       />
 
       <SessionCard
-        title="第三步：巩固验收"
+        title="巩固验收"
         subtitle="检验今日学习成果！"
         status={getStatusText(session.status, session.post_test_progress, 'post_test')}
         onStart={() => handleStartPhase('post_test')}
