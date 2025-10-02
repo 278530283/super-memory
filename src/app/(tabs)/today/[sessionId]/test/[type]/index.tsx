@@ -275,13 +275,13 @@ export default function TestScreen() {
             单词 {currentWordNum}/{totalWordsCount}
           </Text>
         </View>
-        {<TouchableOpacity
+        {/* {<TouchableOpacity
           onPress={handlePause}
           accessibilityLabel="暂停测试"
           accessibilityHint="暂停当前测试并返回首页"
         >
           <Ionicons name="pause" size={24} color="#4A90E2" />
-        </TouchableOpacity>}
+        </TouchableOpacity>} */}
       </View>
       <View style={styles.testArea}>
         <CurrentTestComponent

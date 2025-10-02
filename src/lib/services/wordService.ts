@@ -88,7 +88,7 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     }
     const parsed = this.parseChineseMeaning(correctWord.chinese_meaning || '');
     correctWord.partOfSpeech = parsed.partOfSpeech;
-    correctWord.meaning = `${parsed.partOfSpeech} ${parsed.meaning}`;
+    correctWord.meaning = parsed.meaning;
 
     const totalOptionsNeeded = count;
     const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);
