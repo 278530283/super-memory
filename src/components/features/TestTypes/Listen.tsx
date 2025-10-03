@@ -81,7 +81,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const Listen: React.FC<TestTypeProps> = ({ 
+const ListenFC: React.FC<TestTypeProps> = ({ 
   word, 
   onAnswer, 
   testType = 'listen'
@@ -318,10 +318,10 @@ const Listen: React.FC<TestTypeProps> = ({
 };
 
 // 使用错误边界包装组件
-const ListenWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
+const Listen: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <Listen {...props} />
+      <ListenFC {...props} />
     </ErrorBoundary>
   );
 };
@@ -533,5 +533,4 @@ const styles = StyleSheet.create({
     color: '#666666',
   },
 });
-
-export default ListenWithErrorBoundary;
+export default Listen;

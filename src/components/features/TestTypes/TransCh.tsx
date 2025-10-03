@@ -80,7 +80,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TransCh: React.FC<TestTypeProps> = ({ 
+const TransChFC: React.FC<TestTypeProps> = ({ 
   word, 
   onAnswer, 
   testType = 'transCh'
@@ -218,10 +218,10 @@ const TransCh: React.FC<TestTypeProps> = ({
 };
 
 // 使用错误边界包装组件
-const TransChWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
+const TransCh: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <TransCh {...props} />
+      <TransChFC {...props} />
     </ErrorBoundary>
   );
 };
@@ -381,4 +381,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TransChWithErrorBoundary;
+export default TransCh;

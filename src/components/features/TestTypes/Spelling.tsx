@@ -28,7 +28,7 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
 );
 
 // 主组件
-const Spelling: React.FC<TestTypeProps> = ({ 
+const SpellingFC: React.FC<TestTypeProps> = ({ 
   word, 
   onAnswer, 
   testType = 'spelling'
@@ -175,10 +175,10 @@ const Spelling: React.FC<TestTypeProps> = ({
 };
 
 // 使用错误边界包装组件
-const SpellingWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
+const Spelling: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <Spelling {...props} />
+      <SpellingFC {...props} />
     </ErrorBoundary>
   );
 };
@@ -313,4 +313,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SpellingWithErrorBoundary;
+export default Spelling;

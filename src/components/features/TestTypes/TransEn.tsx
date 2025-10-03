@@ -79,7 +79,7 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
 OptionCard.displayName = 'OptionCard';
 
 // 主组件
-const TransEn: React.FC<TestTypeProps> = ({
+const TransEnFC: React.FC<TestTypeProps> = ({
   word,
   onAnswer,
   testType = 'transEn'
@@ -215,10 +215,10 @@ const TransEn: React.FC<TestTypeProps> = ({
 };
 
 // 使用错误边界包装组件
-const TransEnWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
+const TransEn: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <TransEn {...props} />
+      <TransEnFC {...props} />
     </ErrorBoundary>
   );
 };
@@ -378,4 +378,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TransEnWithErrorBoundary;
+export default TransEn;

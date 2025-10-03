@@ -29,7 +29,7 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
 );
 
 // 主组件
-const Pronunce: React.FC<TestTypeProps> = ({ 
+const PronunceFC: React.FC<TestTypeProps> = ({ 
   word, 
   onAnswer, 
   testType = 'pronunce'
@@ -307,10 +307,10 @@ const Pronunce: React.FC<TestTypeProps> = ({
   );
 };
 
-const PronunceWithErrorBoundary: React.FC<TestTypeProps> = (props) => {
+const Pronunce: React.FC<TestTypeProps> = (props) => {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <Pronunce {...props} />
+      <PronunceFC {...props} />
     </ErrorBoundary>
   );
 };
@@ -515,4 +515,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PronunceWithErrorBoundary;
+export default Pronunce;
