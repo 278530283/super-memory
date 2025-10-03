@@ -35,6 +35,8 @@ const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
   spelling: Spelling,
   pronunce: Pronunce,
 };
+// 输出 testComponentMap
+console.log('[TestScreen] testComponentMap:', testComponentMap);
 
 export default function TestScreen() {
   const router = useRouter();
@@ -86,6 +88,7 @@ export default function TestScreen() {
 
 
   useEffect(() => {
+    console.log('[TestScreen] currentActorSnapshot effect triggered.', Listen, Pronunce, Spelling, TransCh, TransEn);
     const stateValue = currentActorSnapshot?.value;
     console.log('[TestScreen] currentTestActivity effect triggered. stateValue:', stateValue);
     // 检查 value 是否存在且以 "flow" 开头
@@ -266,7 +269,7 @@ export default function TestScreen() {
     return null;
   }
  
-  console.timeLog('[TestScreen] Render Main Content ...');
+  console.log('[TestScreen] Render Main Content ...', CurrentTestComponent);
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
