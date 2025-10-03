@@ -152,7 +152,7 @@ const TransCh: React.FC<TestTypeProps> = ({
         {/* --- 修改：条件渲染音标 --- */}
         {(word.american_phonetic || word.british_phonetic) && (
           <Text style={styles.phoneticText}>
-            {word.american_phonetic ? `美 ${word.american_phonetic}` : `英 ${word.british_phonetic}`}
+            {word.american_phonetic ? `美 /${word.american_phonetic}/` : `英 /${word.british_phonetic}/`}
           </Text>
         )}
       </View>

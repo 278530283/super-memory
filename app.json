@@ -1,16 +1,31 @@
 {
-  "name": "Super Memory",
-  "slug": "super-memory",
-  "version": "1.0.0",
-  "orientation": "portrait",
-  "scheme": "supermemory",
-  "platforms": [
-    "ios",
-    "android",
-    "web"
-  ],
-  "plugins": [
-    "expo-router",
-    "expo-audio"
-  ]
+	"name": "Super Memory",
+	"slug": "super-memory",
+	"version": "1.0.0",
+	"orientation": "portrait",
+	"scheme": "supermemory",
+	"platforms": [
+		"ios",
+		"android",
+		"web"
+	],
+	"plugins": [
+		"expo-router",
+		"expo-audio"
+	],
+	"android": {
+		"package": "com.mr.tang.supermemory",
+		"permissions": ["RECORD_AUDIO"]
+	},
+	"extra": {
+		"router": {},
+		"eas": {
+			"projectId": "631b13ea-367e-42f1-b6f2-f480bfe71f9f"
+		}
+	},
+    "ios": {
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "需要麦克风权限以录制音频"
+      }
+    }
 }

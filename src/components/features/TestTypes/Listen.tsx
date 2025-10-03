@@ -1,6 +1,7 @@
 // src/components/features/today/TestTypes/Listen.tsx
 import { TestTypeProps, WordOption } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
+import { AudioModule } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech'; // 引入 expo-speech
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -94,7 +95,28 @@ const Listen: React.FC<TestTypeProps> = ({
   // 新增状态：控制播放和播放计数
   const [isPlaying, setIsPlaying] = useState(false);
   const [playCount, setPlayCount] = useState(0);
+  const [hasRecordingPermission, setHasRecordingPermission] = useState<boolean | null>(null); // 权限状态
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null); // 存储播放间隔定时器
+
+  // 检查录音权限
+  useEffect(() => {
+    const checkPermission = async () => {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      const permission = status.granted;
+      setHasRecordingPermission(permission);
+      
+      // 如果没有权限，提示用户
+      if (!permission) {
+        Alert.alert(
+          '权限不足',
+          '需要录音权限才能正常使用听力测试功能，请在设置中开启权限。',
+          [{ text: '知道了' }]
+        );
+      }
+    };
+
+    checkPermission();
+  }, []);
 
   // 动画效果
   useEffect(() => {
@@ -107,6 +129,9 @@ const Listen: React.FC<TestTypeProps> = ({
 
   // 播放单词发音函数 (简化版)
   const playWordSound = useCallback(async () => {
+    // 检查权限，没有权限则不播放
+    if (hasRecordingPermission !== true) return;
+
     try {
       setIsPlaying(true);
       await Speech.speak(word.spelling || 'property', {
@@ -128,12 +153,12 @@ const Listen: React.FC<TestTypeProps> = ({
       setIsPlaying(false);
       setPlayCount(prev => prev + 1); // 出错也增加计数，避免卡死
     }
-  }, [word.spelling]);
+  }, [word.spelling, hasRecordingPermission]); // 依赖权限状态
 
   // 自动播放单词3次
   useEffect(() => {
     // 如果组件已挂载且播放次数小于3次，则启动播放
-    if (playCount < 3) {
+    if (hasRecordingPermission && playCount < 3) {
       playWordSound(); // 启动第一次播放
       // 设置下一次播放的间隔（1500ms）
       playIntervalRef.current = setTimeout(() => {
@@ -149,7 +174,7 @@ const Listen: React.FC<TestTypeProps> = ({
         clearTimeout(playIntervalRef.current);
       }
     };
-  }, [playCount, playWordSound]); // 依赖 playCount 和 playWordSound
+  }, [playCount, playWordSound, hasRecordingPermission]); // 依赖权限状态
 
   // 正确答案的单词 ID
   const correctWordId = word.$id;
@@ -195,6 +220,36 @@ const Listen: React.FC<TestTypeProps> = ({
       // setShowFeedback(null);  // 可选：提交后清除反馈
     }, 100);
   }, [selectedOptionId, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctWordId]);
+
+  // 权限未获取时显示的提示
+  if (hasRecordingPermission === false) {
+    return (
+      <View style={styles.permissionDeniedContainer}>
+        <Ionicons name="mic-off" size={48} color="#FF9500" />
+        <Text style={styles.permissionDeniedText}>录音权限未开启</Text>
+        <Text style={styles.permissionDeniedSubText}>请在设置中开启录音权限以使用听力测试功能</Text>
+        <TouchableOpacity 
+          style={styles.openSettingsButton}
+          onPress={() => {
+            // 如果需要可以添加打开设置的逻辑
+            // Linking.openSettings()
+          }}
+        >
+          <Text style={styles.openSettingsText}>前往设置</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // 权限正在获取中显示加载状态
+  if (hasRecordingPermission === null) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4A90E2" />
+        <Text style={styles.loadingText}>正在获取权限...</Text>
+      </View>
+    );
+  }
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -433,6 +488,49 @@ const styles = StyleSheet.create({
   },
   incorrectFeedbackText: {
     color: '#DC3545',
+  },
+  // 新增权限相关样式
+  permissionDeniedContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+  },
+  permissionDeniedText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 16,
+    color: '#1A1A1A',
+  },
+  permissionDeniedSubText: {
+    fontSize: 14,
+    color: '#666666',
+    marginTop: 8,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  openSettingsButton: {
+    backgroundColor: '#4A90E2',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  openSettingsText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
 });
 

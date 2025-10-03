@@ -59,6 +59,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
   const audioRecorder = useAudioRecorder(recordOptions);
   const recorderState = useAudioRecorderState(audioRecorder);
 
+  // 初始化权限和音频模式
   useEffect(() => {
     (async () => {
       const status = await AudioModule.requestRecordingPermissionsAsync();
@@ -66,7 +67,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
         Alert.alert('权限被拒绝', '请允许麦克风权限以进行语音评测');
       }
 
-      setAudioModeAsync({
+      await setAudioModeAsync({
         playsInSilentMode: true,
         allowsRecording: true,
       });
@@ -83,23 +84,6 @@ const Pronunce: React.FC<TestTypeProps> = ({
   let audioPlayer = useAudioPlayer(audioSource);
   let playerStatus = useAudioPlayerStatus(audioPlayer);
   const correctSpelling = word.spelling;
-
-  // 初始化权限和音频模式
-  useEffect(() => {
-    (async () => {
-      console.log('[Pronunce] Requesting recording permissions...');
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      if (!status.granted) {
-        Alert.alert('权限被拒绝', '请允许麦克风权限以进行语音评测');
-        return;
-      }
-      console.log('[Pronunce] Setting audio mode...');
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: true,
-      });
-    })();
-  }, []);
 
   // 动画效果
   useEffect(() => {
@@ -230,7 +214,7 @@ const Pronunce: React.FC<TestTypeProps> = ({
           {/* --- 修改：条件渲染音标 --- */}
           {(word.american_phonetic || word.british_phonetic) && (
             <Text style={styles.phoneticText}>
-              {word.american_phonetic ? `美 ${word.american_phonetic}` : `英 ${word.british_phonetic}`}
+              {word.american_phonetic ? `美 /${word.american_phonetic}/` : `英 /${word.british_phonetic}/`}
             </Text>
           )}
           
