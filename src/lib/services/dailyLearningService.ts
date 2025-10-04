@@ -2,16 +2,15 @@
 import {
   COLLECTION_DAILY_LEARNING_SESSIONS,
   COLLECTION_USER_WORD_ACTION_LOG,
-  COLLECTION_USER_WORD_PROGRESS,
-  COLLECTION_WORDS,
   DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
 import { DailyLearningSession } from '@/src/types/DailyLearningSession';
 import { LearningMode } from '@/src/types/LearningMode';
-import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { ID, Query } from 'appwrite';
 import learningModeService from './learningModeService';
+import userWordService from './userWordService';
+import wordService from './wordService';
 
 class DailyLearningService {
   /**
@@ -232,73 +231,32 @@ class DailyLearningService {
   async generateTodaysWordLists(userId: string, modeId: string, difficultyLevel: number): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
-      // This would typically be passed in or fetched by the caller
       const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
 
-      // 2. Fetch User's Word Progress
-      // This fetches ALL progress, which might be inefficient for large vocabularies.
-      // In practice, you'd use more specific queries or pagination.
-      const progressResponse = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_PROGRESS,
-        queries: [Query.equal('user_id', userId)]
-      });
-      const userProgress: UserWordProgress[] = progressResponse.rows as unknown as UserWordProgress[];
+      // 2. Fetch User's all reviewed Word IDs
+      const reviewedWordIds = await userWordService.getReviewedWordIds(userId);
 
-      console.log("User Progress data:", userProgress); // Log a sample for debugging
+      console.log("User all reviewed word count:", reviewedWordIds.length);
 
-      // 3. Logic to Select Words (Simplified Mock Logic)
-      // --- Pre-test Words ---
-      // Select words that need to be re-evaluated.
-      // Example: Words at L1, L2, or L3 that haven't been tested recently.
-      const preTestCandidates = userProgress.filter(p =>
-        (p.current_level === 0 || p.current_level === 1 || p.current_level === 2 || p.current_level === 3) &&
-        (!p.last_review_time || (new Date().getTime() - new Date(p.last_review_time).getTime()) > 24 * 60 * 60 * 1000) // e.g., not reviewed in last 24h
-      ).sort((a, b) => a.current_level - b.current_level);
+      // 3. Fetch all Word IDs for Review
+      const queryTime = new Date().toISOString().split('T')[0];
+      const wordIdsForReview = await userWordService.getWordIdsForReview(userId, queryTime);
 
-      console.log("Pre-test candidates:", preTestCandidates); // Log candidates for debugging
+      console.log("User need review word count:", wordIdsForReview.length);
 
-      const learnedWordIds = preTestCandidates.map(p => p.word_id).slice(0, mode.word_count); // Limit by mode
+      // 4. Get New Word IDs
+      const newWordIds = await wordService.getNewWordIds(userId, reviewedWordIds, difficultyLevel, 'zk', mode.word_count);
+      console.log("User new word count:", newWordIds.length);
 
-      // --- Learning Words ---
-      // Select a mix of new words and words for review/upgrade.
-      // Example: New words (L0) + Words to upgrade (L1->L2, L2->L3)
-      // Query.limit(mode.word_count) // Simplified limit
-      // 构建查询条件
-      const queries = [
-        Query.limit(mode.word_count*10),
-        Query.orderAsc('frequency'),
-        Query.equal('difficulty_level', difficultyLevel)
-      ];
-
-      // 只有当用户有学习记录时才排除已学过的词
-      if (userProgress && userProgress.length > 0) {
-          const excludedIds = userProgress.map(p => p.$id);
-          queries.push(Query.notContains('$id', excludedIds));
-      }
-      // 获取候选新单词
-      const newWordCandidatesResponse = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_WORDS,
-        queries: queries
-      });
-      const newWordIds = newWordCandidatesResponse.rows.map((w: any) => w.$id).sort((a, b) => Math.random() - 0.5).slice(0, mode.word_count);
-
-
-      const preTestWordIds = [...newWordIds, ...learnedWordIds]; // Combine and limit
-      const learningWordIds = [...preTestWordIds]; // Combine and limit
-
-      // --- Post-test Words ---
-      // Test words that were just learned or reviewed in this session.
-      // For a new session, this would initially be empty or based on previous session.
-      // For simplicity, we'll test the words selected for learning in this session.
-      const postTestWordIds = [...learningWordIds]; // Simplified: test what we just learned
+      // 5. Combine Word IDs
+      const preTestWordIds = [...newWordIds, ...wordIdsForReview];
+      const learningWordIds = [...preTestWordIds];
+      const postTestWordIds = [...learningWordIds];
 
       console.log("Generated Word Lists:", { preTestWordIds, learningWordIds, postTestWordIds });
       return { pre_test: preTestWordIds, learning: learningWordIds, post_test: postTestWordIds };
     } catch (error) {
       console.error("DailyLearningService.generateTodaysWordLists error:", error);
-      // Depending on requirements, you might return empty lists or re-throw
       // Returning empty lists allows session creation to proceed, maybe with a warning
       return { pre_test: [], learning: [], post_test: [] };
     }

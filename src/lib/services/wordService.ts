@@ -50,7 +50,7 @@ parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning:
   let partOfSpeech = '';
   let meaningPart = trimmedMeaning;
   // 查找第一个点空格的位置
-  const dotSpaceIndex = trimmedMeaning.indexOf('. ');
+  const dotSpaceIndex = trimmedMeaning.indexOf('.');
   if (dotSpaceIndex !== -1) {
     // 词性部分：从开始到点空格之前的点（包括点）
     const partOfSpeechTemp = trimmedMeaning.substring(0, dotSpaceIndex + 1); // 包括点，但不包括空格
@@ -58,7 +58,7 @@ parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning:
       partOfSpeech = partOfSpeechTemp;
     }
     // 含义部分：从点空格之后开始
-    meaningPart = trimmedMeaning.substring(dotSpaceIndex + 2); // 跳过点空格
+    meaningPart = trimmedMeaning.substring(dotSpaceIndex + 1).trim();
   }
   // 只获取 第一个含义
   let meaningSeparator = meaningPart.search(/[,;\\]/); // 查找第一个逗号或分号
@@ -146,6 +146,65 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     return correctWord;
   }
 }
+
+  /**
+ * 查询新学的单词（只返回单词ID，按照frequency排序）
+ * @param userId 用户ID
+ * @param reviewedWordIds 已复习过的单词ID数组（需要排除）
+ * @param difficultyLevel 难度等级（可选）
+ * @param tag 标签（可选），支持模糊匹配（如输入"gk"可以匹配到"gk, zk gk"）
+ * @param limit 限制返回数量，默认10
+ * @returns Promise<string[]> 新学单词ID数组
+ */
+async getNewWordIds(
+  userId: string,
+  reviewedWordIds: string[] = [],
+  difficultyLevel?: number,
+  tag?: string,
+  limit: number = 20
+): Promise<string[]> {
+  try {
+    console.log(`[WordService] Getting new word IDs for user ${userId}, excluding ${reviewedWordIds.length} reviewed words, tag: ${tag}`);
+
+    const queries = [];
+
+    // 排除已复习过的单词
+    if (reviewedWordIds.length > 0) {
+      queries.push(Query.notEqual('$id', reviewedWordIds));
+    }
+
+    // 难度等级筛选
+    if (difficultyLevel !== undefined) {
+      queries.push(Query.equal('difficulty_level', difficultyLevel));
+    }
+
+    // 标签筛选 - 使用模糊搜索
+    if (tag) {
+      queries.push(Query.contains('tag', tag)); // 使用search进行模糊匹配
+    }
+
+    // 添加限制、排序和字段选择
+    queries.push(Query.select(['$id'])); // 只选择ID字段
+    queries.push(Query.orderDesc('frequency')); // 按照frequency降序排列（高频词优先）
+    queries.push(Query.limit(limit));
+
+    const response = await tablesDB.listRows({
+      databaseId: DATABASE_ID,
+      tableId: COLLECTION_WORDS,
+      queries
+    });
+
+    const wordIds = response.rows.map(row => row.$id as string);
+    
+    console.log(`[WordService] Found ${wordIds.length} new word IDs for user ${userId}, tag: ${tag}, sorted by frequency`);
+    return wordIds;
+
+  } catch (error) {
+    console.error("WordService.getNewWordIds error:", error);
+    throw error;
+  }
+}
+
 }
 
 export default new WordService();

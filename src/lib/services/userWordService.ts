@@ -5,9 +5,10 @@ import {
   DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
-import { UserWordProgress } from '@/src/types/UserWordProgress';
+import { CreateUserWordProgress, UserWordProgress } from '@/src/types/UserWordProgress';
 import { CreateUserWordTestHistory, UpdateUserWordTestHistory, UserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { ID, Query } from 'appwrite';
+import ReviewStrategyService from './ReviewStrategyService';
 
 class UserWordService {
   // 根据用户ID及wordId查询历史等级列表
@@ -255,29 +256,89 @@ class UserWordService {
    * @param data 要创建或更新的数据 (不包含 $id)
    * @returns Promise<UserWordProgress>
    */
-  async upsertUserWordProgress(data: Partial<Omit<UserWordProgress,'$id'>>): Promise<UserWordProgress> { // 注意：这里假设 CreateUserWordProgress 不包含 $id
+  async upsertUserWordProgress(data: CreateUserWordProgress): Promise<UserWordProgress> { // 注意：这里假设 CreateUserWordProgress 不包含 $id
     try {
+      console.log("[UserWordService] Upserting user word progress...", data);
       // 1. 尝试查找现有记录 (基于 user_id 和 word_id)
       const existingRecord = await this.getUserWordProgressByUserAndWord(data.user_id!, data.word_id!);
+      const reviewDate = new Date().toISOString();
 
       if (existingRecord) {
+        const dataWithReviewInfo = ReviewStrategyService.calculateReviewProgress(existingRecord, data.proficiency_level!, reviewDate);
         // 2a. 如果记录已存在，则更新 (排除 user_id 和 word_id，因为它们通常是不变的主键部分)
-        // 注意：需要定义 UpdateUserWordProgress 类型，排除 user_id, word_id, $id
-        // 这里假设 data 包含了所有需要更新的字段
-        const updateData: Partial<Omit<UserWordProgress, '$id' | 'user_id' | 'word_id'>> = {
-          current_level: data.current_level,
-          current_speed: data.current_speed,
-        };
+        const updateData = { ...data,...dataWithReviewInfo };
 
         console.log(`[UserWordService] Updating existing progress for user ${data.user_id}, word ${data.word_id}`);
         return await this.updateUserWordProgress(existingRecord.$id, updateData);
       } else {
         // 2b. 如果记录不存在，则创建
         console.log(`[UserWordService] Creating new progress for user ${data.user_id}, word ${data.word_id}`);
-        return await this.createUserWordProgress(data);
+        const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(data, data.proficiency_level!, reviewDate);
+        console.log("[UserWordService] data with review info:", dataWithReviewInfo);
+        const insertData = { ...data,...dataWithReviewInfo };
+        console.log("[UserWordService] insert data:", insertData);
+        return await this.createUserWordProgress(insertData);
       }
     } catch (error) {
       console.error("UserWordService.upsertUserWordProgress error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据用户ID和查询时间，获取需要复习的单词ID
+   * 查询条件：next_review_date <= queryTime 的记录
+   * @param userId 用户ID
+   * @param queryTime 查询时间（ISO字符串）
+   * @param limit 限制返回数量，默认100
+   * @returns Promise<string[]> 单词ID数组
+   */
+  async getWordIdsForReview(
+    userId: string, 
+    queryTime: string, 
+    limit: number = 100
+  ): Promise<string[]> {
+    try {
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_PROGRESS,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.lessThanEqual('next_review_date', queryTime),
+          Query.orderAsc('next_review_date'), // 按下次复习时间升序排序（最早的需要先复习）
+          Query.select(['word_id']), // 只选择 word_id 字段，提高查询性能
+          Query.limit(limit)
+        ]
+      });
+
+      // 提取并返回 word_id 数组
+      return response.rows.map(row => row.word_id as string);
+    } catch (error) {
+      console.error("UserWordService.getUserWordProgressForReview error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 查询用户所有复习过的单词，只返回单词ID (word_id)
+   * @param userId 用户ID
+   * @returns Promise<string[]> 单词ID数组
+   */
+  async getReviewedWordIds(userId: string): Promise<string[]> {
+    try {
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_PROGRESS,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.select(['word_id']) // 只选择 word_id 字段，提高查询性能
+        ]
+      });
+
+      // 提取并返回 word_id 数组
+      return response.rows.map(row => row.word_id as string);
+    } catch (error) {
+      console.error("UserWordService.getUserReviewedWordIds error:", error);
       throw error;
     }
   }

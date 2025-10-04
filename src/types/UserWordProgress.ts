@@ -5,13 +5,18 @@ export interface UserWordProgress {
   $id: string; // Appwrite Document ID
   user_id: string;
   word_id: string;
-  current_level: number; // 0=L0, 1=L1, 2=L2, 3=L3, 4=L4
-  current_speed: number; // Percentage (e.g., 50)
-  last_learn_time?: string | null; // ISO String
-  last_review_time?: string | null; // ISO String
-  is_long_difficult: boolean; // 1=true, 0=false -> boolean
+  is_long_difficult: boolean;
+  proficiency_level: number; // 0=L0, 1=L1, 2=L2, 3=L3, 4=L4
+  strategy_id?: string | null;
+  start_date?: string | null; // ISO String
+  last_review_date?: string | null; // ISO String
+  reviewed_times?: number | null;
+  next_review_date?: string | null; // ISO String
   // created_at and updated_at are usually handled by Appwrite
 }
 
-// Type for creating a new word process record (without Appwrite's $id)
+// Type for creating a new word progress record (without Appwrite's $id)
 export type CreateUserWordProgress = Omit<UserWordProgress, '$id'>;
+
+// Type for updating an existing word progress record (all fields optional except ID)
+export type UpdateUserWordProgress = Partial<Omit<UserWordProgress, '$id' | 'user_id' | 'word_id'>> & { $id: string };

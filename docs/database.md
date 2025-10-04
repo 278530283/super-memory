@@ -107,7 +107,6 @@ CREATE TABLE `review_strategy` (
   `strategy_name` varchar(20) NOT NULL COMMENT '策略名称（密集/正常/稀疏/FSRS）',
   `applicable_condition` varchar(200) NOT NULL COMMENT '适用条件（如"长难词+L0"）',
   `interval_rule` varchar(100) NOT NULL COMMENT '复习间隔规则（如"1h,3h,1d"）— 仅对传统策略有效',
-  `frequency` int NOT NULL COMMENT '每日复习频次',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB COMMENT '复习策略配置表';
 ```
@@ -188,14 +187,15 @@ CREATE TABLE `user_word_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL COMMENT '关联用户ID',
   `word_id` bigint NOT NULL COMMENT '关联单词ID',
-  `current_level` tinyint NOT NULL DEFAULT NULL COMMENT '当前掌握等级（0=L0，1=L1，2=L2，3=L3，4=L4）',
-  `current_speed` int NOT NULL DEFAULT NULL COMMENT '当前适应语速（百分比，基于母语者正常语速）',
-  `last_learn_time` datetime DEFAULT NULL COMMENT '最后学习时间',
-  `last_review_time` datetime DEFAULT NULL COMMENT '最后复习时间',
   `is_long_difficult` tinyint NOT NULL DEFAULT NULL COMMENT '是否为长难词',
+  `proficiency_level` tinyint NOT NULL DEFAULT NULL COMMENT '掌握等级（0=L0，1=L1，2=L2，3=L3，4=L4）',
+  `strategy_id` tinyint NOT NULL COMMENT '复习策略',
+  `start_date` datetime DEFAULT NULL COMMENT '起始日期',
+  `last_review_date` datetime DEFAULT NULL COMMENT '最后复习日期',
+  `reviewed_times` int NOT NULL DEFAULT NULL COMMENT '已复习次数',
+  `next_review_date` datetime DEFAULT NULL COMMENT '下次复习日期',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_word` (`user_id`,`word_id`),
-  KEY `idx_level` (`current_level`),
   CONSTRAINT `fk_uwp_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   CONSTRAINT `fk_uwp_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`)
 ) ENGINE=InnoDB COMMENT '用户单词掌握进度表';
