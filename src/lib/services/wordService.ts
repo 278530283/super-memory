@@ -72,7 +72,7 @@ class WordService {
     const meaningBlocks = meaningText.split('\n').filter(block => block.trim());
     
     // 定义支持的词性模式
-    const pattern = /^(n|a|v|r|s|vi|vt|pl|adv|pron|prep|\[[^\]]+\])([\.\s])(.*)$/;
+    const pattern = /^(n|a|v|r|s|vi|vt|pl|adv|pron|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
 
     for (const block of meaningBlocks) {
       const trimmedBlock = block.trim();

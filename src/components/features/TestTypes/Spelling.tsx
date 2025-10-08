@@ -121,11 +121,11 @@ const SpellingFC: React.FC<TestTypeProps> = ({
         )}
       </View>
       {/* 例句区域 */}
-      {word.example_sentence && (
+      {/* {word.example_sentence && (
         <Text style={styles.exampleText}>
           {word.example_sentence?.toLowerCase().replace(word.spelling, '***') || '请根据中文含义，填写英文单词拼写'}
         </Text>
-      )}
+      )} */}
       {/* 拼写输入区域 */}
       <View style={styles.inputContainer}>
         <TextInput

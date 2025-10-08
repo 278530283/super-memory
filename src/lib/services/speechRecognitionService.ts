@@ -55,7 +55,7 @@ class SpeechRecognitionService {
       // 2. 调用百度ASR API
       console.log('[SpeechRecognitionService] Calling Baidu ASR API...');
       const asrResult = await baiduAIService.recognizeSpeech(base64Data, fileSize);
-      const recognizedText = asrResult.recognizedText;
+      const recognizedText = asrResult.recognizedText.trim().replaceAll(/\s+/g, '');
       console.log('[SpeechRecognitionService] Baidu ASR result:', recognizedText);
 
       // 3. 判断是否正确

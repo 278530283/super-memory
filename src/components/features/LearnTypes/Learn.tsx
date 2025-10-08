@@ -1,9 +1,9 @@
 // src/components/features/today/TestTypes/Learn.tsx
-import { TestTypeProps } from '@/src/types/Word';
+import { ExampleSentence, TestTypeProps } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
 import { AudioModule } from 'expo-audio';
 import * as Speech from 'expo-speech';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { JSX, useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
   ActivityIndicator,
@@ -28,6 +28,17 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
   </View>
 );
 
+// 定义双语片段接口
+interface BilingualSegment {
+  id: string;
+  enKey: string;
+  chValue: string;
+  enStart: number;
+  enEnd: number;
+  chStart: number;
+  chEnd: number;
+}
+
 // 主组件
 const LearnFC: React.FC<TestTypeProps> = ({ 
   word, 
@@ -47,6 +58,192 @@ const LearnFC: React.FC<TestTypeProps> = ({
   // 新增状态：释义切换和例句显示
   const [showEnglishDefinition, setShowEnglishDefinition] = useState(false);
   const [showMoreExamples, setShowMoreExamples] = useState(false);
+
+  // 修改状态：为每个例句单独管理高亮状态
+  const [activeSegments, setActiveSegments] = useState<{ [exampleIndex: number]: string | null }>({});
+
+  // 处理双语片段数据
+  const processBilingualSegments = useCallback((example: ExampleSentence): BilingualSegment[] => {
+  const segments: BilingualSegment[] = [];
+  
+  if (!example.trans) return segments;
+  
+  // 收集所有中文位置信息，用于检测重复
+  const chinesePositions: { [key: string]: boolean } = {};
+  
+  Object.entries(example.trans).forEach(([enKey, chValue], index) => {
+    const enStart = example.en.indexOf(enKey);
+    const chStart = example.ch.indexOf(chValue);
+    
+    if (enStart !== -1 && chStart !== -1) {
+      // 检查这个中文片段是否已经被其他片段包含
+      let isOverlapping = false;
+      
+      // 简单的重叠检测：如果这个中文文本已经出现在其他片段覆盖的区域，则跳过
+      for (let i = chStart; i < chStart + chValue.length; i++) {
+        if (chinesePositions[i]) {
+          isOverlapping = true;
+          break;
+        }
+      }
+      
+      if (!isOverlapping) {
+        // 标记这个中文片段占用的位置
+        for (let i = chStart; i < chStart + chValue.length; i++) {
+          chinesePositions[i] = true;
+        }
+        
+        segments.push({
+          id: `segment_${index}`,
+          enKey,
+          chValue,
+          enStart,
+          enEnd: enStart + enKey.length,
+          chStart,
+          chEnd: chStart + chValue.length,
+        });
+      }
+    }
+  });
+  
+  return segments.sort((a, b) => a.enStart - b.enStart);
+}, []);
+
+  // 高亮处理函数
+  const handleSegmentPress = useCallback((exampleIndex: number, segmentId: string) => {
+    setActiveSegments(prev => ({
+      ...prev,
+      [exampleIndex]: segmentId
+    }));
+  }, []);
+
+  // 渲染可点击的英文文本
+  const renderClickableEnglish = useCallback((example: ExampleSentence, exampleIndex: number) => {
+    const segments = processBilingualSegments(example);
+    if (segments.length === 0) {
+      return <Text style={styles.exampleEnglish}>{example.en}</Text>;
+    }
+
+    const elements: JSX.Element[] = [];
+    let lastIndex = 0;
+
+    // 按英文起始位置排序
+    const sortedSegments = [...segments].sort((a, b) => a.enStart - b.enStart);
+
+    sortedSegments.forEach((segment, index) => {
+      // 添加片段前的文本
+      if (segment.enStart > lastIndex) {
+        const textBefore = example.en.slice(lastIndex, segment.enStart);
+        if (textBefore) {
+          elements.push(
+            <Text key={`before_${index}`} style={styles.exampleEnglish}>
+              {textBefore}
+            </Text>
+          );
+        }
+      }
+
+      // 添加可点击的片段
+      elements.push(
+        <TouchableOpacity
+          key={`segment_${index}`}
+          onPress={() => handleSegmentPress(exampleIndex, segment.id)}
+          style={styles.wordContainer}
+        >
+          <Text style={[
+            styles.englishSegment, // 基础英文样式
+            activeSegments[exampleIndex] === segment.id && styles.highlightedEnglish // 点击后只变颜色
+          ]}>
+            {segment.enKey}
+          </Text>
+        </TouchableOpacity>
+      );
+
+      lastIndex = segment.enEnd;
+    });
+
+    // 添加最后的文本
+    if (lastIndex < example.en.length) {
+      const textAfter = example.en.slice(lastIndex);
+      if (textAfter) {
+        elements.push(
+          <Text key="after" style={styles.exampleEnglish}>
+            {textAfter}
+          </Text>
+        );
+      }
+    }
+
+    return (
+      <View style={styles.englishRow}>
+        {elements}
+      </View>
+    );
+  }, [processBilingualSegments, activeSegments, handleSegmentPress]);
+
+  // 渲染可点击的中文文本
+  const renderClickableChinese = useCallback((example: ExampleSentence, exampleIndex: number) => {
+    const segments = processBilingualSegments(example);
+    if (segments.length === 0) {
+      return <Text style={styles.exampleChinese}>{example.ch}</Text>;
+    }
+
+    const elements: JSX.Element[] = [];
+    let lastIndex = 0;
+
+    // 按中文起始位置排序
+    const sortedSegments = [...segments].sort((a, b) => a.chStart - b.chStart);
+    
+    sortedSegments.forEach((segment, index) => {
+      // 添加片段前的文本
+      if (segment.chStart > lastIndex) {
+        const textBefore = example.ch.slice(lastIndex, segment.chStart);
+        if (textBefore) {
+          elements.push(
+            <Text key={`before_${index}`} style={styles.exampleChinese}>
+              {textBefore}
+            </Text>
+          );
+        }
+      }
+
+      // 添加可点击的片段
+      elements.push(
+        <TouchableOpacity
+          key={`segment_${index}`}
+          onPress={() => handleSegmentPress(exampleIndex, segment.id)}
+          style={styles.wordContainer}
+        >
+          <Text style={[
+            styles.chineseSegment, // 基础中文样式
+            activeSegments[exampleIndex] === segment.id && styles.highlightedChinese // 点击后只变颜色
+          ]}>
+            {segment.chValue}
+          </Text>
+        </TouchableOpacity>
+      );
+
+      lastIndex = segment.chEnd;
+    });
+
+    // 添加最后的文本
+    if (lastIndex < example.ch.length) {
+      const textAfter = example.ch.slice(lastIndex);
+      if (textAfter) {
+        elements.push(
+          <Text key="after" style={styles.exampleChinese}>
+            {textAfter}
+          </Text>
+        );
+      }
+    }
+
+    return (
+      <View style={styles.chineseRow}>
+        {elements}
+      </View>
+    );
+  }, [processBilingualSegments, activeSegments, handleSegmentPress]);
 
   // 检查录音权限
   useEffect(() => {
@@ -156,30 +353,30 @@ const LearnFC: React.FC<TestTypeProps> = ({
   // 切换更多例句
   const toggleMoreExamples = useCallback(() => {
     setShowMoreExamples(prev => !prev);
+    // 切换例句时重置所有高亮状态
+    setActiveSegments({});
   }, []);
 
-  // 获取例句数据
-  const getExampleSentences = () => {
-    const mainExample = {
-      english: word.example_sentence || 'The father did everything to ensure his son had a happy upbringing.',
-      chinese: '父亲竭尽全力确保儿子能在一个快乐的环境中成长。'
-    };
-
-    const additionalExamples = [
-      {
-        english: 'Her strict upbringing made her a very disciplined person.',
-        chinese: '她严格的教养使她成为一个非常有纪律的人。'
-      },
-      {
-        english: 'The values from his upbringing guided him throughout his life.',
-        chinese: '他从成长环境中获得的价值观指引了他的一生。'
+  // 获取例句数据 - 修改为从 word.example_sentences 读取
+  const getExampleSentences = (): ExampleSentence[] => {
+    // 如果有结构化的例句数据，直接使用
+    if (word.example_sentences && word.example_sentences.length > 0) {
+      if (showMoreExamples) {
+        // 显示所有例句
+        return word.example_sentences;
+      } else {
+        // 只显示第一个例句
+        return [word.example_sentences[0]];
       }
-    ];
+    }
 
-    return showMoreExamples ? [mainExample, ...additionalExamples] : [mainExample];
+    return [];
   };
 
   const exampleSentences = getExampleSentences();
+
+  // 检查是否有例句数据
+  const hasExampleSentences = word.example_sentences && word.example_sentences.length > 0;
 
   // 权限未获取时显示的提示
   if (hasRecordingPermission === false) {
@@ -337,28 +534,36 @@ const LearnFC: React.FC<TestTypeProps> = ({
           <View style={styles.exampleContainer}>
             <View style={styles.exampleHeader}>
               <Text style={styles.exampleTitle}>例句</Text>
-              <TouchableOpacity 
-                style={styles.moreExamplesButton}
-                onPress={toggleMoreExamples}
-              >
-                <Text style={styles.moreExamplesText}>
-                  {showMoreExamples ? '收起' : '更多'}
-                </Text>
-                <Ionicons 
-                  name={showMoreExamples ? "chevron-up" : "chevron-down"} 
-                  size={14} 
-                  color="#4A90E2" 
-                />
-              </TouchableOpacity>
+              {hasExampleSentences && word.example_sentences!.length > 1 && (
+                <TouchableOpacity 
+                  style={styles.moreExamplesButton}
+                  onPress={toggleMoreExamples}
+                >
+                  <Text style={styles.moreExamplesText}>
+                    {showMoreExamples ? '收起' : '更多'}
+                  </Text>
+                  <Ionicons 
+                    name={showMoreExamples ? "chevron-up" : "chevron-down"} 
+                    size={14} 
+                    color="#4A90E2" 
+                  />
+                </TouchableOpacity>
+              )}
             </View>
             
             <View style={styles.examplesList}>
-              {exampleSentences.map((example, index) => (
-                <View key={index} style={styles.exampleItem}>
-                  <Text style={styles.exampleEnglish}>{example.english}</Text>
-                  <Text style={styles.exampleChinese}>{example.chinese}</Text>
-                </View>
-              ))}
+              {exampleSentences.length > 0 ? (
+                exampleSentences.map((example, index) => (
+                  <View key={index} style={styles.exampleItem}>
+                    {/* 可点击的英文例句 - 传入例句索引 */}
+                    {renderClickableEnglish(example, index)}
+                    {/* 可点击的中文翻译 - 传入例句索引 */}
+                    {renderClickableChinese(example, index)}
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noExamplesText}>暂无例句</Text>
+              )}
             </View>
           </View>
 
@@ -572,16 +777,71 @@ const styles = StyleSheet.create({
   exampleItem: {
     gap: 6,
   },
+  englishRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  chineseRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  wordContainer: {
+    marginHorizontal: 1,
+    height: 20, // 与 lineHeight 一致
+    justifyContent: 'center',
+  },
   exampleEnglish: {
     fontSize: 14,
     color: '#333333',
     lineHeight: 20,
     fontStyle: 'italic',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   exampleChinese: {
     fontSize: 14,
     color: '#666666',
     lineHeight: 18,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  clickableText: {
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  // 英文下划线样式
+  englishUnderline: {
+    textDecorationLine: 'underline',
+    textDecorationColor: '#4A90E2', // 蓝色下划线
+    textDecorationStyle: 'solid',
+  },
+  // 中文下划线样式
+  chineseUnderline: {
+    textDecorationLine: 'underline', 
+    textDecorationColor: '#FF6B35', // 橙色下划线
+    textDecorationStyle: 'solid',
+  },
+  // 保持现有的高亮样式
+  highlightedText: {
+    backgroundColor: 'rgba(74, 144, 226, 0.2)',
+    color: '#4A90E2',
+    fontWeight: '600',
+    borderRadius: 3,
+    paddingHorizontal: 2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    // 添加下划线
+    textDecorationLine: 'underline',
+    textDecorationColor: '#4A90E2',
+  },
+  noExamplesText: {
+    fontSize: 14,
+    color: '#999999',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   // 学习提示区域
   learningTip: {
@@ -671,6 +931,42 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666666',
+  },
+  // 英文片段样式
+  englishSegment: {
+    fontSize: 14,
+    color: '#333333',
+    lineHeight: 20,
+    fontStyle: 'italic',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    textDecorationLine: 'underline',
+    textDecorationColor: '#4A90E2',
+    // 固定字体粗细，通过其他方式表示选中
+    fontWeight: '400', // 统一为正常粗细
+  },
+  
+  // 中文片段样式
+  chineseSegment: {
+    fontSize: 14,
+    color: '#666666', 
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+    textDecorationLine: 'underline',
+    textDecorationColor: '#FF6B35',
+    fontWeight: '400', // 统一为正常粗细
+  },
+  
+  // 点击后的高亮样式 - 只改变颜色，不改变布局
+  highlightedEnglish: {
+    color: '#4A90E2', // 变为蓝色
+    textDecorationColor: '#4A90E2', // 保持蓝色下划线
+  },
+  
+  highlightedChinese: {
+    color: '#FF6B35', // 变为橙色
+    textDecorationColor: '#FF6B35', // 保持橙色下划线
   },
 });
 

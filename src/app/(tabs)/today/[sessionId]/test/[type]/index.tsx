@@ -170,10 +170,10 @@ export default function TestScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         '完成',
-        `${type === 'pre_test' ? '学习' : '复习'}已完成！`,
+        `太棒了！${type === 'pre_test' ? '学习' : '复习'}已完成！`,
         [
           {
-            text: '继续',
+            text: '继续复习',
             onPress: () => router.back(),
           },
         ]

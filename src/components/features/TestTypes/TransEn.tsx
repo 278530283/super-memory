@@ -156,11 +156,11 @@ const TransEnFC: React.FC<TestTypeProps> = ({
         )}
       </View>
       {/* --- 修改：条件渲染例句 --- */}
-      {word.example_sentence && (
+      {/* {word.example_sentence && (
         <Text style={styles.exampleText}>
           {word.example_sentence}
         </Text>
-      )}
+      )} */}
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options?.map((option, index) => {

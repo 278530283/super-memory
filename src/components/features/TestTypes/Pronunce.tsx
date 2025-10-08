@@ -218,11 +218,11 @@ const PronunceFC: React.FC<TestTypeProps> = ({
             </Text>
           )}
           
-          <View style={styles.exampleContainer}>
+          {/* <View style={styles.exampleContainer}>
             <Text style={styles.exampleText}>
               {word.example_sentence || ''}
             </Text>
-          </View>
+          </View> */}
         </View>
 
         {/* 录音区域 */}

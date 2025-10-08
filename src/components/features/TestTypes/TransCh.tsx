@@ -158,11 +158,11 @@ const TransChFC: React.FC<TestTypeProps> = ({
       </View>
 
       {/* 例句区域 */}
-      {word.example_sentence && (
+      {/* {word.example_sentence && (
               <Text style={styles.exampleText}>
                 {word.example_sentence}
               </Text>
-            )}
+            )} */}
 
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
