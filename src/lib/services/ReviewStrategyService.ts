@@ -67,8 +67,9 @@ class ReviewStrategyService {
   ): Promise<CreateUserWordProgress | null> {
     
     console.log("[ReviewStrategyService] calculateReviewProgress:", userWordProgress, proficiencyLevel, reviewDate);
-    // 1. 若last_review_date等于reviewDate，表示已经复习过了，返回null
-    if (userWordProgress.last_review_date === reviewDate) {
+    // 1. 若last_review_date和reviewDate是同一天(年月日相同即可)，表示已经复习过了，返回null
+    if (userWordProgress.last_review_date && userWordProgress.last_review_date.slice(0, 10) === reviewDate.slice(0, 10)) {
+      console.log("[ReviewStrategyService] Already reviewed today, no need to update.");
       return null;
     }
 
@@ -90,43 +91,40 @@ class ReviewStrategyService {
         0
       );
     }
-    else if (proficiencyLevel === 0 || proficiencyLevel < userWordProgress.proficiency_level) {
-      // 策略降级
-      console.log("[ReviewStrategyService] Strategy downgrade:", userWordProgress);
-      if (updatedProgress.strategy_id === STRATEGY_IDS.SPARSE) {
-        updatedProgress.strategy_id = STRATEGY_IDS.NORMAL; // 稀疏 -> 正常
-      } else if (updatedProgress.strategy_id === STRATEGY_IDS.NORMAL) {
-        updatedProgress.strategy_id = STRATEGY_IDS.DENSE; // 正常 -> 密集
+    else {
+      const dayCount = Math.floor((new Date(reviewDate).getTime() - new Date(userWordProgress.start_date!).getTime()) / (1000 * 60 * 60 * 24));
+      if (proficiencyLevel === 0 && userWordProgress.proficiency_level === 3 && dayCount >= 90) {
+        // 策略降级
+        console.log("[ReviewStrategyService] Strategy downgrade:", userWordProgress);
+        if (updatedProgress.strategy_id === STRATEGY_IDS.DENSE) {
+          updatedProgress.strategy_id = STRATEGY_IDS.NORMAL; // 密集 -> 正常
+        } else if (updatedProgress.strategy_id === STRATEGY_IDS.NORMAL) {
+          updatedProgress.strategy_id = STRATEGY_IDS.SPARSE; // 正常 -> 稀疏
+        }
       }
-      // strategy_id为1则不变
-      
-      // 重置学习进度
-      updatedProgress.start_date = reviewDate;
+      if(proficiencyLevel === 0){
+        // 重置学习进度
+        updatedProgress.start_date = reviewDate;
+        updatedProgress.reviewed_times = 0;
+      }
+      else{
+        // 3. 正常复习流程
+        updatedProgress.reviewed_times! += 1;
+      }
+      // 4. 获取策略配置
       updatedProgress.last_review_date = reviewDate;
-      updatedProgress.reviewed_times = 0;
-      
-      // 根据新策略计算下次复习日期
-      updatedProgress.next_review_date = await this.calculateNextReviewDate(
-        updatedProgress.strategy_id!,
-        reviewDate,
-        0 // 首次复习
-      );
-    } else {
-      console.log("[ReviewStrategyService] Normal review:", userWordProgress);
-      // 3. 正常复习流程
-      updatedProgress.reviewed_times! += 1;
-      updatedProgress.last_review_date = reviewDate;
-      
       // 根据策略和复习次数计算下次复习日期
       updatedProgress.next_review_date = await this.calculateNextReviewDate(
-        updatedProgress.strategy_id!,
-        reviewDate,
-        updatedProgress.reviewed_times!
-      );
+          updatedProgress.strategy_id!,
+          reviewDate,
+          updatedProgress.reviewed_times!
+        );
     }
     
     // 更新掌握等级
     updatedProgress.proficiency_level = proficiencyLevel;
+
+    console.log("[ReviewStrategyService] Updated user word progress:", updatedProgress);
     
     return updatedProgress;
   }

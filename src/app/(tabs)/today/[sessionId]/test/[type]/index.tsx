@@ -6,6 +6,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,6 +19,7 @@ import Spelling from '@/src/components/features/TestTypes/Spelling';
 import TransCh from '@/src/components/features/TestTypes/TransCh';
 import TransEn from '@/src/components/features/TestTypes/TransEn';
 // 导入服务和存储
+import Learn from '@/src/components/features/LearnTypes/Learn';
 import Listen from '@/src/components/features/TestTypes/Listen';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
@@ -25,7 +28,7 @@ import { Word } from '@/src/types/Word';
 
 // --- 类型定义 ---
 type TestType = 'pre_test' | 'post_test';
-type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen'; // 与 store 保持一致
+type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen' | 'learn'; // 与 store 保持一致
 
 // 测试类型到组件名称的映射
 const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
@@ -34,9 +37,8 @@ const testComponentMap: Record<TestActivity, React.ComponentType<any>> = {
   transCh: TransCh,
   spelling: Spelling,
   pronunce: Pronunce,
+  learn: Learn,
 };
-// 输出 testComponentMap
-console.log('[TestScreen] testComponentMap:', testComponentMap);
 
 export default function TestScreen() {
   const router = useRouter();
@@ -44,6 +46,9 @@ export default function TestScreen() {
     sessionId: string;
     type: TestType;
   }>();
+
+  // 下拉刷新状态
+  const [refreshing, setRefreshing] = useState(false);
 
   // --- 从 Hooks 获取原始状态 ---
   const { user } = useAuthStore();
@@ -66,6 +71,7 @@ export default function TestScreen() {
     // 获取 Actions
     initializeTest,
     handleAnswer: storeHandleAnswer,
+    nextWord,
     setError: setStoreError,
     reset: resetStore
   } = useTestStore();
@@ -86,6 +92,22 @@ export default function TestScreen() {
     return currentWordIndex + 1;
   }, [currentWordIndex]);
 
+  // --- 下拉刷新处理函数 ---
+  const onRefresh = useCallback(async () => {
+    if (!sessionId || !type) return;
+    
+    setRefreshing(true);
+    try {
+      console.log('[TestScreen] 下拉刷新，重新初始化测试...');
+      await initializeTest(sessionId, type);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('[TestScreen] 下拉刷新失败:', error);
+      Alert.alert('刷新失败', '请稍后重试');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [sessionId, type, initializeTest]);
 
   useEffect(() => {
     console.log('[TestScreen] currentActorSnapshot effect triggered.', Listen, Pronunce, Spelling, TransCh, TransEn);
@@ -108,7 +130,12 @@ export default function TestScreen() {
              console.warn(`[TestScreen] Could not match activity from state: ${stateValue}`);
         }
     }
-    // 因此，当 stateValue 不以 "flow" 开头时，currentTestActivityType 保持不变
+    // 检查 value 是否存在且以 "L" 开头
+    if (typeof stateValue === 'string' && stateValue.startsWith('L')) {
+        console.log('[TestScreen] Final state ', stateValue);
+        setCurrentTestActivityType('learn');
+        return; // 确保设置后返回
+    }
   }, [currentActorSnapshot?.value]); // 依赖 currentActorSnapshot.value
 
   const CurrentTestComponent = useMemo<React.ComponentType<any> | null>(() => {
@@ -143,14 +170,10 @@ export default function TestScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         '完成',
-        `${type === 'pre_test' ? '前置评测' : '当日评测'}已完成！`,
+        `${type === 'pre_test' ? '学习' : '复习'}已完成！`,
         [
           {
-            text: '查看结果',
-            onPress: () => router.back(),
-          },
-          {
-            text: '返回首页',
+            text: '继续',
             onPress: () => router.back(),
           },
         ]
@@ -196,8 +219,14 @@ export default function TestScreen() {
        Alert.alert('错误', '处理答题结果时发生错误');
     }
 
-  }, [storeHandleAnswer, currentWordObj, setStoreError]);
+    if(result.type === 'learn'){
+      setTimeout(() => { 
+        nextWord();
+      }, 0);
+      
+    }
 
+  }, [storeHandleAnswer, currentWordObj, setStoreError, nextWord]);
 
   const handlePause = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -286,22 +315,45 @@ export default function TestScreen() {
           <Ionicons name="pause" size={24} color="#4A90E2" />
         </TouchableOpacity>} */}
       </View>
-      <View style={styles.testArea}>
-        <CurrentTestComponent
-          word={currentWordObj}
-          onAnswer={handleAnswer}
-          testType={currentTestActivityType}
-        />
-      </View>
+      
+      {/* 使用 ScrollView 包裹测试区域以支持下拉刷新 */}
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#4A90E2']} // Android
+            tintColor="#4A90E2" // iOS
+            title="下拉刷新..."
+            titleColor="#666666"
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.testArea}>
+          <CurrentTestComponent
+            word={currentWordObj}
+            onAnswer={handleAnswer}
+            testType={currentTestActivityType}
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-// ... styles 部分保持不变 ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   topBar: {
     flexDirection: 'row',

@@ -173,8 +173,10 @@ export const useTestStore = create<TestState>()((set, get) => ({
       const answerPayload: 'success' | 'fail' = result.correct ? 'success' : 'fail';
       const currentWord = get().wordList[get().currentWordIndex];
       console.log(`[TestStore] Sending ANSWER (${answerPayload}) for word ${currentWord.$id}`);
+      if(activityType !== 6) {
       currentActor.send({ type: 'ANSWER', answer: answerPayload });
       console.log(`[TestStore] ANSWER event sent for word ${currentWord.$id}.`);
+      }
     } catch (err: any) {
       console.error('[TestStore] Failed to handle answer:', err);
       set({ error: `处理答题结果时发生错误: ${err.message}` });
@@ -282,7 +284,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
         const unsubscribe = newActor.subscribe((state) => {
             console.log(`[TestStore] Actor state changed for word ${wordId}: VALUE = '${state.value}' TYPEOF = ${typeof state.value}`);
             
-            set({ currentActorSnapshot: state });
             // --- 解析并更新当前活动类型 ---
             const stateValue: PreTestMachineStateValue = state.value as PreTestMachineStateValue;
             if (typeof stateValue === 'string' && stateValue.includes('_') && !stateValue.startsWith('L')) {
@@ -293,7 +294,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
       
                     // 将 TestActivity 映射到数字
                     const testActivityTypeMap: Record<string, number> = {
-                        'listen': 1, 'transEn': 2, 'transCh': 3, 'spelling': 4, 'pronunce': 5,
+                        'listen': 1, 'transEn': 2, 'transCh': 3, 'spelling': 4, 'pronunce': 5, 'learn': 6
                     };
                     // 验证是否为有效的 TestActivity
                     if (testActivityTypeMap.hasOwnProperty(activityPart)) {
@@ -326,11 +327,11 @@ export const useTestStore = create<TestState>()((set, get) => ({
                     (async () => {
                         // --- 关键修改：在最终状态 L* 时，先保存 UserWordTestHistory ---
                         const { wordList, currentWordIndex, activityType, lastAnswerResult } = get();
-                        const isTestFinished = currentWordIndex === wordList.length -1;
-                        if(isTestFinished){
-                          console.log('[TestStore] Test finished. isTestFinished is true...');
-                          set({ isTestFinished: isTestFinished });
-                        }
+                        // const isTestFinished = currentWordIndex === wordList.length -1;
+                        // if(isTestFinished){
+                        //   console.log('[TestStore] Test finished. isTestFinished is true...');
+                        //   set({ isTestFinished: isTestFinished });
+                        // }
 
                         if (!activityType) {
                             console.error('[TestStore] Cannot save history in final state: activityType is not set.');
@@ -375,17 +376,17 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
                             // --- 最后，调用 nextWord ---
                             console.log('[TestStore] Calling nextWord after saving history and progress for word:', wordId);
-                            // 使用 setTimeout 确保状态更新后再调用 nextWord
-                            setTimeout(() => {
-                              get().nextWord(); // 调用 store 的 nextWord action
-                            }, 100);
+                            // // 使用 setTimeout 确保状态更新后再调用 nextWord
+                            // setTimeout(() => {
+                            //   get().nextWord(); // 调用 store 的 nextWord action
+                            // }, 100);
                         } catch (progressError: any) {
                              console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
                              set({ error: `保存单词 ${currentWord.spelling} 进度时出现问题` });
                         }
                         // 更新 DailyLearningStore 的进度
                         const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
-                        useDailyLearningStore.getState().updateSessionProgress(session.$id, {
+                        await useDailyLearningStore.getState().updateSessionProgress(session.$id, {
                           [progressField]: `${currentWordIndex+1}/${wordList.length}`,
                         });
                     })();
@@ -394,6 +395,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
                     set({ error: `无法确定单词 ${currentWord.spelling} 的最终掌握等级` });
                 }
             }
+            set({ currentActorSnapshot: state });
         });
 
         // 5. 启动 actor

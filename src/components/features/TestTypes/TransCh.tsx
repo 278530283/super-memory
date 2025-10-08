@@ -98,7 +98,7 @@ const TransChFC: React.FC<TestTypeProps> = ({
       duration: 300,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const correctOptionKey = word.spelling; // 正确选项标识
   console.log('Correct option:', correctOptionKey);

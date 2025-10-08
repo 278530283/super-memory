@@ -1,7 +1,7 @@
 // src/lib/services/wordService.ts
 import { COLLECTION_WORDS, DATABASE_ID } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
-import { Word, WordOption } from '@/src/types/Word';
+import { parseExampleSentences, Word, WordMeaning, WordOption } from '@/src/types/Word';
 import { Query } from 'appwrite';
 
 class WordService {
@@ -26,58 +26,171 @@ class WordService {
         Query.equal('$id', wordIds)
       ]});
       let words = response.rows as unknown as Word[];
-      words.map(word => {
-        this.generateRandomOptions(word, 6);
-      });
-      return words;
+      words = words.map(word => this.processWordData(word));
+      
+      // 为每个单词生成选项
+      const wordsWithOptions = await Promise.all(
+        words.map(word => this.generateRandomOptions(word, 6))
+      );
+      
+      return wordsWithOptions;
     } catch (error) {
       console.error("WordService.getWordsByIds error:", error);
       throw error;
     }
   }
 
-  // --- 新增的辅助函数 (如果之前没有) ---
-/**
- * 从中文翻译字符串中解析出词性和含义 (简化版)
- * @param chineseMeaning 中文翻译字符串，格式如 "nn. 苹果 v. 动作 v./n. 玩"
- * @returns { partOfSpeech: string; meaning: string } 解析结果
- */
-parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning: string } => {
-  if (!chineseMeaning?.trim()) {
+  /**
+   * 处理单词数据，包括解析例句等
+   */
+  private processWordData(word: Word): Word {
+    // 解析例句数据
+    if (word.example_sentence && !word.example_sentences) {
+      word.example_sentences = parseExampleSentences(word.example_sentence);
+    }
+    return word;
+  }
+
+  // --- 通用的词性拆分方法 ---
+  /**
+   * 通用的词性拆分方法，支持中英文释义处理
+   * @param meaning 释义字符串，多个释义由\\n分隔，每个释义格式如 "n. 苹果; 苹果公司\\n v. 动作; 行动"
+   * @returns WordMeaning[] 解析结果数组，每个词性包含多个含义
+   */
+  parseMeanings = (meaning: string): WordMeaning[] => {
+    if (!meaning?.trim()) {
+      return [];
+    }
+
+    const results: { partOfSpeech: string; meanings: string[] }[] = [];
+    
+    // 按换行符分割多个释义
+    let meaningText = meaning;
+    if(meaningText.includes('\\n')){
+      meaningText = meaningText.replaceAll('\\n', '\n');
+    }
+    const meaningBlocks = meaningText.split('\n').filter(block => block.trim());
+    
+    // 定义支持的词性模式
+    const pattern = /^(n|a|v|r|s|vi|vt|pl|adv|pron|prep|\[[^\]]+\])([\.\s])(.*)$/;
+
+    for (const block of meaningBlocks) {
+      const trimmedBlock = block.trim();
+      
+      // 尝试匹配词性
+      let matchedPos = '';
+      let meaningPart = trimmedBlock;
+      
+      const match = trimmedBlock.match(pattern);
+      if (match && match.length === 4) {
+        matchedPos = match[1];
+        meaningPart = match[3];
+      }
+
+      // 提取含义部分并清理
+      meaningPart = meaningPart.trim();
+      meaningPart = meaningPart.replace(/^[.:：\s\r]+/, '');
+
+      // 按分号分割多个含义
+      const subMeanings = meaningPart.split(';')
+        .map(m => this.getFirstPart(m.trim()))
+        .filter(m => m.length > 0);
+      
+      if (subMeanings.length > 0) {
+        // 为每个词性创建一个条目，包含所有含义
+        results.push({
+          partOfSpeech: matchedPos,
+          meanings: subMeanings
+        });
+      } else {
+        // 如果没有明确分隔的含义，将整个部分作为一个含义
+        
+        results.push({
+          partOfSpeech: matchedPos,
+          meanings: [this.getFirstPart(meaningPart)]
+        });
+      }
+    }
+
+    return results;
+  };
+
+  getFirstPart = (meaning: string): string => {
+    return meaning.split(',')[0].trim();
+  }
+
+  // --- 修改后的 parseChineseMeaning 方法，使用通用的词性拆分 ---
+  /**
+   * 从中文翻译字符串中解析出词性和含义
+   * @param chineseMeaning 中文翻译字符串，格式如 "n. 苹果; 苹果公司\\nv. 动作; 行动"
+   * @returns { partOfSpeech: string; meaning: string } 解析结果（返回第一个词性的第一个含义）
+   */
+  parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning: string } => {
+    if (!chineseMeaning?.trim()) {
+      return { partOfSpeech: '', meaning: '' };
+    }
+
+    const parsedMeanings = this.parseMeanings(chineseMeaning);
+  
+    return this.getFirstMeaning(parsedMeanings);
+  };
+
+  /**
+   * 获取单词的第一个词性和含义
+   * @param meanings 
+   * @returns 
+   */
+  getFirstMeaning(meanings: WordMeaning[]): { partOfSpeech: string; meaning: string } { 
+    
+    // 返回第一个词性的第一个含义
+    if (meanings.length > 0 && meanings[0].meanings.length > 0) {
+      return {
+        partOfSpeech: meanings[0].partOfSpeech,
+        meaning: meanings[0].meanings[0]
+      };
+    }
+    
     return { partOfSpeech: '', meaning: '' };
   }
-  const trimmedMeaning = chineseMeaning.trim();
-  let partOfSpeech = '';
-  let meaningPart = trimmedMeaning;
-  // 查找第一个点空格的位置
-  const dotSpaceIndex = trimmedMeaning.indexOf('.');
-  if (dotSpaceIndex !== -1) {
-    // 词性部分：从开始到点空格之前的点（包括点）
-    const partOfSpeechTemp = trimmedMeaning.substring(0, dotSpaceIndex + 1); // 包括点，但不包括空格
-    if (/^[a-z./]+$/i.test(partOfSpeechTemp)) {
-      partOfSpeech = partOfSpeechTemp;
-    }
-    // 含义部分：从点空格之后开始
-    meaningPart = trimmedMeaning.substring(dotSpaceIndex + 1).trim();
-  }
-  // 只获取 第一个含义
-  let meaningSeparator = meaningPart.search(/[,;\\]/); // 查找第一个逗号或分号
-  if(meaningSeparator !== -1)
-    meaningPart = meaningPart.substring(0, meaningSeparator);
 
-  return {
-      partOfSpeech: partOfSpeech,
-      meaning: meaningPart
-    };
-};
-// ---------------------------------------
+  // --- 新增方法：获取所有词性和含义 ---
+  /**
+   * 获取单词的所有词性和含义
+   * @param meaning 释义字符串
+   * @returns WordMeaning[] 所有词性和含义的数组
+   */
+  getAllMeanings = (meaning: string): WordMeaning[] => {
+    return this.parseMeanings(meaning);
+  };
+
+  // --- 新增方法：获取扁平化的所有含义（保持向后兼容）---
+  /**
+   * 获取扁平化的所有含义（每个含义单独一个对象）
+   * @param meaning 释义字符串
+   * @returns { partOfSpeech: string; meaning: string }[] 扁平化的含义数组
+   */
+  getAllMeaningsFlat = (meaning: string): { partOfSpeech: string; meaning: string }[] => {
+    const groupedMeanings = this.parseMeanings(meaning);
+    const flatMeanings: { partOfSpeech: string; meaning: string }[] = [];
+    
+    groupedMeanings.forEach(group => {
+      group.meanings.forEach(meaningText => {
+        flatMeanings.push({
+          partOfSpeech: group.partOfSpeech,
+          meaning: meaningText
+        });
+      });
+    });
+    
+    return flatMeanings;
+  };
 
 // --- 修改后的 generateRandomOptions 方法 ---
 /**
  * 生成指定单词的随机选项（包括正确选项和错误选项）
  * @param correctWord 正确的 Word 对象
  * @param count 所需选项的总数量 (包括正确选项)
- * @returns Promise<WordOption[]> 包含选项对象的数组
+ * @returns Promise<Word> 包含选项的单词对象
  */
 async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
   try {
@@ -86,7 +199,10 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
       console.warn('[WordService] Requested option count is <= 0, returning empty array.');
       return correctWord;
     }
-    const parsed = this.parseChineseMeaning(correctWord.chinese_meaning || '');
+    const definitions = this.getAllMeanings(correctWord.definition || '');
+    correctWord.definitions = definitions;
+    correctWord.chinese_meanings = this.getAllMeanings(correctWord.chinese_meaning || '');
+    const parsed = this.getFirstMeaning(correctWord.chinese_meanings);
     correctWord.partOfSpeech = parsed.partOfSpeech;
     correctWord.meaning = parsed.meaning;
 
@@ -136,8 +252,9 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     const shuffledOptions = allOptions.sort(() => 0.5 - Math.random());
     console.log(`[WordService] Generated and shuffled ${shuffledOptions.length} total options.`);
 
-    // 7. 返回所需数量的选项
+      // 7. 设置处理后的单词选项
     correctWord.options = shuffledOptions;
+    console.log('[WordService] Returning word:', correctWord);
     // --- 简化逻辑结束 ---
     return correctWord;
 
@@ -170,7 +287,7 @@ async getNewWordIds(
 
     // 排除已复习过的单词
     if (reviewedWordIds.length > 0) {
-      queries.push(Query.notEqual('$id', reviewedWordIds));
+      queries.push(Query.notContains('$id', reviewedWordIds));
     }
 
     // 难度等级筛选

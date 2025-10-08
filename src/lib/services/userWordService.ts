@@ -264,7 +264,7 @@ class UserWordService {
       const reviewDate = new Date().toISOString();
 
       if (existingRecord) {
-        const dataWithReviewInfo = ReviewStrategyService.calculateReviewProgress(existingRecord, data.proficiency_level!, reviewDate);
+        const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(existingRecord, data.proficiency_level!, reviewDate);
         // 2a. 如果记录已存在，则更新 (排除 user_id 和 word_id，因为它们通常是不变的主键部分)
         const updateData = { ...data,...dataWithReviewInfo };
 

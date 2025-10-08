@@ -16,7 +16,8 @@ export interface Word {
   british_audio?: string | null; // File ID
   american_audio?: string | null; // File ID
   image_path?: string | null; // File ID or path
-  example_sentence?: string | null;
+  example_sentence?: string | null; // 保留原始字段，向后兼容
+  example_sentences?: ExampleSentence[]; // 新增：结构化的例句数据
   exchange?: string | null; // 词形变化信息，格式：类型1:变换单词1/类型2:变换单词2
   speed_sensitivity: number; // 1=低, 2=中, 3=高
   difficulty_level: number; // 1=小学, 2=初中, 3=高中
@@ -26,6 +27,8 @@ export interface Word {
   options?: WordOption[];
   partOfSpeech?: string;
   meaning?: string;
+  definitions?: WordMeaning[];
+  chinese_meanings?: WordMeaning[];
 }
 
 // 定义选项对象的类型
@@ -34,6 +37,11 @@ export interface WordOption {
   spelling: string;
   meaning: string;
   id: string; // 单词的 $id 或生成的唯一 ID
+}
+
+export interface WordMeaning{
+  partOfSpeech: string;
+  meanings: string[];
 }
 
 // 词形变化类型定义（基于exchange字段的格式）
@@ -54,6 +62,15 @@ export enum ExchangeType {
   LEMMA_DERIVED = '1'      // Lemma 的变换形式，比如 s 代表 apples 是其 lemma 的复数形式
 }
 
+// 例句结构定义
+export interface ExampleSentence {
+  en: string;           // 英文例句
+  ch: string;           // 中文翻译
+  trans?: {             // 单词级翻译（可选）
+    [key: string]: string;
+  };
+}
+
 // 工具函数：解析exchange字段
 export function parseExchange(exchangeString: string | null | undefined): WordExchange[] {
   if (!exchangeString) return [];
@@ -70,6 +87,29 @@ export function parseExchange(exchangeString: string | null | undefined): WordEx
 // 工具函数：生成exchange字段
 export function buildExchange(exchanges: WordExchange[]): string {
   return exchanges.map(ex => `${ex.type}:${ex.word}`).join('/');
+}
+
+// 工具函数：解析例句数据
+export function parseExampleSentences(exampleSentence: string | null | undefined): ExampleSentence[] {
+  if (!exampleSentence) return [];
+  
+  try {
+    // 尝试解析JSON格式的例句
+    const parsed = JSON.parse(exampleSentence);
+    if (Array.isArray(parsed)) {
+      return parsed as ExampleSentence[];
+    }
+    return [];
+  } catch (error) {
+    // 如果不是JSON格式，返回空数组或尝试其他解析逻辑
+    console.warn('Failed to parse example sentences:', error);
+    return [];
+  }
+}
+
+// 工具函数：将例句数据序列化为字符串
+export function serializeExampleSentences(sentences: ExampleSentence[]): string {
+  return JSON.stringify(sentences);
 }
 
 // 难度级别枚举
