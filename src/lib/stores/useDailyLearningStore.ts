@@ -16,6 +16,12 @@ interface DailyLearningState {
   updateSessionProgress: (sessionId: string, updates: Partial<DailyLearningSession>) => Promise<void>;
   recordWordAction: (actionData: any) => Promise<void>;
   clearError: () => void;
+  addIncrementalWords: (
+    sessionId: string,
+    userId: string,
+    modeId: string,
+    difficultyLevel: number
+  ) => Promise<void>;
 }
 
 const useDailyLearningStore = create<DailyLearningState>((set) => ({
@@ -26,6 +32,7 @@ const useDailyLearningStore = create<DailyLearningState>((set) => ({
     set({ loading: true, error: null });
     try {
       const session = await dailyLearningService.getTodaysSession(userId, sessionDate);
+      console.log("getSession Session:", session);
       set({ session, loading: false });
     } catch (error: any) {
       // Specific handling for 404 (session not found) vs other errors
@@ -65,6 +72,22 @@ const useDailyLearningStore = create<DailyLearningState>((set) => ({
     }
   },
   clearError: () => set({ error: null }),
+  addIncrementalWords: async (sessionId, userId, modeId, difficultyLevel) => {
+    set({ error: null });
+    try {
+      const updatedSession = await dailyLearningService.addIncrementalWordsToSession(
+        sessionId,
+        userId,
+        modeId,
+        difficultyLevel
+      );
+      console.log("Updated session:", updatedSession);
+      set({ session: updatedSession });
+    } catch (error: any) {
+      set({ error: error.message || 'Failed to add incremental words' });
+      throw error; // 重新抛出错误以便在组件中处理
+    }
+  },
 }));
 
 export default useDailyLearningStore;

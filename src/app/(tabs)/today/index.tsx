@@ -32,10 +32,11 @@ export default function TodayScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
-  const [hasShownSummary, setHasShownSummary] = useState(false); // 新增：记录是否已显示过总结
+  const [hasShownSummary, setHasShownSummary] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<'pre_test' | 'post_test' | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false); // 新增：生成计划加载状态
 
   // 下拉刷新处理函数
   const onRefresh = async () => {
@@ -57,6 +58,7 @@ export default function TodayScreen() {
   useEffect(() => {
     const loadSession = async () => {
       if (user?.$id) {
+        console.log('[TodayScreen] 加载会话...');
         const today = new Date().toISOString().split('T')[0];
         await getSession(user.$id, today);
         setIsLoading(false);
@@ -68,6 +70,7 @@ export default function TodayScreen() {
   useEffect(() => {
     const createNewSessionIfNeeded = async () => {
         if (!sessionLoading && !session && user?.$id && !isLoading) {
+          console.log('[TodayScreen] 创建新的会话...');
             const userPrefs = useAuthStore.getState().user?.prefs;
             const modeId = userPrefs?.learningMode || "2";
             const difficultyLevel = userPrefs?.englishLevel || 1;
@@ -100,11 +103,11 @@ export default function TodayScreen() {
     if (session?.status === 3 && !showSummary && !hasShownSummary) {
       const timer = setTimeout(() => {
         setShowSummary(true);
-        setHasShownSummary(true); // 标记为已显示
+        setHasShownSummary(true);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [session?.status, showSummary, hasShownSummary]); // 添加 hasShownSummary 到依赖数组
+  }, [session?.status, showSummary, hasShownSummary]);
 
   // 当总结卡片关闭时，更新状态
   const handleCloseSummary = () => {
@@ -144,10 +147,36 @@ export default function TodayScreen() {
     }
   };
 
-  const handleRestartLearning = () => {
-    setShowCompletionModal(false);
-    if (session?.$id) {
+  const handleRestartLearning = async () => {
+    if (!session?.$id || !user?.$id) return;
+
+    setIsGeneratingPlan(true); // 开始生成计划，显示加载状态
+
+    try {
+      // 1. 获取用户偏好设置
+      const userPrefs = useAuthStore.getState().user?.prefs;
+      const modeId = userPrefs?.learningMode || "2";
+      const difficultyLevel = userPrefs?.englishLevel || 1;
+
+      // 2. 使用 store 方法添加加量单词
+      await useDailyLearningStore.getState().addIncrementalWords(
+        session.$id,
+        user.$id,
+        modeId,
+        difficultyLevel
+      );
+
+      // 3. 关闭模态框
+      setShowCompletionModal(false);
+      
+      // 4. 跳转到学习页面
       router.push(`/(tabs)/today/${session.$id}/test/pre_test`);
+
+    } catch (error: any) {
+      console.error('加量学习失败:', error);
+      Alert.alert('错误', error.message || '加量学习失败，请稍后重试');
+    } finally {
+      setIsGeneratingPlan(false); // 无论成功失败都关闭加载状态
     }
   };
 
@@ -283,7 +312,7 @@ export default function TodayScreen() {
       {/* Summary Card Modal */}
       <SummaryCard
         isVisible={showSummary}
-        onClose={handleCloseSummary} // 使用新的处理函数
+        onClose={handleCloseSummary}
         newData={summaryData.newData}
         reviewData={summaryData.reviewData}
         levelUpData={summaryData.levelUpData}
@@ -295,29 +324,57 @@ export default function TodayScreen() {
         visible={showCompletionModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowCompletionModal(false)}
+        onRequestClose={() => !isGeneratingPlan && setShowCompletionModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Ionicons name="checkmark-circle" size={80} color="#27AE60" style={styles.modalIcon} />
-            
-            <Text style={styles.modalTitle}>学习已完成</Text>
-            <Text style={styles.modalText}>
-              {"是否要继续加量学习新单词？"}
-            </Text>
+            {isGeneratingPlan ? (
+              <>
+                <ActivityIndicator size="large" color="#2D9CDB" style={styles.modalIcon} />
+                <Text style={styles.modalTitle}>生成学习计划中...</Text>
+                <Text style={styles.modalText}>
+                  正在为您准备新的学习内容，请稍候...
+                </Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="checkmark-circle" size={80} color="#27AE60" style={styles.modalIcon} />
+                <Text style={styles.modalTitle}>学习已完成</Text>
+                <Text style={styles.modalText}>
+                  是否要继续加量学习新单词？
+                </Text>
+              </>
+            )}
             
             <View style={styles.modalButtons}>
               <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[
+                  styles.modalButton, 
+                  styles.cancelButton,
+                  isGeneratingPlan && styles.disabledButton
+                ]}
                 onPress={() => setShowCompletionModal(false)}
+                disabled={isGeneratingPlan}
               >
                 <Text style={styles.cancelButtonText}>取消</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[styles.modalButton, styles.confirmButton]}
+                style={[
+                  styles.modalButton, 
+                  styles.confirmButton,
+                  isGeneratingPlan && styles.disabledButton
+                ]}
                 onPress={handleRestartLearning}
+                disabled={isGeneratingPlan}
               >
-                <Text style={styles.confirmButtonText}>继续</Text>
+                {isGeneratingPlan ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.loadingButtonText}>生成中...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.confirmButtonText}>继续</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -445,5 +502,21 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // 新增样式
+  disabledButton: {
+    backgroundColor: '#B0BEC5',
+    opacity: 0.7,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });

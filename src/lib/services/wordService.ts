@@ -28,9 +28,15 @@ class WordService {
       let words = response.rows as unknown as Word[];
       words = words.map(word => this.processWordData(word));
       
+      // 按顺序获取单词
+      const wordMap = new Map(words.map(word => [word.$id, word]));
+      const orderedWords = wordIds
+        .map(id => wordMap.get(id))
+        .filter(word => word !== undefined) as Word[];
+      
       // 为每个单词生成选项
       const wordsWithOptions = await Promise.all(
-        words.map(word => this.generateRandomOptions(word, 6))
+        orderedWords.map(word => this.generateRandomOptions(word, 6))
       );
       
       return wordsWithOptions;
@@ -72,7 +78,7 @@ class WordService {
     const meaningBlocks = meaningText.split('\n').filter(block => block.trim());
     
     // 定义支持的词性模式
-    const pattern = /^(n|a|v|r|s|vi|vt|pl|adv|pron|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
+    const pattern = /^(n|a|v|r|s|vi|vt|pl|num|adv|pron|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
 
     for (const block of meaningBlocks) {
       const trimmedBlock = block.trim();
@@ -212,7 +218,6 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     // 2. 查询候选单词 (排除正确单词)
     let candidateWords: Word[] = [];
     if (falseOptionsCount > 0) {
-      console.log(`[WordService] Fetching candidate words (excluding ${correctWord.$id})...`);
       const response = await tablesDB.listRows({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_WORDS,
@@ -222,7 +227,6 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
         ]
       });
       candidateWords = response.rows as unknown as Word[];
-      console.log(`[WordService] Fetched ${candidateWords.length} candidate words.`);
     }
 
     // 3. 从候选单词中随机选择 count-1 个
@@ -230,12 +234,10 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     if (candidateWords.length > 0 && falseOptionsCount > 0) {
       const shuffledCandidates = candidateWords.sort(() => 0.5 - Math.random());
       selectedFalseWords = shuffledCandidates.slice(0, falseOptionsCount);
-      console.log(`[WordService] Selected ${selectedFalseWords.length} false words.`);
     }
 
     // 4. 合并正确单词和选中的错误单词
     const selectedWordsForOptions: Word[] = [correctWord, ...selectedFalseWords];
-    console.log(`[WordService] Total words for options: ${selectedWordsForOptions.length}`);
 
     // 5. 将选中的单词转换为 WordOption 对象
     let allOptions: WordOption[] = selectedWordsForOptions.map(word => {
@@ -250,11 +252,10 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
 
     // 6. 随机打乱所有选项
     const shuffledOptions = allOptions.sort(() => 0.5 - Math.random());
-    console.log(`[WordService] Generated and shuffled ${shuffledOptions.length} total options.`);
 
       // 7. 设置处理后的单词选项
     correctWord.options = shuffledOptions;
-    console.log('[WordService] Returning word:', correctWord);
+    console.log(`[WordService] Generated options for word ${correctWord.$id}:`, shuffledOptions);
     // --- 简化逻辑结束 ---
     return correctWord;
 

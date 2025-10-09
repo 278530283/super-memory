@@ -113,19 +113,19 @@ export const useTestStore = create<TestState>()((set, get) => ({
       // 初始化进度
       console.log('[TestStore] Initializing session progress...');
       const sessionStatus = testType === 'pre_test' ? 1 : 3;
-      if (!fetchedSession[progressField] || fetchedSession[progressField]?.startsWith('0/')) {
-        useDailyLearningStore.getState().updateSessionProgress(sessionId, {
-          status: sessionStatus,
-          [progressField]: initialProgress,
-        });
-        console.log('[TestStore] Session progress initialized.');
-      } else {
-        console.log('[TestStore] Session progress already initialized.');
-      }
-      // 为第一个单词创建 actor
-      const { currentWordIndex: firstIndex } = get();
-      if (firstIndex < fetchedWords.length) {
-          await get().createActorForCurrentWord();
+
+      await useDailyLearningStore.getState().updateSessionProgress(sessionId, {
+        status: sessionStatus,
+        [progressField]: initialProgress,
+      });
+      console.log('[TestStore] Session progress initialized.');
+      console.log('[TestStore] initialIndex:', initialIndex);
+      console.log('[TestStore] wordList length:', fetchedWords.length);
+
+      // 为单词创建 actor
+      if (initialIndex < fetchedWords.length) {
+        console.log('[TestStore] Creating actor for current word, ', initialIndex, fetchedWords.length);
+        await get().createActorForCurrentWord();
       }
     } catch (err: any) {
       console.error('[TestStore] Failed to initialize test:', err);
@@ -246,7 +246,9 @@ export const useTestStore = create<TestState>()((set, get) => ({
     const { session } = useDailyLearningStore.getState();
     const { user: appwriteUser } = useAuthStore.getState();
     const { wordList, currentWordIndex, testType } = get();
+    console.log('[TestStore] createActorForCurrentWord called.', currentWordIndex, wordList.map(word => word.$id));
     const currentWord = wordList[currentWordIndex];
+    console.log('[TestStore] Current word:', currentWord)
     if (!currentWord || !appwriteUser || !session) {
         console.error('[TestStore] Cannot create actor: Missing data (word, user, or session)');
         // **关键修改：确保加载状态被设置为 false**

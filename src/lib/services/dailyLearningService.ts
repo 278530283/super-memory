@@ -129,19 +129,19 @@ class DailyLearningService {
         rowId: sessionId,
         data: updateData
       });
-      // 获取原始会话以保留未更新的数组字段
-      const originalSession = await this.getSessionById(sessionId);
+
       const result = updatedSession as unknown as DailyLearningSession;
       
       // 确保数组字段保持为数组
-      if (!updateData.pre_test_word_ids && originalSession) {
-        result.pre_test_word_ids = originalSession.pre_test_word_ids;
+      // 直接反序列化 updatedSession 中的数组字段
+      if (typeof result.pre_test_word_ids === 'string') {
+        result.pre_test_word_ids = JSON.parse(result.pre_test_word_ids);
       }
-      if (!updateData.learning_word_ids && originalSession) {
-        result.learning_word_ids = originalSession.learning_word_ids;
+      if (typeof result.learning_word_ids === 'string') {
+        result.learning_word_ids = JSON.parse(result.learning_word_ids);
       }
-      if (!updateData.post_test_word_ids && originalSession) {
-        result.post_test_word_ids = originalSession.post_test_word_ids;
+      if (typeof result.post_test_word_ids === 'string') {
+        result.post_test_word_ids = JSON.parse(result.post_test_word_ids);
       }
       
       return result;
@@ -259,6 +259,119 @@ class DailyLearningService {
       console.error("DailyLearningService.generateTodaysWordLists error:", error);
       // Returning empty lists allows session creation to proceed, maybe with a warning
       return { pre_test: [], learning: [], post_test: [] };
+    }
+  }
+
+  /**
+   * Generates incremental learning word lists for additional study sessions.
+   * This method randomly selects words based on mode and difficulty level.
+   * @param userId The ID of the user.
+   * @param modeId The ID of the selected learning mode.
+   * @param difficultyLevel The difficulty level for word selection.
+   * @param excludeWordIds 需要排除的单词ID列表（通常是当前会话中已存在的单词）
+   * @returns An array of word IDs for incremental learning.
+   */
+  async generateIncrementalWordsList(
+    userId: string, 
+    modeId: string, 
+    difficultyLevel: number,
+    excludeWordIds: string[] = []
+  ): Promise<string[]> {
+    try {
+      // 1. Fetch Learning Mode Details to get word count
+      const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
+      
+      // 2. Fetch User's reviewed Word IDs to exclude them
+      const reviewedWordIds = await userWordService.getReviewedWordIds(userId);
+      
+      // 3. 合并需要排除的所有单词ID（已复习的单词 + 当前会话中已存在的单词）
+      const allExcludedWordIds = [...reviewedWordIds, ...excludeWordIds];
+      
+      console.log(`[DailyLearningService] Excluding ${allExcludedWordIds.length} words (${reviewedWordIds.length} reviewed + ${excludeWordIds.length} from current session)`);
+
+      // 4. Get New Word IDs based on difficulty level,排除所有需要排除的单词
+      const newWordIds = await wordService.getNewWordIds(
+        userId, 
+        allExcludedWordIds, // 传入所有需要排除的单词ID
+        difficultyLevel, 
+        'zk', 
+        mode.word_count
+      );
+      
+      console.log(`[DailyLearningService] Found ${newWordIds.length} new words after exclusion`);
+      
+      // 5. If we have enough words, return all of them
+      if (newWordIds.length <= mode.word_count) {
+        return newWordIds;
+      }
+      
+      // 6. If we have more words than needed, randomly select the required amount
+      const shuffled = [...newWordIds].sort(() => 0.5 - Math.random());
+      return shuffled.slice(0, mode.word_count);
+      
+    } catch (error) {
+      console.error("DailyLearningService.generateIncrementalWordsList error:", error);
+      // Return empty array in case of error to allow operation to continue
+      return [];
+    }
+  }
+
+  /**
+   * Adds incremental words to an existing session and updates progress
+   * @param sessionId The ID of the existing session
+   * @param userId The ID of the user
+   * @param modeId The ID of the learning mode
+   * @param difficultyLevel The difficulty level for word selection
+   * @returns The updated session
+   */
+  async addIncrementalWordsToSession(
+    sessionId: string,
+    userId: string,
+    modeId: string,
+    difficultyLevel: number
+  ): Promise<DailyLearningSession> {
+    try {
+      // 1. Get current session
+      const currentSession = await this.getSessionById(sessionId);
+      if (!currentSession) {
+        throw new Error('会话不存在');
+      }
+
+      // 2. Generate incremental words list, 排除当前会话中已存在的单词
+      const incrementalWords = await this.generateIncrementalWordsList(
+        userId,
+        modeId,
+        difficultyLevel,
+        currentSession.pre_test_word_ids || [] // 排除当前会话中已存在的单词
+      );
+
+      if (incrementalWords.length === 0) {
+        throw new Error('暂时没有更多可学习的单词');
+      }
+
+      // 3. Merge word lists and update progress
+      const currentPreTestWords = currentSession.pre_test_word_ids || [];
+      console.log("Current Pre-Test Word list:", currentPreTestWords)
+      const updatedPreTestWords = [...currentPreTestWords, ...incrementalWords];
+      console.log("Updated Pre-Test Word list:", updatedPreTestWords)
+      
+      const currentProgress = currentSession.pre_test_progress || '0/0';
+      const [completed, total] = currentProgress.split('/').map(Number);
+      const newTotal = total + incrementalWords.length;
+      const updatedProgress = `${completed}/${newTotal}`;
+
+      // 4. Update session
+      const updatedSession = await this.updateSession(sessionId, {
+        pre_test_word_ids: updatedPreTestWords,
+        pre_test_progress: updatedProgress,
+        status: 1, // Set to in progress
+      });
+
+      return updatedSession;
+
+    } catch (error) {
+      console.error("DailyLearningService.addIncrementalWordsToSession error:", error);
+      throw error;
     }
   }
 }
