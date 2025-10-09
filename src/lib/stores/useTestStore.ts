@@ -11,58 +11,58 @@ import { Actor, createActor } from 'xstate';
 import { create } from 'zustand';
 import actionLogService from '../services/actionLogService';
 
-// --- 类型定义 (与 preTestMachine 和 app/index.tsx 保持一致) ---
+// --- 类型定义 ---
 type TestType = 'pre_test' | 'post_test';
-type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen'; // 根据实际状态机调整
-// 定义 preTestMachine 的状态值类型
-type PreTestMachineStateValue =
-  | `flow${number}_${TestActivity}` // 流程中的活动状态
-  | `L${number}`; // 最终确定等级的状态
-// 定义 XState Actor 类型
+type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen';
+type PreTestMachineStateValue = `flow${number}_${TestActivity}` | `L${number}`;
 type PreTestActor = Actor<typeof preTestMachine>;
 
-// 添加一个内部状态来存储最近一次答题的详情和当前活动类型
 interface LastAnswerResult {
   correct: boolean;
   responseTimeMs?: number;
 }
 
-// --- Store 状态接口 (只包含原始状态) ---
+// --- 优化后的 Store 状态接口 ---
 interface TestState {
-  // --- 原始状态 ---
-  wordList: Word[];
+  // --- 核心状态 ---
+  wordIds: string[]; // 只存储单词ID，不存储完整的单词对象
+  currentWord: Word | null; // 当前单词
+  nextWord: Word | null; // 预加载的下一个单词
   currentActor: PreTestActor | null;
-  currentActorSnapshot: any; // XState State type
+  currentActorSnapshot: any;
   currentWordIndex: number;
   isLoading: boolean;
   error: string | null;
   testType: TestType | null;
+  
   // --- 新增状态 ---
-  activityType: number | null; // 存储当前 XState Actor 的活动类型
-  lastAnswerResult: LastAnswerResult | null; // 存储上一次答题的详情
-  isTestFinished: boolean; // 测试是否完成
-  // --- Actions (修改状态的方法) ---
+  activityType: number | null;
+  lastAnswerResult: LastAnswerResult | null;
+  isTestFinished: boolean;
+  
+  // --- Actions ---
   initializeTest: (sessionId: string, testType: TestType) => Promise<void>;
   handleAnswer: (result: { correct: boolean; wordId: string; responseTimeMs?: number; speedUsed?: number }) => Promise<void>;
-  nextWord: () => void;
+  loadNextWord: () => Promise<void>;
+  loadCurrentWord: () => Promise<void>;
   setError: (error: string | null) => void;
   reset: () => void;
-  // 内部 helper，不暴露给外部组件
   createActorForCurrentWord: () => Promise<void>;
   setIsLoading: (isLoading: boolean) => void;
 }
 
 // --- Store 实现 ---
 export const useTestStore = create<TestState>()((set, get) => ({
-  // --- 初始原始状态 ---
-  wordList: [],
+  // --- 初始状态 ---
+  wordIds: [],
+  currentWord: null,
+  nextWord: null,
   currentActor: null,
   currentActorSnapshot: null,
   currentWordIndex: 0,
   isLoading: true,
   error: null,
   testType: null,
-  // --- 新增初始状态 ---
   activityType: null,
   lastAnswerResult: null,
   isTestFinished: false,
@@ -70,16 +70,30 @@ export const useTestStore = create<TestState>()((set, get) => ({
   // --- Actions ---
   initializeTest: async (sessionId, testType) => {
     console.log('[TestStore] Initializing test for session:', sessionId, 'type:', testType);
-    set({ isLoading: true, error: null, testType, currentActor: null, currentActorSnapshot: null, activityType: null, lastAnswerResult: null });
+    set({ 
+      isLoading: true, 
+      error: null, 
+      testType, 
+      currentActor: null, 
+      currentActorSnapshot: null, 
+      activityType: null, 
+      lastAnswerResult: null,
+      currentWord: null,
+      nextWord: null
+    });
+    
     try {
       const { session: fetchedSession } = useDailyLearningStore.getState();
       if (!fetchedSession || fetchedSession.$id !== sessionId) {
         throw new Error('Session not found or mismatch');
       }
+      
       const { user } = useAuthStore.getState();
       if (!user) {
-         throw new Error('User not authenticated');
+        throw new Error('User not authenticated');
       }
+
+      // 只获取单词ID列表
       let wordIds: string[] = [];
       switch (testType) {
         case 'pre_test':
@@ -91,54 +105,111 @@ export const useTestStore = create<TestState>()((set, get) => ({
         default:
           throw new Error(`不支持的测试类型: ${testType}`);
       }
+
       if (wordIds.length === 0) {
         console.warn('[TestStore] No words found for test.');
-        set({ wordList: [], isLoading: false });
+        set({ wordIds: [], isLoading: false });
         return;
       }
-      console.log(`[TestStore] Found ${wordIds.length} words for test, fetching details...`, wordIds);
-      console.log('[TestStore] Fetching words by ids...');
-      const fetchedWords = await wordService.getWordsByIds(wordIds); // 确保使用正确的方法
-      console.log(`[TestStore] Fetched ${fetchedWords.length} words.`);
+
+      console.log(`[TestStore] Found ${wordIds.length} words for test`);
+      
+      // 获取初始进度
       const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
       const initialProgress = fetchedSession[progressField] || `0/${wordIds.length}`;
       const initialIndex = +(initialProgress.split('/')[0]);
+
       set({
-        wordList: fetchedWords,
+        wordIds,
         currentWordIndex: initialIndex,
         error: null,
         activityType: null,
         lastAnswerResult: null,
         isTestFinished: false,
       });
-      // 初始化进度
-      console.log('[TestStore] Initializing session progress...');
-      const sessionStatus = testType === 'pre_test' ? 1 : 3;
 
+      // 初始化会话进度
+      const sessionStatus = testType === 'pre_test' ? 1 : 3;
       await useDailyLearningStore.getState().updateSessionProgress(sessionId, {
         status: sessionStatus,
         [progressField]: initialProgress,
       });
-      console.log('[TestStore] Session progress initialized.');
-      console.log('[TestStore] initialIndex:', initialIndex);
-      console.log('[TestStore] wordList length:', fetchedWords.length);
 
-      // 为单词创建 actor
-      if (initialIndex < fetchedWords.length) {
-        console.log('[TestStore] Creating actor for current word, ', initialIndex, fetchedWords.length);
-        await get().createActorForCurrentWord();
+      console.log('[TestStore] Session progress initialized. initialIndex:', initialIndex);
+
+      // 加载当前单词和预加载下一个单词
+      if (initialIndex < wordIds.length) {
+        console.log('[TestStore] Loading current word and preloading next word');
+        await get().loadCurrentWord();
+      } else {
+        set({ isTestFinished: true, isLoading: false });
       }
+      
     } catch (err: any) {
       console.error('[TestStore] Failed to initialize test:', err);
       set({ error: err instanceof Error ? err.message : '初始化测试失败', isLoading: false });
     }
   },
 
+  // 新增：加载当前单词
+  loadCurrentWord: async () => {
+    const { wordIds, currentWordIndex, testType } = get();
+    
+    if (currentWordIndex >= wordIds.length) {
+      set({ isTestFinished: true, isLoading: false });
+      return;
+    }
+
+    set({ isLoading: true });
+    
+    try {
+      const currentWordId = wordIds[currentWordIndex];
+      console.log(`[TestStore] Loading current word: ${currentWordId}`);
+      
+      // 加载当前单词
+      const currentWord = await wordService.getWordById(currentWordId);
+      if (!currentWord) {
+        throw new Error(`无法加载单词: ${currentWordId}`);
+      }
+
+      // 预加载下一个单词（如果存在）
+      let nextWord = null;
+      if (currentWordIndex + 1 < wordIds.length) {
+        const nextWordId = wordIds[currentWordIndex + 1];
+        console.log(`[TestStore] Preloading next word: ${nextWordId}`);
+        try {
+          nextWord = await wordService.getWordById(nextWordId);
+        } catch (error) {
+          console.warn(`[TestStore] Failed to preload next word ${nextWordId}:`, error);
+          // 预加载失败不影响当前流程
+        }
+      }
+
+      set({ 
+        currentWord, 
+        nextWord,
+        isLoading: false 
+      });
+
+      // 为当前单词创建 actor
+      await get().createActorForCurrentWord();
+      
+    } catch (err: any) {
+      console.error('[TestStore] Failed to load current word:', err);
+      set({ 
+        error: `加载单词失败: ${err.message}`, 
+        isLoading: false 
+      });
+    }
+  },
+
+  // 修改：处理答案
   handleAnswer: async (result) => {
     console.log('[TestStore] handleAnswer called with result:', result);
     const { session } = useDailyLearningStore.getState();
     const { user: appwriteUser } = useAuthStore.getState();
     const { currentActor, testType, activityType } = get();
+    
     if (!currentActor || !appwriteUser || !session) {
       const errorMsg = '[TestStore] Missing data for handling answer (actor, user, or session)';
       console.error(errorMsg);
@@ -146,37 +217,36 @@ export const useTestStore = create<TestState>()((set, get) => ({
       return;
     }
 
-    try{
-      const phase = testType === 'pre_test' ? 1 : 3; // 根据 testType 确定 phase
+    // 记录操作日志
+    try {
+      const phase = testType === 'pre_test' ? 1 : 3;
       actionLogService.logAction({
-            user_id:appwriteUser.$id,
-            word_id: result.wordId,
-            session_id:session.$id,
-            phase: phase,
-            action_type: activityType!, // 英译中活动类型
-            is_correct:result.correct,
-            response_time_ms:result.responseTimeMs,
-            speed_used:result.speedUsed,
-          });
-    }catch(e){
+        user_id: appwriteUser.$id,
+        word_id: result.wordId,
+        session_id: session.$id,
+        phase: phase,
+        action_type: activityType!,
+        is_correct: result.correct,
+        response_time_ms: result.responseTimeMs,
+        speed_used: result.speedUsed,
+      });
+    } catch (e) {
       console.warn('[TestStore] Failed to log action:', e);
     }
 
     try {
-      // --- 关键修改：在发送 ANSWER 之前，将答题详情存入 store ---
+      // 存储答题结果
       const answerDetail: LastAnswerResult = {
-          correct: result.correct,
-          responseTimeMs: result.responseTimeMs,
+        correct: result.correct,
+        responseTimeMs: result.responseTimeMs,
       };
       set({ lastAnswerResult: answerDetail });
 
-      // 2. 将答题结果发送给 preTestMachine actor
+      // 发送答案给状态机
       const answerPayload: 'success' | 'fail' = result.correct ? 'success' : 'fail';
-      const currentWord = get().wordList[get().currentWordIndex];
-      console.log(`[TestStore] Sending ANSWER (${answerPayload}) for word ${currentWord.$id}`);
-      if(activityType !== 6) {
-      currentActor.send({ type: 'ANSWER', answer: answerPayload });
-      console.log(`[TestStore] ANSWER event sent for word ${currentWord.$id}.`);
+      if (activityType !== 6) {
+        currentActor.send({ type: 'ANSWER', answer: answerPayload });
+        console.log(`[TestStore] ANSWER event sent for word ${result.wordId}.`);
       }
     } catch (err: any) {
       console.error('[TestStore] Failed to handle answer:', err);
@@ -184,28 +254,63 @@ export const useTestStore = create<TestState>()((set, get) => ({
     }
   },
 
-  nextWord: () => {
-    console.log('[TestStore] nextWord called.');
-    const { currentWordIndex, wordList } = get();
-    const nextIndex = currentWordIndex+1;
-    set(() => {
-      if (nextIndex < wordList.length) {
-        console.log('[TestStore] Moving to word index ', nextIndex);
-        // 移动到下一词时重置活动和答题结果，并 **立即设置 isLoading 为 true**
-        // 这确保了在 createActorForCurrentWord 完成之前，UI 保持加载状态
-        return { currentWordIndex: nextIndex, activityType: null, lastAnswerResult: null, isLoading: true, currentActor:null, currentActorSnapshot: null };
-      }
+  // 修改：加载下一个单词
+  loadNextWord: async () => {
+    console.log('[TestStore] loadNextWord called.');
+    const { wordIds, currentWordIndex, nextWord } = get();
+    const nextIndex = currentWordIndex + 1;
+
+    if (nextIndex >= wordIds.length) {
       console.log('[TestStore] No more words, test completed.');
-      // 如果没有更多单词，可以设置 isLoading 为 false，但这通常由 TestScreen 的 isTestFinished 逻辑处理
-      // return { isLoading: false }; // 可选，取决于是否需要明确设置
-      return { isTestFinished: true, activityType: null, lastAnswerResult: null, isLoading: false }; // 明确设置为 false，表示加载完成且无更多单词
-    });
-    // 在状态更新后，触发创建下一个单词的 actor
-    // createActorForCurrentWord 会负责加载过程，并在完成后将 isLoading 设置回 false
-    if (nextIndex < wordList.length) {
-      setTimeout(async () => {
-        await get().createActorForCurrentWord()
-      }, 100);
+      set({ isTestFinished: true, currentWord: null, nextWord: null, isLoading: false });
+      return;
+    }
+
+    console.log('[TestStore] Moving to word index', nextIndex);
+    
+    // 如果已经预加载了下一个单词，直接使用
+    if (nextWord) {
+      set({ 
+        currentWordIndex: nextIndex,
+        currentWord: nextWord,
+        currentActor: null,
+        currentActorSnapshot: null,
+        activityType: null,
+        lastAnswerResult: null,
+        isLoading: true // 设置为 true，等待创建 actor
+      });
+
+      // 预加载再下一个单词
+      const nextNextIndex = nextIndex + 1;
+      let nextNextWord = null;
+      if (nextNextIndex < wordIds.length) {
+        const nextNextWordId = wordIds[nextNextIndex];
+        console.log(`[TestStore] Preloading next next word: ${nextNextWordId}`);
+        try {
+          nextNextWord = await wordService.getWordById(nextNextWordId);
+        } catch (error) {
+          console.warn(`[TestStore] Failed to preload next next word ${nextNextWordId}:`, error);
+        }
+      }
+
+      set({ nextWord: nextNextWord });
+
+      // 为当前单词创建 actor
+      await get().createActorForCurrentWord();
+    } else {
+      // 如果没有预加载，重新加载当前单词
+      set({ 
+        currentWordIndex: nextIndex,
+        currentWord: null,
+        nextWord: null,
+        currentActor: null,
+        currentActorSnapshot: null,
+        activityType: null,
+        lastAnswerResult: null,
+        isLoading: true
+      });
+      
+      await get().loadCurrentWord();
     }
   },
 
@@ -218,217 +323,205 @@ export const useTestStore = create<TestState>()((set, get) => ({
     console.log('[TestStore] Resetting store...');
     const { currentActor } = get();
     if (currentActor) {
-        try {
-            currentActor.stop();
-            console.log('[TestStore] Current actor stopped.');
-        } catch (e: any) {
-            console.warn('[TestStore] Error stopping current actor:', e);
-        }
+      try {
+        currentActor.stop();
+        console.log('[TestStore] Current actor stopped.');
+      } catch (e: any) {
+        console.warn('[TestStore] Error stopping current actor:', e);
+      }
     }
     set({
-      wordList: [],
+      wordIds: [],
+      currentWord: null,
+      nextWord: null,
       currentActor: null,
       currentActorSnapshot: null,
       currentWordIndex: 0,
       isLoading: true,
       error: null,
       testType: null,
-      // --- 重置新增状态 ---
       activityType: null,
       lastAnswerResult: null,
+      isTestFinished: false,
     });
     console.log('[TestStore] Store reset completed.');
   },
 
-  // --- 内部 Helper: 为当前单词创建并启动 actor ---
+  // 修改：为当前单词创建 actor
   createActorForCurrentWord: async () => {
-    // 这确保了在创建新 actor 期间，UI 不会显示旧的快照内容
-    set({ isLoading: true, activityType: null, lastAnswerResult: null }); // 重置活动和答题详情
+    set({ isLoading: true, activityType: null, lastAnswerResult: null });
+    
     const { session } = useDailyLearningStore.getState();
     const { user: appwriteUser } = useAuthStore.getState();
-    const { wordList, currentWordIndex, testType } = get();
-    console.log('[TestStore] createActorForCurrentWord called.', currentWordIndex, wordList.map(word => word.$id));
-    const currentWord = wordList[currentWordIndex];
-    console.log('[TestStore] Current word:', currentWord)
+    const { currentWord, testType, wordIds, currentWordIndex } = get();
+    
+    console.log('[TestStore] createActorForCurrentWord called.', currentWordIndex, wordIds.length);
+    
     if (!currentWord || !appwriteUser || !session) {
-        console.error('[TestStore] Cannot create actor: Missing data (word, user, or session)');
-        // **关键修改：确保加载状态被设置为 false**
-        set({ isLoading: false, error: '无法创建测试：缺少单词、用户或会话数据' });
-        return;
+      console.error('[TestStore] Cannot create actor: Missing data (word, user, or session)');
+      set({ isLoading: false, error: '无法创建测试：缺少单词、用户或会话数据' });
+      return;
     }
+
     const userId = appwriteUser.$id;
     const wordId = currentWord.$id;
-    const phase = testType === 'pre_test' ? 1 : 3; // 根据 testType 确定 phase
-    const testDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const phase = testType === 'pre_test' ? 1 : 3;
+    const testDate = new Date().toISOString().split('T')[0];
 
     try {
-        // 1. 停止并清理旧的 actor (如果存在)
-        const oldActor = get().currentActor;
-        if (oldActor) {
-            console.log('[TestStore] Stopping old actor before creating new one.');
-            oldActor.stop();
+      // 停止旧的 actor
+      const oldActor = get().currentActor;
+      if (oldActor) {
+        console.log('[TestStore] Stopping old actor before creating new one.');
+        oldActor.stop();
+      }
+
+      // 获取历史等级
+      console.log(`[TestStore] Fetching history levels for word ${wordId}`);
+      const historyLevels = await userWordService.getHistoryLevels(userId, wordId);
+      console.log(`[TestStore] History levels for ${currentWord.spelling}:`, historyLevels);
+
+      // 创建新的 actor
+      console.log(`[TestStore] Creating actor for word ${wordId}`);
+      const newActor = createActor(preTestMachine, {
+        input: {
+          historyLevels: historyLevels
+        },
+      });
+
+      // 设置订阅
+      console.log(`[TestStore] Setting up subscription for actor of word ${wordId}`);
+      const unsubscribe = newActor.subscribe((state) => {
+        console.log(`[TestStore] Actor state changed for word ${wordId}: VALUE = '${state.value}' TYPEOF = ${typeof state.value}`);
+        
+        // --- 解析并更新当前活动类型 ---
+        const stateValue: PreTestMachineStateValue = state.value as PreTestMachineStateValue;
+        if (typeof stateValue === 'string' && stateValue.includes('_') && !stateValue.startsWith('L')) {
+          // 例如，从 'flow1_transEn' 提取 'transEn'
+          const parts = stateValue.split('_');
+          if (parts.length >= 2) {
+            const activityPart = parts[parts.length - 1];
+
+            // 将 TestActivity 映射到数字
+            const testActivityTypeMap: Record<string, number> = {
+              'listen': 1, 'transEn': 2, 'transCh': 3, 'spelling': 4, 'pronunce': 5, 'learn': 6
+            };
+            // 验证是否为有效的 TestActivity
+            if (testActivityTypeMap.hasOwnProperty(activityPart)) {
+              const activityTypeNumber = testActivityTypeMap[activityPart];
+              console.log(`[TestStore] Actor entered activity state: ${stateValue}, parsed activity: ${activityPart}`);
+              set({ activityType: activityTypeNumber });
+            } else {
+              console.warn(`[TestStore] Parsed activity part '${activityPart}' is not a valid TestActivity for word ${wordId}.`);
+              // 可以选择重置 activityType
+              set({ activityType: null });
+            }
+          }
         }
 
-        // 2. 获取历史等级
-        console.log(`[TestStore] Fetching history levels for word ${wordId}`);
-        const historyLevels = await userWordService.getHistoryLevels(userId, wordId);
-        console.log(`[TestStore] History levels for ${currentWord.spelling}:`, historyLevels);
-
-        // 3. 创建新的 actor
-        console.log(`[TestStore] Creating actor for word ${wordId}`);
-        const newActor = createActor(preTestMachine, {
-          input: {
-            historyLevels: historyLevels
-          },
-        });
-
-        // 4. 设置订阅
-        console.log(`[TestStore] Setting up subscription for actor of word ${wordId}`);
-        const unsubscribe = newActor.subscribe((state) => {
-            console.log(`[TestStore] Actor state changed for word ${wordId}: VALUE = '${state.value}' TYPEOF = ${typeof state.value}`);
-            
-            // --- 解析并更新当前活动类型 ---
-            const stateValue: PreTestMachineStateValue = state.value as PreTestMachineStateValue;
-            if (typeof stateValue === 'string' && stateValue.includes('_') && !stateValue.startsWith('L')) {
-                // 例如，从 'flow1_transEn' 提取 'transEn'
-                const parts = stateValue.split('_');
-                if (parts.length >= 2) {
-                    const activityPart = parts[parts.length - 1];
-      
-                    // 将 TestActivity 映射到数字
-                    const testActivityTypeMap: Record<string, number> = {
-                        'listen': 1, 'transEn': 2, 'transCh': 3, 'spelling': 4, 'pronunce': 5, 'learn': 6
-                    };
-                    // 验证是否为有效的 TestActivity
-                    if (testActivityTypeMap.hasOwnProperty(activityPart)) {
-                      const activityTypeNumber = testActivityTypeMap[activityPart];
-                        console.log(`[TestStore] Actor entered activity state: ${stateValue}, parsed activity: ${activityPart}`);
-                        set({ activityType: activityTypeNumber });
-                    } else {
-                        console.warn(`[TestStore] Parsed activity part '${activityPart}' is not a valid TestActivity for word ${wordId}.`);
-                        // 可以选择重置 activityType
-                        set({ activityType: null });
-                    }
-                }
+        // --- 处理最终状态 L* ---
+        if (typeof stateValue === 'string' && stateValue.startsWith('L')) {
+          console.log(`[TestStore] Final state L* reached for word ${wordId}.`);
+          let finalLevel: number | undefined =
+            (state.output as { level?: number })?.level ??
+            (state.context as { level?: number })?.level;
+          if (finalLevel === undefined) {
+            const levelMatch = stateValue.match(/^L(\d+)$/);
+            if (levelMatch) {
+              finalLevel = parseInt(levelMatch[1], 10);
             }
+          }
+          console.log('[TestStore] Final level extracted for word:', wordId, 'Level:', finalLevel);
 
-            // --- 处理最终状态 L* ---
-            if (typeof stateValue === 'string' && stateValue.startsWith('L')) {
-                console.log(`[TestStore] Final state L* reached for word ${wordId}.`);
-                let finalLevel: number | undefined =
-                  (state.output as { level?: number })?.level ??
-                  (state.context as { level?: number })?.level;
-                if (finalLevel === undefined) {
-                  const levelMatch = stateValue.match(/^L(\d+)$/);
-                  if (levelMatch) {
-                    finalLevel = parseInt(levelMatch[1], 10);
-                  }
-                }
-                console.log('[TestStore] Final level extracted for word:', wordId, 'Level:', finalLevel);
+          if (finalLevel !== undefined && !isNaN(finalLevel)) {
+            (async () => {
+              // --- 关键修改：在最终状态 L* 时，先保存 UserWordTestHistory ---
+              const { currentWord, currentWordIndex, activityType, lastAnswerResult, wordIds } = get();
 
-                if (finalLevel !== undefined && !isNaN(finalLevel)) {
-                    (async () => {
-                        // --- 关键修改：在最终状态 L* 时，先保存 UserWordTestHistory ---
-                        const { wordList, currentWordIndex, activityType, lastAnswerResult } = get();
-                        // const isTestFinished = currentWordIndex === wordList.length -1;
-                        // if(isTestFinished){
-                        //   console.log('[TestStore] Test finished. isTestFinished is true...');
-                        //   set({ isTestFinished: isTestFinished });
-                        // }
+              if (!activityType) {
+                console.error('[TestStore] Cannot save history in final state: activityType is not set.');
+                set({ error: `保存单词 ${currentWord!.spelling} 的测试历史时出现问题：活动类型未知` });
+                return; // 如果活动类型未知，则不继续保存
+              }
+              if (!lastAnswerResult) {
+                console.error('[TestStore] Cannot save history in final state: lastAnswerResult is not set.');
+                set({ error: `保存单词 ${currentWord!.spelling} 的测试历史时出现问题：答题结果未知` });
+                return; // 如果答题结果未知，则不继续保存
+              }
 
-                        if (!activityType) {
-                            console.error('[TestStore] Cannot save history in final state: activityType is not set.');
-                            set({ error: `保存单词 ${currentWord.spelling} 的测试历史时出现问题：活动类型未知` });
-                            return; // 如果活动类型未知，则不继续保存
-                        }
-                        if (!lastAnswerResult) {
-                            console.error('[TestStore] Cannot save history in final state: lastAnswerResult is not set.');
-                            set({ error: `保存单词 ${currentWord.spelling} 的测试历史时出现问题：答题结果未知` });
-                            return; // 如果答题结果未知，则不继续保存
-                        }
+              const testData: CreateUserWordTestHistory = {
+                user_id: userId,
+                word_id: wordId,
+                phase, // 1 for pre-test, 3 for post-test
+                test_date: testDate,
+                test_level: finalLevel, // 使用最终确定的等级
+              };
+              console.log('[TestStore] Saving test history in final state:', testData);
+              try {
+                await userWordService.upsertUserWordTestHistory(testData);
+                console.log('[TestStore] Test history saved for word:', wordId);
+              } catch (historyError: any) {
+                console.error('[TestStore] Failed to save user word test history for word:', wordId, historyError);
+                set({ error: `保存单词 ${currentWord!.spelling} 的测试历史时出现问题` });
+                // 即使历史保存失败，也继续尝试保存进度
+              }
 
-                        const testData: CreateUserWordTestHistory = {
-                            user_id: userId,
-                            word_id: wordId,
-                            phase, // 1 for pre-test, 3 for post-test
-                            test_date: testDate,
-                            test_level: finalLevel, // 使用最终确定的等级
-                        };
-                        console.log('[TestStore] Saving test history in final state:', testData);
-                        try {
-                            await userWordService.upsertUserWordTestHistory(testData);
-                            console.log('[TestStore] Test history saved for word:', wordId);
-                        } catch (historyError: any) {
-                            console.error('[TestStore] Failed to save user word test history for word:', wordId, historyError);
-                            set({ error: `保存单词 ${currentWord.spelling} 的测试历史时出现问题` });
-                            // 即使历史保存失败，也继续尝试保存进度
-                        }
+              // --- 然后保存 UserWordProgress ---
+              try {
+                const isLongDifficult = currentWord!.spelling.length > 8 && currentWord!.syllable_count >= 3;
+                const progressData: CreateUserWordProgress = {
+                  user_id: userId,
+                  word_id: wordId,
+                  proficiency_level: finalLevel!,
+                  is_long_difficult: isLongDifficult
+                };
+                console.log('[TestStore] Saving user word progress for word:', wordId);
+                await userWordService.upsertUserWordProgress(progressData);
+                console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
 
-                        // --- 然后保存 UserWordProgress ---
-                        try {
-                          const isLongDifficult = currentWord.spelling.length > 8 && currentWord.syllable_count >= 3;
-                            const progressData: CreateUserWordProgress = {
-                              user_id: userId,
-                              word_id: wordId,
-                              proficiency_level: finalLevel!,
-                              is_long_difficult: isLongDifficult
-                            };
-                            console.log('[TestStore] Saving user word progress for word:', wordId);
-                            await userWordService.upsertUserWordProgress(progressData);
-                            console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
+              } catch (progressError: any) {
+                console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
+                set({ error: `保存单词 ${currentWord!.spelling} 进度时出现问题` });
+              }
+              
+              // 更新 DailyLearningStore 的进度 - 使用 wordIds.length 而不是 wordList.length
+              const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+              await useDailyLearningStore.getState().updateSessionProgress(session.$id, {
+                [progressField]: `${currentWordIndex + 1}/${wordIds.length}`,
+              });
+            })();
+          } else {
+            console.warn(`[TestStore] Could not determine final level for word ${wordId} from state '${stateValue}'`);
+            set({ error: `无法确定单词 ${currentWord.spelling} 的最终掌握等级` });
+          }
+        }
+        set({ currentActorSnapshot: state });
+      });
 
-                            // --- 最后，调用 nextWord ---
-                            console.log('[TestStore] Calling nextWord after saving history and progress for word:', wordId);
-                            // // 使用 setTimeout 确保状态更新后再调用 nextWord
-                            // setTimeout(() => {
-                            //   get().nextWord(); // 调用 store 的 nextWord action
-                            // }, 100);
-                        } catch (progressError: any) {
-                             console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
-                             set({ error: `保存单词 ${currentWord.spelling} 进度时出现问题` });
-                        }
-                        // 更新 DailyLearningStore 的进度
-                        const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
-                        await useDailyLearningStore.getState().updateSessionProgress(session.$id, {
-                          [progressField]: `${currentWordIndex+1}/${wordList.length}`,
-                        });
-                    })();
-                } else {
-                    console.warn(`[TestStore] Could not determine final level for word ${wordId} from state '${stateValue}'`);
-                    set({ error: `无法确定单词 ${currentWord.spelling} 的最终掌握等级` });
-                }
-            }
-            set({ currentActorSnapshot: state });
-        });
+      // 启动 actor
+      newActor.start();
+      console.log(`[TestStore] Actor for word ${wordId} started.`);
 
-        // 5. 启动 actor
-        newActor.start();
-        console.log(`[TestStore] Actor for word ${wordId} started.`);
+      // 发送 START 事件
+      newActor.send({ type: 'START' });
+      console.log(`[TestStore] START event sent for word ${wordId}.`);
 
-        // 6. 发送 START 事件
-        newActor.send({ type: 'START' });
-        console.log(`[TestStore] START event sent for word ${wordId}.`);
+      // 更新 store 状态
+      set({
+        currentActor: newActor,
+        isLoading: false
+      });
 
-        // 7. 更新 store 状态
-        set({
-            currentActor: newActor,
-        });
     } catch (err: any) {
-        console.error(`[TestStore] Failed to create actor for word ${wordId}:`, err);
-        set({ error: `为单词 ${currentWord?.spelling || wordId} 创建测试时出错: ${err.message}` });
+      console.error(`[TestStore] Failed to create actor for word ${wordId}:`, err);
+      set({ 
+        error: `为单词 ${currentWord?.spelling || wordId} 创建测试时出错: ${err.message}`,
+        isLoading: false 
+      });
     }
-    const {isLoading} = get();
-    console.log('[TestStore] Exiting createActor for isLoading:', isLoading);``
-    console.log('[TestStore] Exiting createActor for word:', wordId);
-    console.log('[TestStore] Entering wordList:', wordList.length);
-    // **关键修改：确保加载状态被设置为 false**
-    // 无论成功还是失败，都需要将 isLoading 设置为 false，以便 UI 可以继续
-    set({isLoading: false});
   },
 
-  setIsLoading: (isLoading) => set({ isLoading: isLoading }),
-
+  setIsLoading: (isLoading) => set({ isLoading }),
 }));
-
 
 export default useTestStore;

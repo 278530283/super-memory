@@ -24,7 +24,6 @@ import Listen from '@/src/components/features/TestTypes/Listen';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useTestStore } from '@/src/lib/stores/useTestStore';
-import { Word } from '@/src/types/Word';
 
 // --- 类型定义 ---
 type TestType = 'pre_test' | 'post_test';
@@ -62,7 +61,8 @@ export default function TestScreen() {
 
   // 从 useTestStore 获取所有原始状态
   const {
-    wordList,
+    wordIds, // 改为获取 wordIds
+    currentWord, // 直接获取当前单词
     currentWordIndex,
     currentActorSnapshot,
     isLoading: storeIsLoading,
@@ -71,7 +71,7 @@ export default function TestScreen() {
     // 获取 Actions
     initializeTest,
     handleAnswer: storeHandleAnswer,
-    nextWord,
+    loadNextWord, // 改为 loadNextWord
     setError: setStoreError,
     reset: resetStore
   } = useTestStore();
@@ -80,13 +80,9 @@ export default function TestScreen() {
   const [currentTestActivityType, setCurrentTestActivityType] = useState<TestActivity | null>(null);
 
   // --- 使用 useMemo 计算派生值 ---
-  const currentWordObj = useMemo<Word | null>(() => {
-    return wordList[currentWordIndex] || null;
-  }, [wordList, currentWordIndex]);
-
   const totalWordsCount = useMemo<number>(() => {
-    return wordList.length;
-  }, [wordList]);
+    return wordIds.length;
+  }, [wordIds]);
 
   const currentWordNum = useMemo<number>(() => {
     return currentWordIndex + 1;
@@ -110,7 +106,7 @@ export default function TestScreen() {
   }, [sessionId, type, initializeTest]);
 
   useEffect(() => {
-    console.log('[TestScreen] currentActorSnapshot effect triggered.', Listen, Pronunce, Spelling, TransCh, TransEn);
+    console.log('[TestScreen] currentActorSnapshot effect triggered.');
     const stateValue = currentActorSnapshot?.value;
     console.log('[TestScreen] currentTestActivity effect triggered. stateValue:', stateValue);
     // 检查 value 是否存在且以 "flow" 开头
@@ -165,7 +161,7 @@ export default function TestScreen() {
   }, [sessionId, type, initializeTest, resetStore, user, router]);
 
   useEffect(() => {
-    if (isTestFinished && wordList.length > 0) {
+    if (isTestFinished && wordIds.length > 0) {
       console.log('[TestScreen] Test completed detected.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
@@ -187,7 +183,7 @@ export default function TestScreen() {
           });
       }
     }
-  }, [isTestFinished, wordList.length, type, router, sessionId, totalWordsCount, updateSessionProgress]);
+  }, [isTestFinished, wordIds.length, type, router, sessionId, totalWordsCount, updateSessionProgress]);
 
   // --- Handlers ---
   const handleAnswer = useCallback(async (result: {
@@ -199,7 +195,7 @@ export default function TestScreen() {
   }) => {
     console.log('[TestScreen] handleAnswer called with result:', result);
 
-    if (!currentWordObj) {
+    if (!currentWord) {
         console.error('[TestScreen] No current word when handling answer.');
         setStoreError('处理答案时找不到当前单词');
         return;
@@ -221,12 +217,11 @@ export default function TestScreen() {
 
     if(result.type === 'learn'){
       setTimeout(() => { 
-        nextWord();
+        loadNextWord(); // 改为 loadNextWord
       }, 0);
-      
     }
 
-  }, [storeHandleAnswer, currentWordObj, setStoreError, nextWord]);
+  }, [storeHandleAnswer, currentWord, setStoreError, loadNextWord]); // 依赖改为 loadNextWord
 
   const handlePause = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -278,8 +273,9 @@ export default function TestScreen() {
     );
   }
 
-  if (wordList.length === 0 || !session || !currentWordObj || !CurrentTestComponent || isTestFinished) {
-    console.log('[TestScreen] Render check - wordList.length:', wordList.length, 'session:', !!session, 'currentWordObj:', !!currentWordObj, 'CurrentTestComponent:', !!CurrentTestComponent);
+  // 修改渲染条件检查
+  if (wordIds.length === 0 || !session || !currentWord || !CurrentTestComponent || isTestFinished) {
+    console.log('[TestScreen] Render check - wordIds.length:', wordIds.length, 'session:', !!session, 'currentWord:', !!currentWord, 'CurrentTestComponent:', !!CurrentTestComponent);
     if (!storeIsLoading && !isTestFinished) {
         console.log('[TestScreen] Render check - sessionId:', sessionId, 'type:', type, 'isLoading:', storeIsLoading);
         return (
@@ -334,7 +330,7 @@ export default function TestScreen() {
       >
         <View style={styles.testArea}>
           <CurrentTestComponent
-            word={currentWordObj}
+            word={currentWord} // 直接使用 currentWord
             onAnswer={handleAnswer}
             testType={currentTestActivityType}
           />
