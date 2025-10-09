@@ -7,8 +7,11 @@ import { Query } from 'appwrite';
 class WordService {
   async getWordById(wordId: string): Promise<Word | null> {
     try {
-      const word = await tablesDB.getRow({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, rowId:wordId});
-      return word as unknown as Word;
+      const response = await tablesDB.getRow({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, rowId:wordId});
+      let word = response as unknown as Word;
+      this.processWordData(word);
+      await this.generateRandomOptions(word, 6);
+      return word;
     } catch (error: any) {
       if (error.code === 404) {
         return null;

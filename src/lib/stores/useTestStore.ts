@@ -109,6 +109,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
         error: null,
         activityType: null,
         lastAnswerResult: null,
+        isTestFinished: false,
       });
       // 初始化进度
       console.log('[TestStore] Initializing session progress...');
