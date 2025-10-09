@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   completedCard: {
     backgroundColor: '#F8F9FA',
     borderLeftWidth: 4,
-    borderLeftColor: '#27AE60',
+    borderLeftColor: '#10B981',
   },
   lockedCard: {
     opacity: 0.7,
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     color: '#4A5568',
   },
   completedStatus: {
-    color: '#27AE60',
+    color: '#10B981',
     fontWeight: '500',
   },
   lockedStatus: {
@@ -139,13 +139,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#2D9CDB',
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
   },
   completedButton: {
-    backgroundColor: '#27AE60',
+    backgroundColor: '#10B981',
   },
   inProgressButton: {
     backgroundColor: '#2D9CDB',

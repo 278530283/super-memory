@@ -300,7 +300,7 @@ export default function TestScreen() {
       <View style={styles.topBar}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            单词 {currentWordNum}/{totalWordsCount}
+            {currentWordNum}/{totalWordsCount}
           </Text>
         </View>
         {/* {<TouchableOpacity
@@ -355,23 +355,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 12, // 从 16 减小到 12
+    paddingTop: 8, // 添加顶部内边距，让高度更低
+    paddingBottom: 8, // 添加底部内边距，让高度更低
     backgroundColor: '#F8F9FA',
     borderBottomWidth: 1,
     borderBottomColor: '#E9ECEF',
+    minHeight: 44, // 设置最小高度
   },
   progressContainer: {
     alignItems: 'flex-start',
   },
   progressText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1A1A1A',
   },
   testProgressText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666666',
-    marginTop: 4,
+    marginTop: 2,
   },
   testArea: {
     flex: 1,

@@ -9,21 +9,24 @@ export default function TodayLayout() {
   
   return (
     <Stack
+    // 高度低一点
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#4A90E2',
+          backgroundColor: '#f1f1f1',
         },
-        headerTintColor: '#fff',
+        headerTintColor: '#000000',
         headerTitleStyle: {
           fontWeight: 'bold',
+          fontSize: 16,
         },
+        headerTitleAlign: 'center',
         // 全局返回按钮配置
         headerLeft: () => (
           <TouchableOpacity 
             onPress={() => router.back()}
-            style={{ marginLeft: 16 }}
+            style={{ marginLeft: 10 }}
           >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={18} color="#000000" />
           </TouchableOpacity>
         )
       }}

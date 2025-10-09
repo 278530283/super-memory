@@ -278,13 +278,9 @@ export default function TodayScreen() {
         />
       }
     >
-      <View style={styles.headerSection}>
+      {/* <View style={styles.headerSection}>
         <Text style={styles.headerTitle}>今日计划</Text>
-        <Text style={styles.headerProgress}>
-          {/* {getProgressText('pre_test').split('/')[0]}/{modeDetails.word_count} */}
-        </Text>
-      </View>
-      
+      </View> */}
       <Text style={styles.mode}>当前模式：{modeDetails.mode_name}模式</Text>
 
       <SessionCard
