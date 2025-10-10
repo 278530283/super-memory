@@ -73,7 +73,8 @@ export default function TestScreen() {
     handleAnswer: storeHandleAnswer,
     loadNextWord, // 改为 loadNextWord
     setError: setStoreError,
-    reset: resetStore
+    reset: resetStore,
+    skipCurrentWord
   } = useTestStore();
 
   // 使用 useState 来存储当前活动类型
@@ -223,6 +224,43 @@ export default function TestScreen() {
 
   }, [storeHandleAnswer, currentWord, setStoreError, loadNextWord]); // 依赖改为 loadNextWord
 
+  // 新增：处理跳过单词
+  const handleSkip = useCallback(async () => {
+    console.log('[TestScreen] handleSkip called');
+    
+    if (!currentWord) {
+      console.error('[TestScreen] No current word to skip');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Alert.alert(
+      '跳过单词',
+      `确定要跳过单词 "${currentWord.spelling}" 吗？`,
+      [
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+        {
+          text: '确定跳过',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await skipCurrentWord();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              console.log('[TestScreen] Word skipped successfully');
+            } catch (error) {
+              console.error('[TestScreen] Failed to skip word:', error);
+              Alert.alert('错误', '跳过单词失败，请重试');
+            }
+          },
+        },
+      ]
+    );
+  }, [currentWord, skipCurrentWord]);
+
   const handlePause = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
@@ -300,7 +338,8 @@ export default function TestScreen() {
       <View style={styles.topBar}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            {currentWordNum}/{totalWordsCount}
+          <Text style={styles.currentNumber}>{currentWordNum}</Text>
+          <Text style={styles.totalNumber}>/{totalWordsCount}</Text>
           </Text>
         </View>
         {/* {<TouchableOpacity
@@ -310,6 +349,15 @@ export default function TestScreen() {
         >
           <Ionicons name="pause" size={24} color="#4A90E2" />
         </TouchableOpacity>} */}
+
+        {<TouchableOpacity
+          style={styles.skipButton}
+          onPress={handleSkip}
+          accessibilityLabel="跳过"
+          accessibilityHint="跳过当前单词"
+        >
+          <Ionicons name="play-skip-forward" size={24} color="#808080" />
+        </TouchableOpacity>}
       </View>
       
       {/* 使用 ScrollView 包裹测试区域以支持下拉刷新 */}
@@ -365,11 +413,22 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     alignItems: 'flex-start',
+    marginLeft: 16,
   },
   progressText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1A1A1A',
+  },
+  currentNumber: {
+    color: '#10B981', // 绿色
+    fontSize: 18,
+  },
+  totalNumber: {
+    color: '#1A1A1A', // 保持原来的黑色
+  },
+  skipButton: {
+    marginRight: 16,
   },
   testProgressText: {
     fontSize: 12,

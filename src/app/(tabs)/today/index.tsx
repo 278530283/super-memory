@@ -193,7 +193,7 @@ export default function TodayScreen() {
         if (status > 1) return '已完成 ✅';
         break;
       case 'post_test':
-        if (status < 1) return '等待中... (🔒)';
+        if (status <= 1) return '等待中... (🔒)';
         if (status === 2 && progress?.startsWith('0')) return '待开始';
         if (status === 2) return '进行中... ';
         if (status === 3 || status === 4) return '已完成 ✅';

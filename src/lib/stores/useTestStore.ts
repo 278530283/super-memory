@@ -4,6 +4,7 @@ import wordService from '@/src/lib/services/wordService';
 import { preTestMachine } from '@/src/lib/statemachines/preTestMachine';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
+import { ACTION_TYPES } from '@/src/types/actionTypes';
 import { CreateUserWordProgress } from '@/src/types/UserWordProgress';
 import { CreateUserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Word } from '@/src/types/Word';
@@ -49,6 +50,7 @@ interface TestState {
   reset: () => void;
   createActorForCurrentWord: () => Promise<void>;
   setIsLoading: (isLoading: boolean) => void;
+  skipCurrentWord: () => Promise<void>;
 }
 
 // --- Store 实现 ---
@@ -404,7 +406,12 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
             // 将 TestActivity 映射到数字
             const testActivityTypeMap: Record<string, number> = {
-              'listen': 1, 'transEn': 2, 'transCh': 3, 'spelling': 4, 'pronunce': 5, 'learn': 6
+              'listen': ACTION_TYPES.LISTEN,
+              'transEn': ACTION_TYPES.TRANS_EN,
+              'transCh': ACTION_TYPES.TRANS_CH,
+              'spelling': ACTION_TYPES.SPELLING,
+              'pronunce': ACTION_TYPES.PRONUNCE,
+              'learn': ACTION_TYPES.LEARN,
             };
             // 验证是否为有效的 TestActivity
             if (testActivityTypeMap.hasOwnProperty(activityPart)) {
@@ -522,6 +529,87 @@ export const useTestStore = create<TestState>()((set, get) => ({
   },
 
   setIsLoading: (isLoading) => set({ isLoading }),
+
+  //跳过当前单词评测
+  skipCurrentWord: async () => {
+    console.log('[TestStore] skipCurrentWord called');
+    const { session } = useDailyLearningStore.getState();
+    const { user: appwriteUser } = useAuthStore.getState();
+    const { currentWord, testType, wordIds, currentWordIndex } = get();
+    
+    if (!appwriteUser || !session || !currentWord) {
+      const errorMsg = '[TestStore] Missing data for skipping word (user, session, or current word)';
+      console.error(errorMsg);
+      set({ error: errorMsg });
+      return;
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const userId = appwriteUser.$id;
+      const wordId = currentWord.$id;
+
+      console.log(`[TestStore] Skipping word ${wordId} for user ${userId}`);
+
+      // 检查 UserWordProgress 是否存在
+      const existingProgress = await userWordService.getUserWordProgressByUserAndWord(userId, wordId);
+      
+      if (!existingProgress) {
+        // 如果不存在，创建 proficiency_level 为 0 (L0) 的记录
+        console.log(`[TestStore] Creating L0 progress record for word ${wordId}`);
+        const progressData: CreateUserWordProgress = {
+          user_id: userId,
+          word_id: wordId,
+          proficiency_level: 0, // L0
+          is_long_difficult: currentWord.spelling.length > 8 && currentWord.syllable_count >= 3
+        };
+        
+        await userWordService.upsertUserWordProgress(progressData);
+        console.log(`[TestStore] L0 progress record created for word ${wordId}`);
+      } else {
+        console.log(`[TestStore] Progress record already exists for word ${wordId}, skipping creation`);
+      }
+
+      // 记录跳过操作日志 - 使用专门的跳过动作类型
+      try {
+        const phase = testType === 'pre_test' ? 1 : 3;
+        
+        await actionLogService.logAction({
+          user_id: userId,
+          word_id: wordId,
+          session_id: session.$id,
+          phase: phase,
+          action_type: ACTION_TYPES.SKIP, // 使用专门的跳过动作类型
+          is_correct: false, // 跳过视为未正确回答
+          response_time_ms: 0,
+          speed_used: 0
+        });
+        
+        console.log(`[TestStore] Skip action logged for word ${wordId}`);
+      } catch (e) {
+        console.warn('[TestStore] Failed to log skip action:', e);
+      }
+
+      // 更新会话进度
+      const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+      await useDailyLearningStore.getState().updateSessionProgress(session.$id, {
+        [progressField]: `${currentWordIndex + 1}/${wordIds.length}`,
+      });
+
+      console.log(`[TestStore] Session progress updated for skipped word ${wordId}`);
+
+      // 执行下一个单词
+      await get().loadNextWord();
+
+    } catch (err: any) {
+      console.error('[TestStore] Failed to skip current word:', err);
+      set({ 
+        error: `跳过单词失败: ${err.message}`,
+        isLoading: false 
+      });
+    }
+  },
 }));
 
 export default useTestStore;
