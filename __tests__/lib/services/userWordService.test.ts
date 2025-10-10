@@ -2,6 +2,7 @@
 import { COLLECTION_USER_WORD_PROGRESS, COLLECTION_USER_WORD_TEST_HISTORY, DATABASE_ID } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
 import userWordService from '@/src/lib/services/userWordService';
+import { STRATEGY_IDS } from '@/src/types/ReviewStrategy';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { TestPhase, UserWordTestHistory } from '@/src/types/UserWordTestHistory';
 
@@ -37,7 +38,7 @@ describe('UserWordService Unit Tests', () => {
     word_id: testWordId,
     is_long_difficult: false,
     proficiency_level: 1,
-    strategy_id: 2,
+    strategy_id: STRATEGY_IDS.NORMAL,
     start_date: '2024-01-15T10:30:00Z',
     last_review_date: null,
     reviewed_times: 0,
@@ -64,7 +65,7 @@ describe('UserWordService Unit Tests', () => {
         word_id: testWordId,
         is_long_difficult: false,
         proficiency_level: 1,
-        strategy_id: 2,
+        strategy_id: STRATEGY_IDS.NORMAL,
         start_date: '2024-01-15T10:30:00Z',
         last_review_date: null,
         reviewed_times: 0,
@@ -90,7 +91,7 @@ describe('UserWordService Unit Tests', () => {
     test('updates an existing user word progress record', async () => {
       const updates = {
         proficiency_level: 2,
-        strategy_id: 1,
+        strategy_id: STRATEGY_IDS.NORMAL,
         reviewed_times: 1,
         last_review_date: '2024-01-16T10:30:00Z',
         next_review_date: '2024-01-17T10:30:00Z'
@@ -172,9 +173,10 @@ describe('UserWordService Unit Tests', () => {
         user_id: testUserId,
         word_id: testWordId,
         proficiency_level: 3,
-        strategy_id: 2,
+        strategy_id: STRATEGY_IDS.NORMAL,
         reviewed_times: 2,
-        last_review_date: '2024-01-17T10:30:00Z'
+        last_review_date: '2024-01-17T10:30:00Z',
+        is_long_difficult: false
       };
 
       const result = await userWordService.upsertUserWordProgress(updates);
@@ -200,7 +202,7 @@ describe('UserWordService Unit Tests', () => {
         word_id: 'new-test-word-id',
         is_long_difficult: true,
         proficiency_level: 0,
-        strategy_id: 1,
+        strategy_id: STRATEGY_IDS.NORMAL,
         start_date: '2024-01-18T10:30:00Z',
         reviewed_times: 0,
         next_review_date: '2024-01-19T10:30:00Z'

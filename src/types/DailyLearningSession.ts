@@ -23,17 +23,11 @@ export interface DailyLearningSession {
   /** 前置评测进度（如："3/7"） */
   pre_test_progress?: string | null;
   
-  /** 学习阶段进度（如："5/10"） */
-  learning_progress?: string | null;
-  
   /** 当日评测进度（如："2/7"） */
   post_test_progress?: string | null;
   
   /** 前置评测单词ID列表（从JSON数组反序列化） */
   pre_test_word_ids: string[];
-  
-  /** 学习阶段单词ID列表（从JSON数组反序列化） */
-  learning_word_ids: string[];
   
   /** 当日评测单词ID列表（从JSON数组反序列化） */
   post_test_word_ids: string[];
@@ -103,16 +97,6 @@ export function isPreTestCompleted(session: DailyLearningSession): boolean {
 }
 
 /**
- * 检查学习阶段是否已完成
- * @param session 会话对象
- * @returns 是否已完成
- */
-export function isLearningCompleted(session: DailyLearningSession): boolean {
-  const progress = parseSessionProgress(session.learning_progress);
-  return progress.current >= progress.total && progress.total > 0;
-}
-
-/**
  * 检查当日评测是否已完成
  * @param session 会话对象
  * @returns 是否已完成
@@ -130,7 +114,6 @@ export function isPostTestCompleted(session: DailyLearningSession): boolean {
 export function getAllWordIds(session: DailyLearningSession): string[] {
   const allIds = [
     ...session.pre_test_word_ids,
-    ...session.learning_word_ids,
     ...session.post_test_word_ids
   ];
   
@@ -140,14 +123,12 @@ export function getAllWordIds(session: DailyLearningSession): string[] {
 /**
  * 获取当前阶段的进度信息
  * @param session 会话对象
- * @param phase 阶段：'pre_test' | 'learning' | 'post_test'
+ * @param phase 阶段：'pre_test' | 'post_test'
  * @returns 进度信息对象
  */
-export function getPhaseProgress(session: DailyLearningSession, phase: 'pre_test' | 'learning' | 'post_test'): { current: number; total: number; percentage: number } {
+export function getPhaseProgress(session: DailyLearningSession, phase: 'pre_test' | 'post_test'): { current: number; total: number; percentage: number } {
   const progress = phase === 'pre_test' 
-    ? session.pre_test_progress 
-    : phase === 'learning' 
-      ? session.learning_progress 
+    ? session.pre_test_progress
       : session.post_test_progress;
   
   return parseSessionProgress(progress);
@@ -156,15 +137,13 @@ export function getPhaseProgress(session: DailyLearningSession, phase: 'pre_test
 /**
  * 更新会话中特定阶段的进度
  * @param session 会话对象
- * @param phase 阶段：'pre_test' | 'learning' | 'post_test'
+ * @param phase 阶段：'pre_test' | 'post_test'
  * @param current 当前进度
  * @returns 更新后的会话对象（浅拷贝）
  */
-export function updatePhaseProgress(session: DailyLearningSession, phase: 'pre_test' | 'learning' | 'post_test', current: number): DailyLearningSession {
+export function updatePhaseProgress(session: DailyLearningSession, phase: 'pre_test' | 'post_test', current: number): DailyLearningSession {
   const total = phase === 'pre_test' 
-    ? session.pre_test_word_ids.length 
-    : phase === 'learning' 
-      ? session.learning_word_ids.length 
+    ? session.pre_test_word_ids.length
       : session.post_test_word_ids.length;
   
   const progress = formatSessionProgress(current, total);

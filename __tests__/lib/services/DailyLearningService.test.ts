@@ -77,10 +77,8 @@ describe('DailyLearningService Unit Tests', () => {
     mode_id: testModeId,
     status: 0,
     pre_test_word_ids: ['word1', 'word2', 'word3'],
-    learning_word_ids: ['word1', 'word2', 'word3', 'word4', 'word5'],
     post_test_word_ids: ['word1', 'word2', 'word3', 'word4', 'word5'],
     pre_test_progress: '0/3',
-    learning_progress: '0/5',
     post_test_progress: '0/5'
   };
 
@@ -93,7 +91,6 @@ describe('DailyLearningService Unit Tests', () => {
       const serializedSession = {
         ...mockDailyLearningSession,
         pre_test_word_ids: JSON.stringify(mockDailyLearningSession.pre_test_word_ids),
-        learning_word_ids: JSON.stringify(mockDailyLearningSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(mockDailyLearningSession.post_test_word_ids)
       };
 
@@ -202,7 +199,6 @@ describe('DailyLearningService Unit Tests', () => {
         ...mockDailyLearningSession,
         ...updates,
         pre_test_word_ids: JSON.stringify(mockDailyLearningSession.pre_test_word_ids),
-        learning_word_ids: JSON.stringify(mockDailyLearningSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(mockDailyLearningSession.post_test_word_ids)
       };
 
@@ -219,7 +215,6 @@ describe('DailyLearningService Unit Tests', () => {
       
       // 结果应该被正确反序列化
       expect(result.pre_test_word_ids).toEqual(mockDailyLearningSession.pre_test_word_ids);
-      expect(result.learning_word_ids).toEqual(mockDailyLearningSession.learning_word_ids);
       expect(result.post_test_word_ids).toEqual(mockDailyLearningSession.post_test_word_ids);
       expect(result.status).toBe(1);
       expect(result.pre_test_progress).toBe('2/3');
@@ -237,7 +232,6 @@ describe('DailyLearningService Unit Tests', () => {
         ...mockDailyLearningSession,
         ...updates,
         pre_test_word_ids: JSON.stringify(newWordIds),
-        learning_word_ids: JSON.stringify(mockDailyLearningSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(mockDailyLearningSession.post_test_word_ids)
       };
 
@@ -257,7 +251,6 @@ describe('DailyLearningService Unit Tests', () => {
       
       // 结果应该被正确反序列化
       expect(result.pre_test_word_ids).toEqual(newWordIds);
-      expect(result.learning_word_ids).toEqual(mockDailyLearningSession.learning_word_ids);
       expect(result.post_test_word_ids).toEqual(mockDailyLearningSession.post_test_word_ids);
     });
 
@@ -283,7 +276,6 @@ describe('DailyLearningService Unit Tests', () => {
         ...mockDailyLearningSession,
         ...updates,
         pre_test_word_ids: JSON.stringify(newWordIds),
-        learning_word_ids: JSON.stringify(mockDailyLearningSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(mockDailyLearningSession.post_test_word_ids)
       };
 
@@ -305,7 +297,6 @@ describe('DailyLearningService Unit Tests', () => {
       // 结果应该被正确反序列化
       expect(result.pre_test_word_ids).toEqual(newWordIds);
       expect(result.status).toBe(2);
-      expect(result.learning_progress).toBe('3/5');
     });
   });
 
@@ -314,7 +305,6 @@ describe('DailyLearningService Unit Tests', () => {
       const serializedSession = {
         ...mockDailyLearningSession,
         pre_test_word_ids: JSON.stringify(mockDailyLearningSession.pre_test_word_ids),
-        learning_word_ids: JSON.stringify(mockDailyLearningSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(mockDailyLearningSession.post_test_word_ids)
       };
 
@@ -570,7 +560,6 @@ describe('DailyLearningService Unit Tests', () => {
       const serializedCurrentSession = {
         ...currentSession,
         pre_test_word_ids: JSON.stringify(currentSession.pre_test_word_ids),
-        learning_word_ids: JSON.stringify(currentSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(currentSession.post_test_word_ids)
       };
       mockedTablesDB.getRow.mockResolvedValueOnce(serializedCurrentSession as any);
@@ -579,7 +568,6 @@ describe('DailyLearningService Unit Tests', () => {
       const serializedUpdatedSession = {
         ...updatedSession,
         pre_test_word_ids: JSON.stringify(updatedSession.pre_test_word_ids),
-        learning_word_ids: JSON.stringify(updatedSession.learning_word_ids),
         post_test_word_ids: JSON.stringify(updatedSession.post_test_word_ids)
       };
       mockedTablesDB.updateRow.mockResolvedValueOnce(serializedUpdatedSession as any);

@@ -35,9 +35,6 @@ class DailyLearningService {
         if (typeof session.pre_test_word_ids === 'string') {
           session.pre_test_word_ids = JSON.parse(session.pre_test_word_ids);
         }
-        if (typeof session.learning_word_ids === 'string') {
-          session.learning_word_ids = JSON.parse(session.learning_word_ids);
-        }
         if (typeof session.post_test_word_ids === 'string') {
           session.post_test_word_ids = JSON.parse(session.post_test_word_ids);
         }
@@ -63,7 +60,7 @@ class DailyLearningService {
   async createSession(
     userId: string,
     modeId: string,
-    initialWordIds: { pre_test: string[]; learning: string[]; post_test: string[] }
+    initialWordIds: { pre_test: string[]; post_test: string[] }
   ): Promise<DailyLearningSession> {
     try {
       const sessionData: any = {
@@ -73,11 +70,9 @@ class DailyLearningService {
         status: 0, // Start at '待开始'
         // 将数组序列化为 JSON 字符串
         pre_test_word_ids: JSON.stringify(initialWordIds.pre_test),
-        learning_word_ids: JSON.stringify(initialWordIds.learning),
         post_test_word_ids: JSON.stringify(initialWordIds.post_test),
         // Progress fields will be initialized as null/undefined or empty strings
         pre_test_progress: "0/" + initialWordIds.pre_test.length,
-        learning_progress: "0/" + initialWordIds.learning.length,
         post_test_progress: "0/" + initialWordIds.post_test.length,
       };
 
@@ -90,7 +85,6 @@ class DailyLearningService {
       // 反序列化 JSON 字符串为数组
       const result = newSession as unknown as DailyLearningSession;
       result.pre_test_word_ids = initialWordIds.pre_test;
-      result.learning_word_ids = initialWordIds.learning;
       result.post_test_word_ids = initialWordIds.post_test;
       
       return result;
@@ -115,9 +109,6 @@ class DailyLearningService {
       if (updateData.pre_test_word_ids) {
         updateData.pre_test_word_ids = JSON.stringify(updateData.pre_test_word_ids) as any;
       }
-      if (updateData.learning_word_ids) {
-        updateData.learning_word_ids = JSON.stringify(updateData.learning_word_ids) as any;
-      }
       if (updateData.post_test_word_ids) {
         updateData.post_test_word_ids = JSON.stringify(updateData.post_test_word_ids) as any;
       }
@@ -136,9 +127,6 @@ class DailyLearningService {
       // 直接反序列化 updatedSession 中的数组字段
       if (typeof result.pre_test_word_ids === 'string') {
         result.pre_test_word_ids = JSON.parse(result.pre_test_word_ids);
-      }
-      if (typeof result.learning_word_ids === 'string') {
-        result.learning_word_ids = JSON.parse(result.learning_word_ids);
       }
       if (typeof result.post_test_word_ids === 'string') {
         result.post_test_word_ids = JSON.parse(result.post_test_word_ids);
@@ -170,9 +158,6 @@ class DailyLearningService {
       // 反序列化 JSON 字符串为数组
       if (typeof session.pre_test_word_ids === 'string') {
         session.pre_test_word_ids = JSON.parse(session.pre_test_word_ids);
-      }
-      if (typeof session.learning_word_ids === 'string') {
-        session.learning_word_ids = JSON.parse(session.learning_word_ids);
       }
       if (typeof session.post_test_word_ids === 'string') {
         session.post_test_word_ids = JSON.parse(session.post_test_word_ids);
@@ -228,7 +213,7 @@ class DailyLearningService {
    * @param modeId The ID of the selected learning mode.
    * @returns An object containing arrays of word IDs for pre-test, learning, and post-test.
    */
-  async generateTodaysWordLists(userId: string, modeId: string, difficultyLevel: number): Promise<{ pre_test: string[]; learning: string[]; post_test: string[] }> {
+  async generateTodaysWordLists(userId: string, modeId: string, difficultyLevel: number): Promise<{ pre_test: string[]; post_test: string[] }> {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
       const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
@@ -250,15 +235,14 @@ class DailyLearningService {
 
       // 5. Combine Word IDs
       const preTestWordIds = [...newWordIds, ...wordIdsForReview];
-      const learningWordIds = [...preTestWordIds];
-      const postTestWordIds = [...learningWordIds];
+      const postTestWordIds = [...newWordIds];
 
-      console.log("Generated Word Lists:", { preTestWordIds, learningWordIds, postTestWordIds });
-      return { pre_test: preTestWordIds, learning: learningWordIds, post_test: postTestWordIds };
+      console.log("Generated Word Lists:", { preTestWordIds, postTestWordIds });
+      return { pre_test: preTestWordIds, post_test: postTestWordIds };
     } catch (error) {
       console.error("DailyLearningService.generateTodaysWordLists error:", error);
       // Returning empty lists allows session creation to proceed, maybe with a warning
-      return { pre_test: [], learning: [], post_test: [] };
+      return { pre_test: [], post_test: [] };
     }
   }
 
@@ -317,63 +301,77 @@ class DailyLearningService {
   }
 
   /**
-   * Adds incremental words to an existing session and updates progress
-   * @param sessionId The ID of the existing session
-   * @param userId The ID of the user
-   * @param modeId The ID of the learning mode
-   * @param difficultyLevel The difficulty level for word selection
-   * @returns The updated session
-   */
-  async addIncrementalWordsToSession(
-    sessionId: string,
-    userId: string,
-    modeId: string,
-    difficultyLevel: number
-  ): Promise<DailyLearningSession> {
-    try {
-      // 1. Get current session
-      const currentSession = await this.getSessionById(sessionId);
-      if (!currentSession) {
-        throw new Error('会话不存在');
-      }
-
-      // 2. Generate incremental words list, 排除当前会话中已存在的单词
-      const incrementalWords = await this.generateIncrementalWordsList(
-        userId,
-        modeId,
-        difficultyLevel,
-        currentSession.pre_test_word_ids || [] // 排除当前会话中已存在的单词
-      );
-
-      if (incrementalWords.length === 0) {
-        throw new Error('暂时没有更多可学习的单词');
-      }
-
-      // 3. Merge word lists and update progress
-      const currentPreTestWords = currentSession.pre_test_word_ids || [];
-      console.log("Current Pre-Test Word list:", currentPreTestWords)
-      const updatedPreTestWords = [...currentPreTestWords, ...incrementalWords];
-      console.log("Updated Pre-Test Word list:", updatedPreTestWords)
-      
-      const currentProgress = currentSession.pre_test_progress || '0/0';
-      const [completed, total] = currentProgress.split('/').map(Number);
-      const newTotal = total + incrementalWords.length;
-      const updatedProgress = `${completed}/${newTotal}`;
-
-      // 4. Update session
-      const updatedSession = await this.updateSession(sessionId, {
-        pre_test_word_ids: updatedPreTestWords,
-        pre_test_progress: updatedProgress,
-        status: 1, // Set to in progress
-      });
-
-      return updatedSession;
-
-    } catch (error) {
-      console.error("DailyLearningService.addIncrementalWordsToSession error:", error);
-      throw error;
+ * Adds incremental words to an existing session and updates progress
+ * @param sessionId The ID of the existing session
+ * @param userId The ID of the user
+ * @param modeId The ID of the learning mode
+ * @param difficultyLevel The difficulty level for word selection
+ * @returns The updated session
+ */
+async addIncrementalWordsToSession(
+  sessionId: string,
+  userId: string,
+  modeId: string,
+  difficultyLevel: number
+): Promise<DailyLearningSession> {
+  try {
+    // 1. Get current session
+    const currentSession = await this.getSessionById(sessionId);
+    if (!currentSession) {
+      throw new Error('会话不存在');
     }
+
+    // 2. Generate incremental words list, 排除当前会话中已存在的单词
+    const incrementalWords = await this.generateIncrementalWordsList(
+      userId,
+      modeId,
+      difficultyLevel,
+      currentSession.pre_test_word_ids // 排除当前会话中所有已存在的单词
+    );
+
+    if (incrementalWords.length === 0) {
+      throw new Error('暂时没有更多可学习的单词');
+    }
+
+    // 3. Merge word lists and update progress for both pre_test and post_test
+    const currentPreTestWords = currentSession.pre_test_word_ids || [];
+    const currentPostTestWords = currentSession.post_test_word_ids || [];
+    
+    const updatedPreTestWords = [...currentPreTestWords, ...incrementalWords];
+    const updatedPostTestWords = [...currentPostTestWords, ...incrementalWords];
+    
+    // 更新 pre_test 进度
+    const currentPreTestProgress = currentSession.pre_test_progress || '0/0';
+    const [preTestCompleted, preTestTotal] = currentPreTestProgress.split('/').map(Number);
+    const newPreTestTotal = preTestTotal + incrementalWords.length;
+    const updatedPreTestProgress = `${preTestCompleted}/${newPreTestTotal}`;
+
+    // 更新 post_test 进度
+    const currentPostTestProgress = currentSession.post_test_progress || '0/0';
+    const [postTestCompleted, postTestTotal] = currentPostTestProgress.split('/').map(Number);
+    const newPostTestTotal = postTestTotal + incrementalWords.length;
+    const updatedPostTestProgress = `${postTestCompleted}/${newPostTestTotal}`;
+
+    // 4. Update session
+    const updatedSession = await this.updateSession(sessionId, {
+      pre_test_word_ids: updatedPreTestWords,
+      post_test_word_ids: updatedPostTestWords,
+      pre_test_progress: updatedPreTestProgress,
+      post_test_progress: updatedPostTestProgress,
+      status: 1, // Set to in progress
+    });
+
+    console.log(`[DailyLearningService] Added ${incrementalWords.length} incremental words to both pre_test and post_test`);
+    console.log("Updated Pre-Test Word list:", updatedPreTestWords);
+    console.log("Updated Post-Test Word list:", updatedPostTestWords);
+
+    return updatedSession;
+
+  } catch (error) {
+    console.error("DailyLearningService.addIncrementalWordsToSession error:", error);
+    throw error;
   }
+}
 }
 
 export default new DailyLearningService();

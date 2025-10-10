@@ -11,7 +11,7 @@ interface DailyLearningState {
   createSession: (
     userId: string,
     modeId: string,
-    initialWordIds: { pre_test: string[]; learning: string[]; post_test: string[] }
+    initialWordIds: { pre_test: string[]; post_test: string[] }
   ) => Promise<void>;
   updateSessionProgress: (sessionId: string, updates: Partial<DailyLearningSession>) => Promise<void>;
   recordWordAction: (actionData: any) => Promise<void>;
