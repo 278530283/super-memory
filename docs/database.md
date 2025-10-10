@@ -121,10 +121,8 @@ CREATE TABLE `daily_learning_session` (
   `mode_id` tinyint NOT NULL COMMENT '本次会话的学习模式',
   `status` tinyint NOT NULL DEFAULT NULL COMMENT '会话状态 (0=待开始, 1=前置评测中, 2=学习中, 3=当日评测中, 4=已完成)',
   `pre_test_progress` varchar(50) DEFAULT NULL COMMENT '前置评测进度 (如 "3/7")',
-  `learning_progress` varchar(50) DEFAULT NULL COMMENT '学习阶段进度 (如 "5/10")',
   `post_test_progress` varchar(50) DEFAULT NULL COMMENT '当日评测进度 (如 "2/7")',
   `pre_test_word_ids` json NOT NULL COMMENT '前置评测单词ID列表 (JSON数组)',
-  `learning_word_ids` json NOT NULL COMMENT '学习阶段单词ID列表 (JSON数组)',
   `post_test_word_ids` json NOT NULL COMMENT '当日评测单词ID列表 (JSON数组)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_date` (`user_id`, `session_date`),
@@ -170,7 +168,7 @@ CREATE TABLE `user_word_test_history` (
   `user_id` BIGINT NOT NULL COMMENT '关联用户ID',
   `word_id` BIGINT NOT NULL COMMENT '关联单词ID',
   `test_date` DATE NOT NULL COMMENT '测试日期 (可从 session_id 关联的 session_date 获取)',
-  `phase` TINYINT NOT NULL COMMENT '测试阶段 (1=前置评测 (Pre-test), 3=当日评测 (Post-test))', -- 使用与 user_word_action_log.phase 一致的枚举
+  `phase` TINYINT NOT NULL COMMENT '测试阶段 (1=前置评测 (Pre-test), 2=当日评测 (Post-test))', -- 使用与 user_word_action_log.phase 一致的枚举
   `test_level` TINYINT NULL COMMENT '本次测试结束后该单词的掌握等级 (对应 user_word_progress.current_level 在测试完成时的值)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_word_session_phase` (`user_id`, `word_id`, `test_date`, `phase`), -- 确保每个用户在同一天中的同一阶段，一个单词只有一条记录

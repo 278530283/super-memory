@@ -24,6 +24,7 @@ import Listen from '@/src/components/features/TestTypes/Listen';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useTestStore } from '@/src/lib/stores/useTestStore';
+import { ACTION_TYPES } from '@/src/types/actionTypes';
 
 // --- 类型定义 ---
 type TestType = 'pre_test' | 'post_test';
@@ -74,7 +75,8 @@ export default function TestScreen() {
     loadNextWord, // 改为 loadNextWord
     setError: setStoreError,
     reset: resetStore,
-    skipCurrentWord
+    skipCurrentWord,
+    setActivityType,
   } = useTestStore();
 
   // 使用 useState 来存储当前活动类型
@@ -131,9 +133,10 @@ export default function TestScreen() {
     if (typeof stateValue === 'string' && stateValue.startsWith('L')) {
         console.log('[TestScreen] Final state ', stateValue);
         setCurrentTestActivityType('learn');
+        setActivityType(ACTION_TYPES.LEARN);
         return; // 确保设置后返回
     }
-  }, [currentActorSnapshot?.value]); // 依赖 currentActorSnapshot.value
+  }, [currentActorSnapshot?.value, setActivityType]); // 依赖 currentActorSnapshot.value
 
   const CurrentTestComponent = useMemo<React.ComponentType<any> | null>(() => {
     console.log('[TestScreen] CurrentTestComponent computed. currentTestActivityType:', currentTestActivityType);
@@ -170,7 +173,7 @@ export default function TestScreen() {
         `太棒了！${type === 'pre_test' ? '学习' : '复习'}已完成！`,
         [
           {
-            text: '继续复习',
+            text: '返回',
             onPress: () => router.back(),
           },
         ]
@@ -182,6 +185,7 @@ export default function TestScreen() {
             status: sessionStatus,
             [progressField]: `${totalWordsCount}/${totalWordsCount}`
           });
+
       }
     }
   }, [isTestFinished, wordIds.length, type, router, sessionId, totalWordsCount, updateSessionProgress]);

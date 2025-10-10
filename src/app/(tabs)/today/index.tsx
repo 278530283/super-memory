@@ -98,16 +98,16 @@ export default function TodayScreen() {
   }, [sessionError, clearSessionError]);
 
   // 显示总结卡片当会话完成时 - 修复重复弹出问题
-  useEffect(() => {
-    // 只有当会话状态为3（复习完成）、总结卡片未显示、且之前没有显示过总结时，才显示总结
-    if (session?.status === 3 && !showSummary && !hasShownSummary) {
-      const timer = setTimeout(() => {
-        setShowSummary(true);
-        setHasShownSummary(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [session?.status, showSummary, hasShownSummary]);
+  // useEffect(() => {
+  //   // 只有当会话状态为4（复习完成）、总结卡片未显示、且之前没有显示过总结时，才显示总结
+  //   if (session?.status === 4 && !showSummary && !hasShownSummary) {
+  //     const timer = setTimeout(() => {
+  //       setShowSummary(true);
+  //       setHasShownSummary(true);
+  //     }, 500);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [session?.status, showSummary, hasShownSummary]);
 
   // 当总结卡片关闭时，更新状态
   const handleCloseSummary = () => {
@@ -122,7 +122,7 @@ export default function TodayScreen() {
       case 'pre_test':
         return session.status > 1;
       case 'post_test':
-        return session.status === 3;
+        return session.status === 4;
       default:
         return false;
     }
@@ -195,8 +195,8 @@ export default function TodayScreen() {
       case 'post_test':
         if (status <= 1) return '等待中... (🔒)';
         if (status === 2 && progress?.startsWith('0')) return '待开始';
-        if (status === 2) return '进行中... ';
-        if (status === 3 || status === 4) return '已完成 ✅';
+        if (status === 2|| status === 3) return '进行中... ';
+        if (status === 4) return '已完成 ✅';
         break;
     }
     return '未知状态';
@@ -218,14 +218,21 @@ export default function TodayScreen() {
   const getButtonText = (phase: 'pre_test' | 'post_test') => {
     const isCompleted = isPhaseCompleted(phase);
     const isUnlocked = isPhaseUnlocked(phase);
+    if(session!=null)
+      console.log(session.status)
+    console.log('phase:', phase);
+    console.log('isUnlocked:', isUnlocked);
+    console.log('isCompleted:', isCompleted);
     
     if (!isUnlocked) return '';
     if (isCompleted) {
       // 只有学习阶段可以继续学习
       return phase === 'pre_test' ? '继续学习' : '已完成';
     }
-    if (phase === 'pre_test' && session?.status === 1) return '继续';
-    if (phase === 'post_test' && session?.status === 2) return '继续';
+    if (phase === 'pre_test' && session?.status === 0) return '开始学习';
+    if (phase === 'pre_test' && session?.status === 1) return '继续学习';
+    if (phase === 'post_test' && session?.status === 2) return '开始复习';
+    if (phase === 'post_test' && session?.status === 3) return '继续复习';
     return '开始';
   };
 

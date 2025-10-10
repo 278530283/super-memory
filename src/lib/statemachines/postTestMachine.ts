@@ -27,11 +27,11 @@ export const postTestMachine = setup({
       context.historyLevels[context.historyLevels.length - 1] === 0,
     
     // 2. 复习过3次以上（不含）复习入口
-    isFlow2: ({ context }) => 
-      context.historyLevels.length > 3,
-    
+    // isFlow2: ({ context }) => 
+    //   context.historyLevels.length > 3,
+
     // 默认分支
-    isFlowDefault: () => true,
+    isFlow2: () => true,
     // --- 用户回答判断 guards ---
     answerCorrect: ({ event }) => {
       return event.type === 'ANSWER' && event.answer === 'success';
@@ -61,7 +61,6 @@ export const postTestMachine = setup({
         START: [
           { target: 'flow1_transEn', guard: 'isFlow1' },
           { target: 'flow2_listen', guard: 'isFlow2' },
-          { target: 'flowDefault', guard: 'isFlowDefault' },
         ],
       },
     },
@@ -124,22 +123,6 @@ export const postTestMachine = setup({
           },
           { 
             target: 'L0', 
-            guard: 'answerWrong' 
-          },
-        ],
-      },
-    },
-    
-    // 默认流程（可根据需要定义）
-    flowDefault: {
-      on: {
-        ANSWER: [
-          { 
-            target: 'L2', 
-            guard: 'answerCorrect' 
-          },
-          { 
-            target: 'L1', 
             guard: 'answerWrong' 
           },
         ],

@@ -1,6 +1,7 @@
 // src/lib/stores/useTestStore.ts
 import userWordService from '@/src/lib/services/userWordService';
 import wordService from '@/src/lib/services/wordService';
+import { postTestMachine } from '@/src/lib/statemachines/postTestMachine';
 import { preTestMachine } from '@/src/lib/statemachines/preTestMachine';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
@@ -15,8 +16,12 @@ import actionLogService from '../services/actionLogService';
 // --- 类型定义 ---
 type TestType = 'pre_test' | 'post_test';
 type TestActivity = 'transEn' | 'transCh' | 'spelling' | 'pronunce' | 'listen';
-type PreTestMachineStateValue = `flow${number}_${TestActivity}` | `L${number}`;
-type PreTestActor = Actor<typeof preTestMachine>;
+type TestMachineStateValue = `flow${number}_${TestActivity}` | `L${number}`;
+
+// 使用更通用的 Actor 类型
+interface TestActor extends Actor<any> {
+  send: (event: { type: 'START' } | { type: 'ANSWER'; answer: 'success' | 'fail' }) => void;
+}
 
 interface LastAnswerResult {
   correct: boolean;
@@ -29,7 +34,7 @@ interface TestState {
   wordIds: string[]; // 只存储单词ID，不存储完整的单词对象
   currentWord: Word | null; // 当前单词
   nextWord: Word | null; // 预加载的下一个单词
-  currentActor: PreTestActor | null;
+  currentActor: TestActor | null;
   currentActorSnapshot: any;
   currentWordIndex: number;
   isLoading: boolean;
@@ -51,6 +56,7 @@ interface TestState {
   createActorForCurrentWord: () => Promise<void>;
   setIsLoading: (isLoading: boolean) => void;
   skipCurrentWord: () => Promise<void>;
+  setActivityType: (activityType: number) => void;
 }
 
 // --- Store 实现 ---
@@ -130,6 +136,14 @@ export const useTestStore = create<TestState>()((set, get) => ({
         isTestFinished: false,
       });
 
+      // 加载当前单词和预加载下一个单词
+      if (initialIndex < wordIds.length) {
+        console.log('[TestStore] Loading current word and preloading next word');
+        await get().loadCurrentWord();
+      } else {
+        set({ isTestFinished: true, isLoading: false });
+      }
+
       // 初始化会话进度
       const sessionStatus = testType === 'pre_test' ? 1 : 3;
       await useDailyLearningStore.getState().updateSessionProgress(sessionId, {
@@ -138,14 +152,6 @@ export const useTestStore = create<TestState>()((set, get) => ({
       });
 
       console.log('[TestStore] Session progress initialized. initialIndex:', initialIndex);
-
-      // 加载当前单词和预加载下一个单词
-      if (initialIndex < wordIds.length) {
-        console.log('[TestStore] Loading current word and preloading next word');
-        await get().loadCurrentWord();
-      } else {
-        set({ isTestFinished: true, isLoading: false });
-      }
       
     } catch (err: any) {
       console.error('[TestStore] Failed to initialize test:', err);
@@ -246,7 +252,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
       // 发送答案给状态机
       const answerPayload: 'success' | 'fail' = result.correct ? 'success' : 'fail';
-      if (activityType !== 6) {
+      if (activityType!=null && activityType <= 5) {
         currentActor.send({ type: 'ANSWER', answer: answerPayload });
         console.log(`[TestStore] ANSWER event sent for word ${result.wordId}.`);
       }
@@ -349,7 +355,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     console.log('[TestStore] Store reset completed.');
   },
 
-  // 修改：为当前单词创建 actor
+  // 修改：为当前单词创建 actor - 支持 pre_test 和 post_test
   createActorForCurrentWord: async () => {
     set({ isLoading: true, activityType: null, lastAnswerResult: null });
     
@@ -367,7 +373,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
     const userId = appwriteUser.$id;
     const wordId = currentWord.$id;
-    const phase = testType === 'pre_test' ? 1 : 3;
+    const phase = testType === 'pre_test' ? 1 : 2;
     const testDate = new Date().toISOString().split('T')[0];
 
     try {
@@ -383,13 +389,24 @@ export const useTestStore = create<TestState>()((set, get) => ({
       const historyLevels = await userWordService.getHistoryLevels(userId, wordId);
       console.log(`[TestStore] History levels for ${currentWord.spelling}:`, historyLevels);
 
-      // 创建新的 actor
-      console.log(`[TestStore] Creating actor for word ${wordId}`);
-      const newActor = createActor(preTestMachine, {
-        input: {
-          historyLevels: historyLevels
-        },
-      });
+      // 根据测试类型创建不同的 actor
+      let newActor: TestActor;
+      
+      if (testType === 'pre_test') {
+        console.log(`[TestStore] Creating preTestMachine actor for word ${wordId}`);
+        newActor = createActor(preTestMachine, {
+          input: {
+            historyLevels: historyLevels
+          },
+        }) as TestActor;
+      } else {
+        console.log(`[TestStore] Creating postTestMachine actor for word ${wordId}`);
+        newActor = createActor(postTestMachine, {
+          input: {
+            historyLevels: historyLevels
+          },
+        }) as TestActor;
+      }
 
       // 设置订阅
       console.log(`[TestStore] Setting up subscription for actor of word ${wordId}`);
@@ -397,7 +414,8 @@ export const useTestStore = create<TestState>()((set, get) => ({
         console.log(`[TestStore] Actor state changed for word ${wordId}: VALUE = '${state.value}' TYPEOF = ${typeof state.value}`);
         
         // --- 解析并更新当前活动类型 ---
-        const stateValue: PreTestMachineStateValue = state.value as PreTestMachineStateValue;
+        const stateValue: TestMachineStateValue = state.value as TestMachineStateValue;
+        
         if (typeof stateValue === 'string' && stateValue.includes('_') && !stateValue.startsWith('L')) {
           // 例如，从 'flow1_transEn' 提取 'transEn'
           const parts = stateValue.split('_');
@@ -459,7 +477,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
               const testData: CreateUserWordTestHistory = {
                 user_id: userId,
                 word_id: wordId,
-                phase, // 1 for pre-test, 3 for post-test
+                phase, // 1 for pre-test, 2 for post-test
                 test_date: testDate,
                 test_level: finalLevel, // 使用最终确定的等级
               };
@@ -475,17 +493,18 @@ export const useTestStore = create<TestState>()((set, get) => ({
 
               // --- 然后保存 UserWordProgress ---
               try {
-                const isLongDifficult = currentWord!.spelling.length > 8 && currentWord!.syllable_count >= 3;
-                const progressData: CreateUserWordProgress = {
-                  user_id: userId,
-                  word_id: wordId,
-                  proficiency_level: finalLevel!,
-                  is_long_difficult: isLongDifficult
-                };
-                console.log('[TestStore] Saving user word progress for word:', wordId);
-                await userWordService.upsertUserWordProgress(progressData);
-                console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
-
+                if(phase === 1){
+                  const isLongDifficult = currentWord!.spelling.length > 8 && currentWord!.syllable_count >= 3;
+                  const progressData: CreateUserWordProgress = {
+                    user_id: userId,
+                    word_id: wordId,
+                    proficiency_level: finalLevel!,
+                    is_long_difficult: isLongDifficult
+                  };
+                  console.log('[TestStore] Saving user word progress for word:', wordId);
+                  await userWordService.upsertUserWordProgress(progressData);
+                  console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
+                }
               } catch (progressError: any) {
                 console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
                 set({ error: `保存单词 ${currentWord!.spelling} 进度时出现问题` });
@@ -610,6 +629,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
       });
     }
   },
+  setActivityType: (activityType) => set({ activityType }),
 }));
 
 export default useTestStore;
