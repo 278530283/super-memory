@@ -8,4 +8,5 @@ export interface UserPreferences {
   grade?: number | null; // 1-6年级, only if english_level=2
   learningMode: string; // 1=轻松, 2=正常, 3=努力
   enableSpelling: boolean; // 是否启用拼写测试
+  reviewStrategy: number; // 复习策略类型 (1=传统, 2=FSRS)
 }

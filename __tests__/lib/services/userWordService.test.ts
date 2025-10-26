@@ -1,6 +1,7 @@
 // src/__tests__/services/userWordService.test.ts
 import { COLLECTION_USER_WORD_PROGRESS, COLLECTION_USER_WORD_TEST_HISTORY, DATABASE_ID } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
+import ReviewStrategyService from '@/src/lib/services/ReviewStrategyService';
 import userWordService from '@/src/lib/services/userWordService';
 import { STRATEGY_IDS } from '@/src/types/ReviewStrategy';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
@@ -25,6 +26,7 @@ jest.mock('@/src/constants/appwrite', () => ({
 }));
 
 const mockedTablesDB = tablesDB as jest.Mocked<typeof tablesDB>;
+const mockedReviewStrategyService = ReviewStrategyService as jest.Mocked<typeof ReviewStrategyService>;
 
 describe('UserWordService Unit Tests', () => {
   const testUserId = '68c19de90027e9732ea0';
@@ -160,69 +162,252 @@ describe('UserWordService Unit Tests', () => {
   });
 
   describe('upsertUserWordProgress', () => {
-    test('updates existing record when one exists', async () => {
-      mockedTablesDB.listRows.mockResolvedValueOnce({
-        total: 1,
-        rows: [mockUserWordProgress]
-      } as any);
+  const testStrategyType = 1;
+  const testSpelling = 'test';
+  const mockReviewDate = new Date().toISOString();
 
-      const updatedProgress = { ...mockUserWordProgress, proficiency_level: 3, reviewed_times: 2 };
-      mockedTablesDB.updateRow.mockResolvedValueOnce(updatedProgress as any);
-
-      const updates = {
-        user_id: testUserId,
-        word_id: testWordId,
-        proficiency_level: 3,
-        strategy_id: STRATEGY_IDS.NORMAL,
-        reviewed_times: 2,
-        last_review_date: '2024-01-17T10:30:00Z',
-        is_long_difficult: false
-      };
-
-      const result = await userWordService.upsertUserWordProgress(updates);
-      
-      expect(mockedTablesDB.updateRow).toHaveBeenCalledWith({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_PROGRESS,
-        rowId: mockUserWordProgress.$id,
-        data: updates
-      });
-      
-      expect(result).toEqual(updatedProgress);
-    });
-
-    test('creates new record when none exists', async () => {
-      mockedTablesDB.listRows.mockResolvedValueOnce({
-        total: 0,
-        rows: []
-      } as any);
-
-      const newProgress = {
-        user_id: testUserId,
-        word_id: 'new-test-word-id',
-        is_long_difficult: true,
-        proficiency_level: 0,
-        strategy_id: STRATEGY_IDS.NORMAL,
-        start_date: '2024-01-18T10:30:00Z',
-        reviewed_times: 0,
-        next_review_date: '2024-01-19T10:30:00Z'
-      };
-
-      const createdProgress = { $id: 'new-progress-id', ...newProgress } as UserWordProgress;
-      mockedTablesDB.createRow.mockResolvedValueOnce(createdProgress as any);
-
-      const result = await userWordService.upsertUserWordProgress(newProgress);
-      
-      expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_PROGRESS,
-        rowId: expect.any(String),
-        data: newProgress
-      });
-      
-      expect(result).toEqual(createdProgress);
-    });
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
+
+  test('updates existing record when one exists with review strategy calculation', async () => {
+    // Mock existing record
+    const existingRecord: UserWordProgress = {
+      $id: 'progress123',
+      user_id: testUserId,
+      word_id: testWordId,
+      is_long_difficult: false,
+      proficiency_level: 1,
+      strategy_id: STRATEGY_IDS.NORMAL,
+      start_date: '2024-01-15T10:30:00Z',
+      last_review_date: null,
+      reviewed_times: 0,
+      next_review_date: '2024-01-16T10:30:00Z'
+    };
+
+    // Mock review strategy calculation result
+    const mockReviewData = {
+      user_id: testUserId,
+      word_id: testWordId,
+      proficiency_level: 3,
+      is_long_difficult: false,
+      last_review_date: mockReviewDate,
+      reviewed_times: 1,
+      next_review_date: '2024-01-17T10:30:00Z',
+      strategy_id: STRATEGY_IDS.NORMAL,
+      review_config: '{"interval": 1}'
+    };
+
+    mockedTablesDB.listRows.mockResolvedValueOnce({
+      total: 1,
+      rows: [existingRecord]
+    } as any);
+
+    mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(mockReviewData);
+
+    const updatedProgress = { 
+      ...existingRecord, 
+      ...mockReviewData,
+      proficiency_level: 3 
+    };
+    mockedTablesDB.updateRow.mockResolvedValueOnce(updatedProgress as any);
+
+    const updates = {
+      user_id: testUserId,
+      word_id: testWordId,
+      proficiency_level: 3,
+      strategy_id: STRATEGY_IDS.NORMAL,
+      is_long_difficult: false
+    };
+
+    const result = await userWordService.upsertUserWordProgress(
+      updates, 
+      testStrategyType, 
+      testSpelling
+    );
+    
+    // Verify ReviewStrategyService was called correctly
+    expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
+      existingRecord,
+      3, // proficiency_level
+      mockReviewDate,
+      testStrategyType,
+      testSpelling
+    );
+    
+    // Verify update was called with combined data
+    expect(mockedTablesDB.updateRow).toHaveBeenCalledWith({
+      databaseId: DATABASE_ID,
+      tableId: COLLECTION_USER_WORD_PROGRESS,
+      rowId: existingRecord.$id,
+      data: {
+        ...updates,
+        ...mockReviewData
+      }
+    });
+    
+    expect(result).toEqual(updatedProgress);
+  });
+
+  test('creates new record when none exists with review strategy calculation', async () => {
+    // No existing record
+    mockedTablesDB.listRows.mockResolvedValueOnce({
+      total: 0,
+      rows: []
+    } as any);
+
+    // Mock review strategy calculation result
+    const mockReviewData = {
+      user_id: testUserId,
+      word_id: testWordId,
+      proficiency_level: 3,
+      is_long_difficult: false,
+      last_review_date: mockReviewDate,
+      reviewed_times: 1,
+      next_review_date: '2024-01-17T10:30:00Z',
+      strategy_id: STRATEGY_IDS.NORMAL,
+      review_config: '{"interval": 1}'
+    };
+
+    mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(mockReviewData);
+
+    const newProgressData = {
+      user_id: testUserId,
+      word_id: 'new-test-word-id',
+      is_long_difficult: true,
+      proficiency_level: 0,
+      strategy_id: STRATEGY_IDS.NORMAL
+    };
+
+    const createdProgress = { 
+      $id: 'new-progress-id', 
+      ...newProgressData,
+      ...mockReviewData 
+    } as UserWordProgress;
+    
+    mockedTablesDB.createRow.mockResolvedValueOnce(createdProgress as any);
+
+    const result = await userWordService.upsertUserWordProgress(
+      newProgressData, 
+      testStrategyType, 
+      testSpelling
+    );
+    
+    // Verify ReviewStrategyService was called correctly for new record
+    expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
+      newProgressData, // data object instead of existing record
+      0, // proficiency_level
+      mockReviewDate,
+      testStrategyType,
+      testSpelling
+    );
+    
+    // Verify create was called with combined data
+    expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
+      databaseId: DATABASE_ID,
+      tableId: COLLECTION_USER_WORD_PROGRESS,
+      rowId: expect.any(String),
+      data: {
+        ...newProgressData,
+        ...mockReviewData
+      }
+    });
+    
+    expect(result).toEqual(createdProgress);
+  });
+
+  test('returns existing record when review strategy calculation returns null', async () => {
+    // Mock existing record
+    const existingRecord: UserWordProgress = {
+      $id: 'progress123',
+      user_id: testUserId,
+      word_id: testWordId,
+      is_long_difficult: false,
+      proficiency_level: 1,
+      strategy_id: STRATEGY_IDS.NORMAL,
+      start_date: '2024-01-15T10:30:00Z',
+      last_review_date: null,
+      reviewed_times: 0,
+      next_review_date: '2024-01-16T10:30:00Z'
+    };
+
+    mockedTablesDB.listRows.mockResolvedValueOnce({
+      total: 1,
+      rows: [existingRecord]
+    } as any);
+
+    // Review strategy returns null (no need to update)
+    mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(null);
+
+    const updates = {
+      user_id: testUserId,
+      word_id: testWordId,
+      proficiency_level: 2,
+      strategy_id: STRATEGY_IDS.NORMAL,
+      is_long_difficult: false
+    };
+
+    const result = await userWordService.upsertUserWordProgress(
+      updates, 
+      testStrategyType, 
+      testSpelling
+    );
+    
+    // Verify ReviewStrategyService was called
+    expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
+      existingRecord,
+      2, // proficiency_level
+      mockReviewDate,
+      testStrategyType,
+      testSpelling
+    );
+    
+    // Verify no update was performed
+    expect(mockedTablesDB.updateRow).not.toHaveBeenCalled();
+    
+    // Should return existing record unchanged
+    expect(result).toEqual(existingRecord);
+  });
+
+  test('handles errors during review strategy calculation', async () => {
+    const existingRecord: UserWordProgress = {
+      $id: 'progress123',
+      user_id: testUserId,
+      word_id: testWordId,
+      is_long_difficult: false,
+      proficiency_level: 1,
+      strategy_id: STRATEGY_IDS.NORMAL,
+      start_date: '2024-01-15T10:30:00Z',
+      last_review_date: null,
+      reviewed_times: 0,
+      next_review_date: '2024-01-16T10:30:00Z'
+    };
+
+    mockedTablesDB.listRows.mockResolvedValueOnce({
+      total: 1,
+      rows: [existingRecord]
+    } as any);
+
+    // Review strategy throws an error
+    const mockError = new Error('Review strategy calculation failed');
+    mockedReviewStrategyService.calculateReviewProgress.mockRejectedValueOnce(mockError);
+
+    const updates = {
+      user_id: testUserId,
+      word_id: testWordId,
+      proficiency_level: 2,
+      strategy_id: STRATEGY_IDS.NORMAL,
+      is_long_difficult: false
+    };
+
+    await expect(
+      userWordService.upsertUserWordProgress(updates, testStrategyType, testSpelling)
+    ).rejects.toThrow('Review strategy calculation failed');
+    
+    // Verify no update was attempted
+    expect(mockedTablesDB.updateRow).not.toHaveBeenCalled();
+  });
+});
 
   describe('getWordIdsForReview', () => {
     test('returns word IDs that need review', async () => {

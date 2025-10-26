@@ -1,15 +1,35 @@
 // src/lib/services/ReviewStrategyService.ts
 import { COLLECTION_REVIEW_STRATEGY, DATABASE_ID } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
-import { ReviewStrategy, STRATEGY_IDS } from '@/src/types/ReviewStrategy';
+import { ReviewScheduleLog } from '@/src/types/ReviewScheduleLog';
+import { ReviewStrategy, STRATEGY_IDS, STRATEGY_TYPES } from '@/src/types/ReviewStrategy';
 import { CreateUserWordProgress } from '@/src/types/UserWordProgress';
+import { ID } from 'appwrite';
+import {
+  Card,
+  createEmptyCard,
+  fsrs,
+  FSRS,
+  generatorParameters,
+  Rating,
+  RecordLog,
+  RecordLogItem
+} from 'ts-fsrs';
 
 class ReviewStrategyService {
+  private fsrsInstance: FSRS;
   
+  constructor() {
+    const params = generatorParameters({
+      maximum_interval: 36500,
+      enable_fuzz: true,
+      enable_short_term: true
+    });
+    this.fsrsInstance = fsrs(params);
+  }
+
   /**
    * 根据策略ID获取复习策略
-   * @param strategyId 策略ID
-   * @returns Promise<ReviewStrategy | null>
    */
   async getReviewStrategyById(strategyId: string): Promise<ReviewStrategy | null> {
     try {
@@ -18,7 +38,6 @@ class ReviewStrategyService {
         tableId: COLLECTION_REVIEW_STRATEGY,
         rowId: strategyId,
       });
-
       return response as unknown as ReviewStrategy;
     } catch (error) {
       console.error("ReviewStrategyService.getReviewStrategyById error:", error);
@@ -28,156 +47,495 @@ class ReviewStrategyService {
 
   /**
    * 根据掌握等级和是否长难词返回复习策略ID
-   * @param proficiencyLevel 掌握等级 (0-4)
-   * @param isLongDifficult 是否长难词
-   * @returns 策略ID
    */
-  getReviewStrategyId(proficiencyLevel: number, isLongDifficult: boolean): string {
-    // 1. 对于初始评估为L0级别的，且属于长难单词的，采用密集策略
-    if (proficiencyLevel === 0 && isLongDifficult) {
-      return STRATEGY_IDS.DENSE; // 1
+  getReviewStrategyId(strategyType: number, proficiencyLevel: number, isLongDifficult: boolean): string {
+    if(strategyType === STRATEGY_TYPES.FSRS){
+      return STRATEGY_IDS.FSRS_DEFAULT;
     }
     
-    // 2. 对于初始评估为L0级别的短单词，或者对于初始评估为L1L2级别的，且属于长难单词的，采用正常策略
+    if (proficiencyLevel === 0 && isLongDifficult) {
+      return STRATEGY_IDS.DENSE;
+    }
+    
     if ((proficiencyLevel === 0 && !isLongDifficult) || 
         ((proficiencyLevel === 1 || proficiencyLevel === 2) && isLongDifficult)) {
-      return STRATEGY_IDS.NORMAL; // 2
+      return STRATEGY_IDS.NORMAL;
     }
     
-    // 3. 对于初始评估为L3级别的且属于长难单词的，采用稀疏策略
     if (proficiencyLevel === 3 && isLongDifficult) {
-      return STRATEGY_IDS.SPARSE; // 3
+      return STRATEGY_IDS.SPARSE;
     }
     
-    // 默认情况：其他组合使用正常策略
-    return STRATEGY_IDS.NORMAL; // 2
+    return STRATEGY_IDS.NORMAL;
+  }
+
+  /**
+   * 将掌握等级转换为FSRS评分
+   */
+  private proficiencyLevelToFSRSRating(proficiencyLevel: number): Rating {
+    const ratingMap: Record<number, Rating> = {
+      0: Rating.Again,
+      1: Rating.Hard,
+      2: Rating.Good,
+      3: Rating.Easy,
+      4: Rating.Easy
+    };
+    
+    return ratingMap[proficiencyLevel] || Rating.Good;
+  }
+
+  /**
+   * 根据单词拼写长度计算初始难度
+   * @param spelling 单词拼写
+   * @returns 初始难度值 (0-1之间，越高表示越难)
+   */
+  private calculateInitialDifficulty(spelling: string): number {
+    if (!spelling) return 0.3; // 默认难度
+    
+    const length = spelling.length;
+    
+    // 根据单词长度设置初始难度
+    if (length <= 4) {
+      return 0.1; // 短单词，容易
+    } else if (length <= 6) {
+      return 0.3; // 中等长度单词，中等难度
+    } else if (length <= 8) {
+      return 0.5; // 较长单词，较难
+    } else {
+      return 0.7; // 长单词，很难
+    }
+  }
+
+  /**
+   * 创建带有初始难度的FSRS卡片
+   * @param spelling 单词拼写（用于计算初始难度）
+   * @returns 配置了初始难度的卡片
+   */
+  private createCardWithDifficulty(spelling: string): Card {
+    const card = createEmptyCard();
+    
+    if (spelling) {
+      // 根据单词长度设置初始难度
+      card.difficulty = this.calculateInitialDifficulty(spelling);
+    }
+    
+    return card;
+  }
+
+  /**
+   * 从JSON字符串恢复Card对象
+   */
+  private restoreCardFromJSON(cardJSON: string): Card {
+    try {
+      const cardData = JSON.parse(cardJSON);
+      return {
+        ...cardData,
+        due: new Date(cardData.due),
+        last_review: cardData.last_review ? new Date(cardData.last_review) : undefined
+      };
+    } catch (error) {
+      console.warn("[ReviewStrategyService] Failed to restore card from JSON, using empty card:", error);
+      return createEmptyCard();
+    }
+  }
+
+  /**
+   * 序列化Card对象为JSON字符串
+   */
+  private serializeCardToJSON(card: Card): string {
+    return JSON.stringify({
+      ...card,
+      due: card.due.toISOString(),
+      last_review: card.last_review ? card.last_review.toISOString() : null
+    });
+  }
+
+  /**
+   * 保存复习日志到数据库
+   */
+  private async saveReviewScheduleLog(log: ReviewScheduleLog): Promise<void> {
+    try {
+      await tablesDB.createRow({
+        databaseId: DATABASE_ID,
+        tableId: 'review_schedule_log',
+        rowId: ID.unique(),
+        data: log
+      });
+      
+      console.log("[ReviewStrategyService] Review log saved:", log);
+    } catch (error) {
+      console.error("ReviewStrategyService.saveReviewScheduleLog error:", error);
+      // 不抛出错误，避免影响主流程
+    }
   }
 
   /**
    * 计算复习后的单词进度
-   * @param userWordProgress 用户单词进度
-   * @param proficiencyLevel 新的掌握等级
-   * @param reviewDate 复习日期 (ISO字符串)
-   * @returns 更新后的用户单词进度 或 null(无需更新)
    */
   async calculateReviewProgress(
-    userWordProgress: CreateUserWordProgress,
-    proficiencyLevel: number,
-    reviewDate: string
-  ): Promise<CreateUserWordProgress | null> {
-    
-    console.log("[ReviewStrategyService] calculateReviewProgress:", userWordProgress, proficiencyLevel, reviewDate);
-    // 1. 若last_review_date和reviewDate是同一天(年月日相同即可)，表示已经复习过了，返回null
-    if (userWordProgress.last_review_date && userWordProgress.last_review_date.slice(0, 10) === reviewDate.slice(0, 10)) {
-      console.log("[ReviewStrategyService] Already reviewed today, no need to update.");
-      return null;
-    }
+  userWordProgress: CreateUserWordProgress,
+  proficiencyLevel: number,
+  reviewDate: string,
+  strategyType: number,
+  spelling: string
+): Promise<CreateUserWordProgress | null> {
+  
+  console.log("[ReviewStrategyService] calculateReviewProgress:", userWordProgress, proficiencyLevel, reviewDate);
+  
+  // 检查是否已经复习过
+  if (userWordProgress.last_review_date && 
+      userWordProgress.last_review_date.slice(0, 10) === reviewDate.slice(0, 10)) {
+    console.log("[ReviewStrategyService] Already reviewed today, no need to update.");
+    return null;
+  }
 
-    const updatedProgress = { ...userWordProgress };
+  const updatedProgress = { ...userWordProgress };
+  let reviewLog: ReviewScheduleLog | undefined;
+
+  const isFirstReview = userWordProgress.strategy_id == null || userWordProgress.start_date == null;
+  
+  if (isFirstReview) {
+    // 首次复习
+    console.log("[ReviewStrategyService] First review:", userWordProgress);
+    const strategyId = this.getReviewStrategyId(
+      strategyType, 
+      userWordProgress.proficiency_level!, 
+      userWordProgress.is_long_difficult!
+    );
     
-    if(userWordProgress.start_date == null){
-      // 首次复习
-      console.log("[ReviewStrategyService] First review:", userWordProgress);
-      const strategyId = this.getReviewStrategyId(userWordProgress.proficiency_level!, userWordProgress.is_long_difficult!);
-      updatedProgress.strategy_id = strategyId;
-      updatedProgress.start_date = reviewDate;
-      updatedProgress.last_review_date = reviewDate;
-      updatedProgress.reviewed_times = 0;
-      
-      // 计算下次复习日期
-      updatedProgress.next_review_date = await this.calculateNextReviewDate(
-        updatedProgress.strategy_id!,
-        reviewDate,
-        0
-      );
+    updatedProgress.strategy_id = strategyId;
+    updatedProgress.start_date = reviewDate;
+    updatedProgress.last_review_date = reviewDate;
+    updatedProgress.reviewed_times = 0;
+    
+    // 计算下次复习日期
+    const nextReviewResult = await this.calculateNextReviewDate(
+      updatedProgress.strategy_id!,
+      reviewDate,
+      0,
+      updatedProgress,
+      proficiencyLevel,
+      spelling
+    );
+    
+    updatedProgress.next_review_date = nextReviewResult.nextReviewDate;
+    
+    // 保存卡片状态和日志（无论FSRS还是传统策略）
+    if (strategyId === STRATEGY_IDS.FSRS_DEFAULT) {
+      updatedProgress.review_config = nextReviewResult.fsrsCard;
     }
-    else {
-      const dayCount = Math.floor((new Date(reviewDate).getTime() - new Date(userWordProgress.start_date!).getTime()) / (1000 * 60 * 60 * 24));
+    reviewLog = nextReviewResult.reviewLog; // 传统策略也会返回reviewLog
+  } else {
+    // 非首次复习
+    if (userWordProgress.strategy_id !== STRATEGY_IDS.FSRS_DEFAULT) {
+      // 传统策略的逻辑
+      const dayCount = Math.floor(
+        (new Date(reviewDate).getTime() - new Date(userWordProgress.start_date!).getTime()) / 
+        (1000 * 60 * 60 * 24)
+      );
+      
       if (proficiencyLevel === 0 && userWordProgress.proficiency_level === 3 && dayCount >= 90) {
         // 策略降级
         console.log("[ReviewStrategyService] Strategy downgrade:", userWordProgress);
         if (updatedProgress.strategy_id === STRATEGY_IDS.DENSE) {
-          updatedProgress.strategy_id = STRATEGY_IDS.NORMAL; // 密集 -> 正常
+          updatedProgress.strategy_id = STRATEGY_IDS.NORMAL;
         } else if (updatedProgress.strategy_id === STRATEGY_IDS.NORMAL) {
-          updatedProgress.strategy_id = STRATEGY_IDS.SPARSE; // 正常 -> 稀疏
+          updatedProgress.strategy_id = STRATEGY_IDS.SPARSE;
         }
       }
-      if(proficiencyLevel === 0){
+      
+      if (proficiencyLevel === 0) {
         // 重置学习进度
         updatedProgress.start_date = reviewDate;
-        updatedProgress.reviewed_times = 0;
+        updatedProgress.reviewed_times = -1;
       }
-      else{
-        // 3. 正常复习流程
-        updatedProgress.reviewed_times! += 1;
-      }
-      // 4. 获取策略配置
-      updatedProgress.last_review_date = reviewDate;
-      // 根据策略和复习次数计算下次复习日期
-      updatedProgress.next_review_date = await this.calculateNextReviewDate(
-          updatedProgress.strategy_id!,
-          reviewDate,
-          updatedProgress.reviewed_times!
-        );
     }
     
-    // 更新掌握等级
-    updatedProgress.proficiency_level = proficiencyLevel;
-
-    console.log("[ReviewStrategyService] Updated user word progress:", updatedProgress);
+    // 更新复习次数和日期
+    updatedProgress.reviewed_times! += 1;
+    updatedProgress.last_review_date = reviewDate;
     
-    return updatedProgress;
+    // 计算下次复习日期
+    const nextReviewResult = await this.calculateNextReviewDate(
+      updatedProgress.strategy_id!,
+      reviewDate,
+      updatedProgress.reviewed_times!,
+      updatedProgress,
+      proficiencyLevel,
+      spelling
+    );
+    
+    updatedProgress.next_review_date = nextReviewResult.nextReviewDate;
+    
+    // 保存卡片状态和日志（无论FSRS还是传统策略）
+    if (updatedProgress.strategy_id === STRATEGY_IDS.FSRS_DEFAULT) {
+      updatedProgress.review_config = nextReviewResult.fsrsCard;
+    }
+    reviewLog = nextReviewResult.reviewLog; // 传统策略也会返回reviewLog
+  }
+  
+  // 更新掌握等级
+  updatedProgress.proficiency_level = proficiencyLevel;
+
+  // 自动保存复习日志（无论传统策略还是FSRS策略）
+  if (reviewLog) {
+    await this.saveReviewScheduleLog(reviewLog);
+  }
+
+  console.log("[ReviewStrategyService] Updated user word progress:", updatedProgress);
+  
+  return updatedProgress;
+}
+
+  /**
+   * 根据策略计算下次复习日期
+   */
+  private async calculateNextReviewDate(
+  strategyId: string, 
+  reviewDate: string, 
+  reviewedTimes: number,
+  userWordProgress: CreateUserWordProgress,
+  proficiencyLevel: number,
+  spelling: string
+): Promise<{ nextReviewDate: string; fsrsCard?: string; reviewLog: ReviewScheduleLog }> {
+  
+  if (strategyId === STRATEGY_IDS.FSRS_DEFAULT) {
+    // FSRS策略
+    const result = await this.calculateNextReviewDateFSRS(reviewDate, userWordProgress, proficiencyLevel, spelling);
+    return {
+      nextReviewDate: result.nextReviewDate,
+      fsrsCard: result.fsrsCard,
+      reviewLog: result.reviewLog
+    };
+  } else {
+    // 传统策略
+    const result = await this.calculateNextReviewDateTraditional(strategyId, reviewDate, reviewedTimes, userWordProgress);
+    return {
+      nextReviewDate: result.nextReviewDate,
+      reviewLog: result.reviewLog
+    };
+  }
+}
+
+  /**
+   * 使用传统算法计算下次复习日期
+   */
+  private async calculateNextReviewDateTraditional(
+  strategyId: string, 
+  reviewDate: string, 
+  reviewedTimes: number,
+  userWordProgress: CreateUserWordProgress
+): Promise<{ nextReviewDate: string; reviewLog: ReviewScheduleLog }> {
+  try {
+    const strategy = await this.getReviewStrategyById(strategyId);
+    if (!strategy) {
+      console.warn(`[ReviewStrategyService] Strategy ${strategyId} not found, using default interval`);
+      const defaultDate = this.getDefaultNextReviewDate(reviewDate);
+      return {
+        nextReviewDate: defaultDate,
+        reviewLog: this.createTraditionalReviewLog(userWordProgress, reviewDate, defaultDate, strategyId, 1)
+      };
+    }
+
+    const intervals = this.parseIntervalRule(strategy.interval_rule);
+    if (intervals.length === 0) {
+      console.warn(`[ReviewStrategyService] Invalid interval rule for strategy ${strategyId}: ${strategy.interval_rule}`);
+      const defaultDate = this.getDefaultNextReviewDate(reviewDate);
+      return {
+        nextReviewDate: defaultDate,
+        reviewLog: this.createTraditionalReviewLog(userWordProgress, reviewDate, defaultDate, strategyId, 1)
+      };
+    }
+
+    const intervalIndex = Math.min(reviewedTimes, intervals.length - 1);
+    const interval = intervals[intervalIndex];
+
+    const currentDate = new Date(reviewDate);
+    const nextReviewDate = new Date(currentDate.getTime() + interval * 60 * 60 * 1000);
+    
+    console.log(`[ReviewStrategyService] Next review for strategy ${strategyId}, times ${reviewedTimes}: ${interval}h from ${reviewDate}`);
+    
+    // 计算调度天数（小时转换为天）
+    const scheduleDays = Math.ceil(interval / 24);
+    
+    return {
+      nextReviewDate: nextReviewDate.toISOString(),
+      reviewLog: this.createTraditionalReviewLog(userWordProgress, reviewDate, nextReviewDate.toISOString(), strategyId, scheduleDays)
+    };
+  } catch (error) {
+    console.error("ReviewStrategyService.calculateNextReviewDateTraditional error:", error);
+    const defaultDate = this.getDefaultNextReviewDate(reviewDate);
+    return {
+      nextReviewDate: defaultDate,
+      reviewLog: this.createTraditionalReviewLog(userWordProgress, reviewDate, defaultDate, strategyId, 1)
+    };
+  }
+}
+
+/**
+ * 创建传统策略的复习日志
+ */
+private createTraditionalReviewLog(
+  userWordProgress: CreateUserWordProgress,
+  reviewDate: string,
+  nextReviewDate: string,
+  strategyId: string,
+  scheduleDays: number
+): ReviewScheduleLog {
+  return {
+    id: '', // 将在保存时生成
+    user_id: userWordProgress.user_id,
+    word_id: userWordProgress.word_id,
+    review_time: reviewDate,
+    schedule_days: scheduleDays,
+    next_review_time: nextReviewDate,
+    strategy_id: parseInt(strategyId),
+    // 传统策略没有FSRS相关字段，可以留空或存储其他信息
+    review_log: JSON.stringify({
+      strategy_type: 'TRADITIONAL',
+      reviewed_times: userWordProgress.reviewed_times,
+      proficiency_level: userWordProgress.proficiency_level,
+      interval_hours: scheduleDays * 24
+    })
+  };
+}
+
+  /**
+   * 使用FSRS算法计算下次复习日期
+   */
+  private async calculateNextReviewDateFSRS(
+    reviewDate: string,
+    userWordProgress: CreateUserWordProgress,
+    proficiencyLevel: number,
+    spelling: string
+  ): Promise<{ nextReviewDate: string; fsrsCard: string; reviewLog: ReviewScheduleLog }> {
+    try {
+      const rating = this.proficiencyLevelToFSRSRating(proficiencyLevel);
+      const now = new Date(reviewDate);
+
+      // 获取或创建FSRS卡片
+      let card: Card;
+      if (userWordProgress.review_config) {
+        card = this.restoreCardFromJSON(userWordProgress.review_config);
+      } else {
+        // 首次创建卡片时，根据单词长度设置初始难度
+        card = this.createCardWithDifficulty(spelling);
+      }
+
+      // 使用FSRS算法计算下次复习
+      const schedulingCards: RecordLog = this.fsrsInstance.repeat(card, now);
+      
+      // 使用类型断言解决TypeScript索引问题
+      const scheduledCard: RecordLogItem = (schedulingCards as any)[rating];
+
+      // 计算调度天数
+      const scheduleDays = Math.ceil(
+        (scheduledCard.card.due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // 生成复习日志
+      const reviewLog: ReviewScheduleLog = {
+        id: '', // 将在保存时生成
+        user_id: userWordProgress.user_id,
+        word_id: userWordProgress.word_id,
+        review_time: reviewDate,
+        schedule_days: scheduleDays,
+        next_review_time: scheduledCard.card.due.toISOString(),
+        strategy_id: parseInt(STRATEGY_IDS.FSRS_DEFAULT),
+        review_config: this.serializeCardToJSON(scheduledCard.card),
+        review_log: JSON.stringify(scheduledCard.log)
+      };
+
+      return {
+        nextReviewDate: scheduledCard.card.due.toISOString(),
+        fsrsCard: this.serializeCardToJSON(scheduledCard.card),
+        reviewLog
+      };
+
+    } catch (error) {
+      console.error("ReviewStrategyService.calculateNextReviewDateFSRS error:", error);
+      
+      // FSRS计算失败时使用默认间隔
+      const defaultDate = this.getDefaultNextReviewDate(reviewDate);
+      const emptyCard = createEmptyCard();
+      
+      return {
+        nextReviewDate: defaultDate,
+        fsrsCard: this.serializeCardToJSON(emptyCard),
+        reviewLog: {
+          id: '',
+          user_id: userWordProgress.user_id,
+          word_id: userWordProgress.word_id,
+          review_time: reviewDate,
+          schedule_days: 1,
+          next_review_time: defaultDate,
+          strategy_id: parseInt(STRATEGY_IDS.FSRS_DEFAULT),
+          review_config: this.serializeCardToJSON(emptyCard),
+          review_log: JSON.stringify({ 
+            error: 'FSRS calculation failed', 
+            error_message: error instanceof Error ? error.message : String(error),
+            fallback: true
+          })
+        }
+      };
+    }
   }
 
   /**
-   * 根据策略和复习次数动态计算下次复习日期
-   * @param strategyId 策略ID
-   * @param reviewDate 当前复习日期
-   * @param reviewedTimes 已复习次数
-   * @returns 下次复习日期 (ISO字符串)
+   * 获取所有FSRS评分选项（用于显示预测）
    */
-  private async calculateNextReviewDate(
-    strategyId: string, 
-    reviewDate: string, 
-    reviewedTimes: number
-  ): Promise<string> {
+  getFSRSPreviewOptions(
+    userWordProgress: CreateUserWordProgress, 
+    reviewDate: string = new Date().toISOString(),
+    spelling: string
+  ): {
+    rating: Rating;
+    name: string;
+    nextReviewDate: string;
+    scheduledDays: number;
+  }[] {
     try {
-      // 获取策略配置
-      const strategy = await this.getReviewStrategyById(strategyId);
-      if (!strategy) {
-        console.warn(`[ReviewStrategyService] Strategy ${strategyId} not found, using default interval`);
-        return this.getDefaultNextReviewDate(reviewDate);
+      const now = new Date(reviewDate);
+
+      // 获取或创建FSRS卡片
+      let card: Card;
+      if (userWordProgress.review_config) {
+        card = this.restoreCardFromJSON(userWordProgress.review_config);
+      } else {
+        // 首次创建卡片时，根据单词长度设置初始难度
+        card = this.createCardWithDifficulty(spelling);
       }
 
-      // 解析interval_rule
-      const intervals = this.parseIntervalRule(strategy.interval_rule);
-      if (intervals.length === 0) {
-        console.warn(`[ReviewStrategyService] Invalid interval rule for strategy ${strategyId}: ${strategy.interval_rule}`);
-        return this.getDefaultNextReviewDate(reviewDate);
+      // 获取所有评分选项
+      const schedulingCards: RecordLog = this.fsrsInstance.repeat(card, now);
+      const options = [];
+
+      // 遍历所有评分选项
+      const ratings = [Rating.Again, Rating.Hard, Rating.Good, Rating.Easy] as const;
+      
+      for (const rating of ratings) {
+        const scheduledCard = (schedulingCards as any)[rating];
+        const scheduledDays = Math.ceil(
+          (scheduledCard.card.due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        options.push({
+          rating,
+          name: Rating[rating],
+          nextReviewDate: scheduledCard.card.due.toISOString(),
+          scheduledDays
+        });
       }
 
-      // 根据复习次数选择间隔（超过配置次数使用最后一个间隔）
-      const intervalIndex = Math.min(reviewedTimes, intervals.length - 1);
-      const interval = intervals[intervalIndex];
-
-      // 计算下次复习日期
-      const currentDate = new Date(reviewDate);
-      const nextReviewDate = new Date(currentDate.getTime() + interval * 60 * 60 * 1000);
-      
-      console.log(`[ReviewStrategyService] Next review for strategy ${strategyId}, times ${reviewedTimes}: ${interval}h from ${reviewDate}`);
-      
-      return nextReviewDate.toISOString();
-
+      return options;
     } catch (error) {
-      console.error("ReviewStrategyService.calculateNextReviewDate error:", error);
-      return this.getDefaultNextReviewDate(reviewDate);
+      console.error("ReviewStrategyService.getFSRSPreviewOptions error:", error);
+      return [];
     }
   }
 
   /**
    * 解析interval_rule字符串为小时数组
-   * @param intervalRule 间隔规则字符串，如 "1h,3h,1d,2d,4d"
-   * @returns 小时数数组
    */
   private parseIntervalRule(intervalRule: string): number[] {
     if (!intervalRule?.trim()) {
@@ -199,8 +557,6 @@ class ReviewStrategyService {
 
   /**
    * 将时间字符串转换为小时数
-   * @param timeStr 时间字符串，如 "1h", "3h", "1d", "2d"
-   * @returns 小时数
    */
   private parseTimeToHours(timeStr: string): number {
     const match = timeStr.match(/^(\d+)([hd])$/);
@@ -224,8 +580,6 @@ class ReviewStrategyService {
 
   /**
    * 获取默认的下次复习日期（24小时后）
-   * @param reviewDate 当前复习日期
-   * @returns 默认下次复习日期
    */
   private getDefaultNextReviewDate(reviewDate: string): string {
     const currentDate = new Date(reviewDate);

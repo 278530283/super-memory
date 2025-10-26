@@ -87,7 +87,7 @@ CREATE TABLE `morpheme` (
 ```sql
 CREATE TABLE `word_morpheme_association` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `morpheme_id` bigint NOT NULL COMMENT '关联词素ID',
   `order_index` tinyint NOT NULL COMMENT '在单词中的出现顺序（从1开始）',
   PRIMARY KEY (`id`),
@@ -116,7 +116,7 @@ CREATE TABLE `review_strategy` (
 ```sql
 CREATE TABLE `daily_learning_session` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '会话唯一标识',
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
   `session_date` date NOT NULL COMMENT '会话日期（通常是当天）',
   `mode_id` tinyint NOT NULL COMMENT '本次会话的学习模式',
   `status` tinyint NOT NULL DEFAULT NULL COMMENT '会话状态 (0=待开始, 1=前置评测中, 2=学习中, 3=当日评测中, 4=已完成)',
@@ -136,8 +136,8 @@ CREATE TABLE `daily_learning_session` (
 ```sql
 CREATE TABLE `user_word_action_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '日志唯一标识',
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `session_id` bigint NULL COMMENT '关联的每日学习会话ID（快速复习时可为空）',
   `phase` tinyint NOT NULL COMMENT '阶段 (1=前置评测, 2=学习阶段, 3=当日评测, 4=快速复习, 5=专项训练)',
   `action_type` tinyint NOT NULL COMMENT '行为类型 
@@ -165,8 +165,8 @@ CREATE TABLE `user_word_action_log` (
 ```sql
 CREATE TABLE `user_word_test_history` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录唯一标识',
-  `user_id` BIGINT NOT NULL COMMENT '关联用户ID',
-  `word_id` BIGINT NOT NULL COMMENT '关联单词ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `test_date` DATE NOT NULL COMMENT '测试日期 (可从 session_id 关联的 session_date 获取)',
   `phase` TINYINT NOT NULL COMMENT '测试阶段 (1=前置评测 (Pre-test), 2=当日评测 (Post-test))', -- 使用与 user_word_action_log.phase 一致的枚举
   `test_level` TINYINT NULL COMMENT '本次测试结束后该单词的掌握等级 (对应 user_word_progress.current_level 在测试完成时的值)',
@@ -183,8 +183,8 @@ CREATE TABLE `user_word_test_history` (
 ```sql
 CREATE TABLE `user_word_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `is_long_difficult` tinyint NOT NULL DEFAULT NULL COMMENT '是否为长难词',
   `proficiency_level` tinyint NOT NULL DEFAULT NULL COMMENT '掌握等级（0=L0，1=L1，2=L2，3=L3，4=L4）',
   `strategy_id` tinyint NOT NULL COMMENT '复习策略',
@@ -204,7 +204,7 @@ CREATE TABLE `user_word_progress` (
 ```sql
 CREATE TABLE `learning_record` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
   `session_id` bigint NOT NULL COMMENT '关联的每日学习会话ID',
   `learning_date` date NOT NULL COMMENT '学习日期',
   `mode_id` tinyint NOT NULL COMMENT '学习模式（关联learning_mode.id）',
@@ -226,9 +226,9 @@ CREATE TABLE `learning_record` (
 ```sql
 CREATE TABLE `learning_word` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
   `learning_record_id` bigint NOT NULL COMMENT '关联学习记录ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `pre_test_level` tinyint NOT NULL COMMENT '前置评测时的等级',
   `post_test_level` tinyint NOT NULL COMMENT '当日评测后的等级',
   `mastery_change` tinyint GENERATED ALWAYS AS (`post_test_level` - `pre_test_level`) STORED COMMENT '学习后等级净变化',
@@ -247,8 +247,8 @@ CREATE TABLE `learning_word` (
 ```sql
 CREATE TABLE `review_record` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `review_time` datetime NOT NULL COMMENT '复习时间',
   `strategy_id` tinyint NOT NULL COMMENT '使用的复习策略',
   `strategy_type` tinyint NOT NULL DEFAULT 1 COMMENT '策略类型 (1=传统, 2=FSRS)',
@@ -264,26 +264,25 @@ CREATE TABLE `review_record` (
 ) ENGINE=InnoDB COMMENT '复习记录表';
 ```
 
-## 14. **FSRS复习调度表 (`fsrs_review_schedule`)**
-专用于FSRS算法，为每个用户-单词对动态计算下一次复习时间（仅记录最新状态）。
+## 14. **复习计划日志表 (`review_schedule_log`)**
+记录用户的复习计划，包括计划时间、计划天数、计划间隔等。
 ```sql
-CREATE TABLE `fsrs_review_schedule` (
+CREATE TABLE `review_schedule_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '调度记录唯一标识',
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
-  `next_review_time` datetime NOT NULL COMMENT 'FSRS算法计算出的下一次复习时间',
-  `stability` double NOT NULL COMMENT 'FSRS稳定性参数 (S)',
-  `difficulty` double NOT NULL COMMENT 'FSRS难度参数 (D)',
-  `retention` double NOT NULL DEFAULT 0.9 COMMENT '目标保留率 (默认0.9)',
-  `reps` int NOT NULL DEFAULT 0 COMMENT '总复习次数',
-  `lapses` int NOT NULL DEFAULT 0 COMMENT '遗忘次数',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
+  `review_time` varchar(32) NOT NULL COMMENT '本次复习时间',
+  `schedule_days` int NOT NULL COMMENT '计划天数',
+  `next_review_time` varchar(32) NOT NULL COMMENT '下一次复习时间',
+  `strategy_id` tinyint NOT NULL COMMENT '使用的复习策略',
+  `fsrs_card` varchar(255) DEFAULT NULL COMMENT 'FSRS卡片信息 (JSON格式)',
+  `fsrs_review_log` varchar(255) DEFAULT NULL COMMENT 'FSRS日志 (JSON格式)',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_word` (`user_id`, `word_id`),
-  KEY `idx_next_review` (`next_review_time`),
-  KEY `idx_user_next_review` (`user_id`, `next_review_time`),
+  UNIQUE KEY `uk_user_word_review` (`user_id`, `word_id`,`review_time`),
+  KEY `idx_user_wrod` (`user_id`, `word_id`),
   CONSTRAINT `fk_frs_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   CONSTRAINT `fk_frs_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`)
-) ENGINE=InnoDB COMMENT 'FSRS复习调度表，为每个用户-单词对记录当前状态和下一次复习时间';
+) ENGINE=InnoDB COMMENT '记录用户的复习计划，包括计划时间、计划天数、计划间隔等';
 ```
 
 ## 15. 发音评估记录表（`pronunciation_evaluation`）
@@ -291,8 +290,8 @@ CREATE TABLE `fsrs_review_schedule` (
 ```sql
 CREATE TABLE `pronunciation_evaluation` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `evaluation_time` datetime NOT NULL COMMENT '评估时间',
   `syllable_completeness` int NOT NULL COMMENT '音节完整性（百分比）',
   `stress_accuracy` int NOT NULL COMMENT '重音准确性（百分比）',
@@ -328,8 +327,8 @@ CREATE TABLE `morpheme_relation` (
 ```sql
 CREATE TABLE `custom_material` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '创建者（家长）用户ID',
-  `word_id` bigint NOT NULL COMMENT '关联单词ID',
+  `user_id` varchar(36) NOT NULL COMMENT '创建者（家长）用户ID',
+  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `memory_story` text COMMENT '记忆故事/注释',
   `custom_image` varchar(255) DEFAULT NULL COMMENT '自定义图片路径',
   `recording_path` varchar(255) DEFAULT NULL COMMENT '录音路径',
@@ -346,7 +345,7 @@ CREATE TABLE `custom_material` (
 ```sql
 CREATE TABLE `article` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
   `upload_time` datetime NOT NULL COMMENT '上传时间',
   `ocr_text` text NOT NULL COMMENT 'OCR识别的文本内容',
   `image_path` varchar(255) DEFAULT NULL COMMENT '原图路径',
@@ -362,7 +361,7 @@ CREATE TABLE `article` (
 ```sql
 CREATE TABLE `level_assessment` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
   `assessment_time` datetime NOT NULL COMMENT '评估时间',
   `vocabulary_size` int NOT NULL COMMENT '词汇量估算',
   `level_distribution` json NOT NULL COMMENT '各等级占比（如{"L0":20,"L1":30}）',
@@ -379,7 +378,7 @@ CREATE TABLE `level_assessment` (
 ```sql
 CREATE TABLE `user_morpheme_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `user_id` bigint NOT NULL COMMENT '关联用户ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
   `morpheme_id` bigint NOT NULL COMMENT '关联词素ID',
   `mastery_level` tinyint NOT NULL DEFAULT '0' COMMENT '掌握等级（0=未学，1=已学，2=熟悉，3=掌握）',
   `last_encountered_time` datetime DEFAULT NULL COMMENT '最后一次在单词中遇到的时间',

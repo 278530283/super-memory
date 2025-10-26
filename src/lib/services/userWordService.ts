@@ -256,7 +256,7 @@ class UserWordService {
    * @param data 要创建或更新的数据 (不包含 $id)
    * @returns Promise<UserWordProgress>
    */
-  async upsertUserWordProgress(data: CreateUserWordProgress): Promise<UserWordProgress> { // 注意：这里假设 CreateUserWordProgress 不包含 $id
+  async upsertUserWordProgress(data: CreateUserWordProgress, strategyType: number, spelling: string): Promise<UserWordProgress> { // 注意：这里假设 CreateUserWordProgress 不包含 $id
     try {
       console.log("[UserWordService] Upserting user word progress...", data);
       // 1. 尝试查找现有记录 (基于 user_id 和 word_id)
@@ -264,7 +264,11 @@ class UserWordService {
       const reviewDate = new Date().toISOString();
 
       if (existingRecord) {
-        const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(existingRecord, data.proficiency_level!, reviewDate);
+        const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(existingRecord, data.proficiency_level!, reviewDate, strategyType, spelling);
+        if (dataWithReviewInfo == null) {
+          console.log("[UserWordService] No need to update review info.");
+          return existingRecord;
+        }
         // 2a. 如果记录已存在，则更新 (排除 user_id 和 word_id，因为它们通常是不变的主键部分)
         const updateData = { ...data,...dataWithReviewInfo };
 
@@ -273,7 +277,7 @@ class UserWordService {
       } else {
         // 2b. 如果记录不存在，则创建
         console.log(`[UserWordService] Creating new progress for user ${data.user_id}, word ${data.word_id}`);
-        const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(data, data.proficiency_level!, reviewDate);
+        const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(data, data.proficiency_level!, reviewDate, strategyType, spelling);
         console.log("[UserWordService] data with review info:", dataWithReviewInfo);
         const insertData = { ...data,...dataWithReviewInfo };
         console.log("[UserWordService] insert data:", insertData);

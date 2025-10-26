@@ -375,6 +375,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     const wordId = currentWord.$id;
     const phase = testType === 'pre_test' ? 1 : 2;
     const testDate = new Date().toISOString().split('T')[0];
+    const strategyType = appwriteUser.prefs.reviewStrategy;
 
     try {
       // 停止旧的 actor
@@ -502,7 +503,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
                     is_long_difficult: isLongDifficult
                   };
                   console.log('[TestStore] Saving user word progress for word:', wordId);
-                  await userWordService.upsertUserWordProgress(progressData);
+                  await userWordService.upsertUserWordProgress(progressData, strategyType, currentWord!.spelling);
                   console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
                 }
               } catch (progressError: any) {
@@ -568,6 +569,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     try {
       const userId = appwriteUser.$id;
       const wordId = currentWord.$id;
+      const strategyType = appwriteUser.prefs.reviewStrategy;
 
       console.log(`[TestStore] Skipping word ${wordId} for user ${userId}`);
 
@@ -584,7 +586,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
           is_long_difficult: currentWord.spelling.length > 8 && currentWord.syllable_count >= 3
         };
         
-        await userWordService.upsertUserWordProgress(progressData);
+        await userWordService.upsertUserWordProgress(progressData, strategyType, currentWord.spelling);
         console.log(`[TestStore] L0 progress record created for word ${wordId}`);
       } else {
         console.log(`[TestStore] Progress record already exists for word ${wordId}, skipping creation`);
