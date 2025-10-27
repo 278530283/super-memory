@@ -7,7 +7,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/node_modules/jest/bin/jest.js",
       "args": [
-        "__tests__/lib/services/userWordService.test.ts",
+        "__tests__/lib/services/ReviewStrategyService.test.ts",
         "--runInBand",
         "--no-cache"
       ],

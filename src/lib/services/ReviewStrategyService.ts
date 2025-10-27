@@ -72,7 +72,7 @@ class ReviewStrategyService {
   /**
    * 将掌握等级转换为FSRS评分
    */
-  private proficiencyLevelToFSRSRating(proficiencyLevel: number): Rating {
+  proficiencyLevelToFSRSRating(proficiencyLevel: number): Rating {
     const ratingMap: Record<number, Rating> = {
       0: Rating.Again,
       1: Rating.Hard,
@@ -89,7 +89,7 @@ class ReviewStrategyService {
    * @param spelling 单词拼写
    * @returns 初始难度值 (0-1之间，越高表示越难)
    */
-  private calculateInitialDifficulty(spelling: string): number {
+  calculateInitialDifficulty(spelling: string): number {
     if (!spelling) return 0.3; // 默认难度
     
     const length = spelling.length;
@@ -125,7 +125,7 @@ class ReviewStrategyService {
   /**
    * 从JSON字符串恢复Card对象
    */
-  private restoreCardFromJSON(cardJSON: string): Card {
+  restoreCardFromJSON(cardJSON: string): Card {
     try {
       const cardData = JSON.parse(cardJSON);
       return {
@@ -142,7 +142,7 @@ class ReviewStrategyService {
   /**
    * 序列化Card对象为JSON字符串
    */
-  private serializeCardToJSON(card: Card): string {
+  serializeCardToJSON(card: Card): string {
     return JSON.stringify({
       ...card,
       due: card.due.toISOString(),
@@ -153,7 +153,7 @@ class ReviewStrategyService {
   /**
    * 保存复习日志到数据库
    */
-  private async saveReviewScheduleLog(log: ReviewScheduleLog): Promise<void> {
+  async saveReviewScheduleLog(log: ReviewScheduleLog): Promise<void> {
     try {
       await tablesDB.createRow({
         databaseId: DATABASE_ID,
@@ -290,7 +290,7 @@ class ReviewStrategyService {
   /**
    * 根据策略计算下次复习日期
    */
-  private async calculateNextReviewDate(
+  async calculateNextReviewDate(
   strategyId: string, 
   reviewDate: string, 
   reviewedTimes: number,
@@ -320,7 +320,7 @@ class ReviewStrategyService {
   /**
    * 使用传统算法计算下次复习日期
    */
-  private async calculateNextReviewDateTraditional(
+  async calculateNextReviewDateTraditional(
   strategyId: string, 
   reviewDate: string, 
   reviewedTimes: number,
@@ -403,7 +403,7 @@ private createTraditionalReviewLog(
   /**
    * 使用FSRS算法计算下次复习日期
    */
-  private async calculateNextReviewDateFSRS(
+  async calculateNextReviewDateFSRS(
     reviewDate: string,
     userWordProgress: CreateUserWordProgress,
     proficiencyLevel: number,
@@ -537,7 +537,7 @@ private createTraditionalReviewLog(
   /**
    * 解析interval_rule字符串为小时数组
    */
-  private parseIntervalRule(intervalRule: string): number[] {
+  parseIntervalRule(intervalRule: string): number[] {
     if (!intervalRule?.trim()) {
       return [];
     }
@@ -558,7 +558,7 @@ private createTraditionalReviewLog(
   /**
    * 将时间字符串转换为小时数
    */
-  private parseTimeToHours(timeStr: string): number {
+  parseTimeToHours(timeStr: string): number {
     const match = timeStr.match(/^(\d+)([hd])$/);
     if (!match) {
       console.warn(`[ReviewStrategyService] Invalid time format: ${timeStr}`);
@@ -581,7 +581,7 @@ private createTraditionalReviewLog(
   /**
    * 获取默认的下次复习日期（24小时后）
    */
-  private getDefaultNextReviewDate(reviewDate: string): string {
+  getDefaultNextReviewDate(reviewDate: string): string {
     const currentDate = new Date(reviewDate);
     const nextReviewDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
     return nextReviewDate.toISOString();

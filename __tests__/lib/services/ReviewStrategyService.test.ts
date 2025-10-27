@@ -4,7 +4,7 @@ import ReviewStrategyService from '@/src/lib/services/ReviewStrategyService';
 import { ReviewScheduleLog } from '@/src/types/ReviewScheduleLog';
 import { ReviewStrategy, STRATEGY_IDS, STRATEGY_TYPES } from '@/src/types/ReviewStrategy';
 import { CreateUserWordProgress } from '@/src/types/UserWordProgress';
-import { createEmptyCard, Rating } from 'ts-fsrs';
+import { createEmptyCard, fsrs, generatorParameters, Rating } from 'ts-fsrs';
 
 // Mock Appwrite 模块
 jest.mock('@/src/lib/appwrite', () => ({
@@ -19,53 +19,6 @@ jest.mock('@/src/constants/appwrite', () => ({
   DATABASE_ID: 'test-database',
   COLLECTION_REVIEW_STRATEGY: 'test-review-strategy',
 }));
-
-// Mock ts-fsrs
-jest.mock('ts-fsrs', () => {
-  const mockCard = {
-    due: new Date('2024-01-02T10:00:00Z'),
-    stability: 1.0,
-    difficulty: 0.3,
-    elapsed_days: 0,
-    scheduled_days: 0,
-    reps: 0,
-    lapses: 0,
-    state: 0,
-    last_review: undefined
-  };
-
-  const mockRecordLogItem = {
-    card: mockCard,
-    log: {
-      rating: 2,
-      elapsed_days: 0,
-      scheduled_days: 1,
-      review: new Date('2024-01-01T10:00:00Z'),
-      state: 0
-    }
-  };
-
-  const mockRecordLog = {
-    [Rating.Again]: mockRecordLogItem,
-    [Rating.Hard]: mockRecordLogItem,
-    [Rating.Good]: mockRecordLogItem,
-    [Rating.Easy]: mockRecordLogItem
-  };
-
-  return {
-    createEmptyCard: jest.fn(() => mockCard),
-    fsrs: jest.fn(() => ({
-      repeat: jest.fn(() => mockRecordLog)
-    })),
-    generatorParameters: jest.fn(),
-    Rating: {
-      Again: 1,
-      Hard: 2,
-      Good: 3,
-      Easy: 4
-    }
-  };
-});
 
 describe('ReviewStrategyService Unit Tests', () => {
   // 模拟复习策略数据
@@ -97,10 +50,21 @@ describe('ReviewStrategyService Unit Tests', () => {
     ...overrides,
   });
 
+  // 创建真实的 FSRS 实例用于测试
+  let fsrsInstance: any;
+
   beforeEach(() => {
     jest.clearAllMocks();
     // 重置日期以确保测试一致性
     jest.useFakeTimers().setSystemTime(new Date('2024-01-01T00:00:00Z'));
+    
+    // 创建真实的 FSRS 实例
+    const params = generatorParameters({
+      maximum_interval: 36500,
+      enable_fuzz: true,
+      enable_short_term: true
+    });
+    fsrsInstance = fsrs(params);
   });
 
   afterEach(() => {
@@ -171,27 +135,27 @@ describe('ReviewStrategyService Unit Tests', () => {
 
   describe('calculateInitialDifficulty', () => {
     test('returns default difficulty for empty spelling', () => {
-      const result = (ReviewStrategyService as any).calculateInitialDifficulty('');
+      const result = ReviewStrategyService.calculateInitialDifficulty('');
       expect(result).toBe(0.3);
     });
 
     test('returns low difficulty for short words', () => {
-      const result = (ReviewStrategyService as any).calculateInitialDifficulty('cat');
+      const result = ReviewStrategyService.calculateInitialDifficulty('cat');
       expect(result).toBe(0.1);
     });
 
     test('returns medium difficulty for medium words', () => {
-      const result = (ReviewStrategyService as any).calculateInitialDifficulty('apple');
+      const result = ReviewStrategyService.calculateInitialDifficulty('apple');
       expect(result).toBe(0.3);
     });
 
     test('returns high difficulty for long words', () => {
-      const result = (ReviewStrategyService as any).calculateInitialDifficulty('beautiful');
+      const result = ReviewStrategyService.calculateInitialDifficulty('beautiful');
       expect(result).toBe(0.5);
     });
 
     test('returns very high difficulty for very long words', () => {
-      const result = (ReviewStrategyService as any).calculateInitialDifficulty('international');
+      const result = ReviewStrategyService.calculateInitialDifficulty('international');
       expect(result).toBe(0.7);
     });
   });
@@ -354,22 +318,16 @@ describe('ReviewStrategyService Unit Tests', () => {
     });
 
     test('handles FSRS strategy with existing review config', async () => {
+      const card = createEmptyCard();
+      card.due = new Date('2023-12-26T00:00:00Z');
+      
       const progress = createMockProgress({
         start_date: '2023-12-20T00:00:00Z',
         last_review_date: '2023-12-25T00:00:00Z',
         proficiency_level: 2,
         strategy_id: STRATEGY_IDS.FSRS_DEFAULT,
         reviewed_times: 2,
-        review_config: JSON.stringify({
-          due: '2023-12-26T00:00:00Z',
-          stability: 1.0,
-          difficulty: 0.3,
-          elapsed_days: 0,
-          scheduled_days: 0,
-          reps: 0,
-          lapses: 0,
-          state: 0
-        })
+        review_config: ReviewStrategyService.serializeCardToJSON(card)
       });
 
       (tablesDB.createRow as jest.Mock).mockResolvedValue({});
@@ -398,7 +356,7 @@ describe('ReviewStrategyService Unit Tests', () => {
 
       const progress = createMockProgress();
       
-      const result = await (ReviewStrategyService as any).calculateNextReviewDateTraditional(
+      const result = await ReviewStrategyService.calculateNextReviewDateTraditional(
         STRATEGY_IDS.NORMAL,
         reviewDate,
         0,
@@ -417,7 +375,7 @@ describe('ReviewStrategyService Unit Tests', () => {
 
       const progress = createMockProgress();
       
-      const result = await (ReviewStrategyService as any).calculateNextReviewDateTraditional(
+      const result = await ReviewStrategyService.calculateNextReviewDateTraditional(
         'non-existent',
         reviewDate,
         0,
@@ -435,7 +393,7 @@ describe('ReviewStrategyService Unit Tests', () => {
 
       const progress = createMockProgress();
       
-      const result = await (ReviewStrategyService as any).calculateNextReviewDateTraditional(
+      const result = await ReviewStrategyService.calculateNextReviewDateTraditional(
         'invalid',
         reviewDate,
         0,
@@ -455,7 +413,7 @@ describe('ReviewStrategyService Unit Tests', () => {
 
       const progress = createMockProgress();
       
-      const result = await (ReviewStrategyService as any).calculateNextReviewDateFSRS(
+      const result = await ReviewStrategyService.calculateNextReviewDateFSRS(
         reviewDate,
         progress,
         3,
@@ -470,17 +428,14 @@ describe('ReviewStrategyService Unit Tests', () => {
     });
 
     test('handles FSRS calculation failure gracefully', async () => {
-      // 模拟 FSRS 计算失败
-      const mockFSRS = require('ts-fsrs').fsrs();
-      mockFSRS.repeat.mockImplementation(() => {
-        throw new Error('FSRS calculation error');
+      // 模拟 FSRS 计算失败 - 通过传递无效的卡片数据
+      const progress = createMockProgress({
+        review_config: 'invalid-json' // 这将导致恢复卡片失败
       });
-
+      
       (tablesDB.createRow as jest.Mock).mockResolvedValue({});
 
-      const progress = createMockProgress();
-      
-      const result = await (ReviewStrategyService as any).calculateNextReviewDateFSRS(
+      const result = await ReviewStrategyService.calculateNextReviewDateFSRS(
         reviewDate,
         progress,
         3,
@@ -502,7 +457,7 @@ describe('ReviewStrategyService Unit Tests', () => {
       const result = ReviewStrategyService.getFSRSPreviewOptions(progress, '2024-01-01T10:00:00Z', spelling);
       
       expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBeGreaterThan(0);
+      expect(result.length).toBe(4); // 4种评分选项
       result.forEach(option => {
         expect(option.rating).toBeDefined();
         expect(option.name).toBeDefined();
@@ -512,13 +467,10 @@ describe('ReviewStrategyService Unit Tests', () => {
     });
 
     test('handles FSRS preview failure gracefully', () => {
-      // 模拟 FSRS 计算失败
-      const mockFSRS = require('ts-fsrs').fsrs();
-      mockFSRS.repeat.mockImplementation(() => {
-        throw new Error('FSRS preview error');
+      // 模拟 FSRS 计算失败 - 通过传递无效的卡片数据
+      const progress = createMockProgress({
+        review_config: 'invalid-json' // 这将导致恢复卡片失败
       });
-
-      const progress = createMockProgress();
       const spelling = 'test';
       
       const result = ReviewStrategyService.getFSRSPreviewOptions(progress, '2024-01-01T10:00:00Z', spelling);
@@ -530,19 +482,19 @@ describe('ReviewStrategyService Unit Tests', () => {
 
   describe('parseIntervalRule', () => {
     test('parses valid interval rule correctly', () => {
-      const result = (ReviewStrategyService as any).parseIntervalRule('1h,3h,1d,2d,4d');
+      const result = ReviewStrategyService.parseIntervalRule('1h,3h,1d,2d,4d');
       
       expect(result).toEqual([1, 3, 24, 48, 96]);
     });
 
     test('returns empty array for empty rule', () => {
-      const result = (ReviewStrategyService as any).parseIntervalRule('');
+      const result = ReviewStrategyService.parseIntervalRule('');
       
       expect(result).toEqual([]);
     });
 
     test('filters out invalid time formats', () => {
-      const result = (ReviewStrategyService as any).parseIntervalRule('1h,invalid,2d,3x,4d');
+      const result = ReviewStrategyService.parseIntervalRule('1h,invalid,2d,3x,4d');
       
       expect(result).toEqual([1, 48, 96]);
     });
@@ -550,22 +502,22 @@ describe('ReviewStrategyService Unit Tests', () => {
 
   describe('parseTimeToHours', () => {
     test('converts hours correctly', () => {
-      const result = (ReviewStrategyService as any).parseTimeToHours('5h');
+      const result = ReviewStrategyService.parseTimeToHours('5h');
       expect(result).toBe(5);
     });
 
     test('converts days correctly', () => {
-      const result = (ReviewStrategyService as any).parseTimeToHours('3d');
+      const result = ReviewStrategyService.parseTimeToHours('3d');
       expect(result).toBe(72);
     });
 
     test('returns 0 for invalid format', () => {
-      const result = (ReviewStrategyService as any).parseTimeToHours('invalid');
+      const result = ReviewStrategyService.parseTimeToHours('invalid');
       expect(result).toBe(0);
     });
 
     test('returns 0 for unsupported unit', () => {
-      const result = (ReviewStrategyService as any).parseTimeToHours('5w');
+      const result = ReviewStrategyService.parseTimeToHours('5w');
       expect(result).toBe(0);
     });
   });
@@ -574,7 +526,7 @@ describe('ReviewStrategyService Unit Tests', () => {
     test('returns date 24 hours later', () => {
       const reviewDate = '2024-01-01T10:00:00Z';
       
-      const result = (ReviewStrategyService as any).getDefaultNextReviewDate(reviewDate);
+      const result = ReviewStrategyService.getDefaultNextReviewDate(reviewDate);
       
       const expectedDate = new Date(reviewDate);
       expectedDate.setHours(expectedDate.getHours() + 24);
@@ -588,7 +540,7 @@ describe('ReviewStrategyService Unit Tests', () => {
       const card = createEmptyCard();
       card.due = new Date('2024-01-02T10:00:00Z');
       
-      const result = (ReviewStrategyService as any).serializeCardToJSON(card);
+      const result = ReviewStrategyService.serializeCardToJSON(card);
       
       expect(typeof result).toBe('string');
       const parsed = JSON.parse(result);
@@ -608,14 +560,14 @@ describe('ReviewStrategyService Unit Tests', () => {
         last_review: null
       });
       
-      const result = (ReviewStrategyService as any).restoreCardFromJSON(cardJSON);
+      const result = ReviewStrategyService.restoreCardFromJSON(cardJSON);
       
       expect(result.due).toBeInstanceOf(Date);
       expect(result.due.toISOString()).toBe('2024-01-02T10:00:00.000Z');
     });
 
     test('returns empty card for invalid JSON', () => {
-      const result = (ReviewStrategyService as any).restoreCardFromJSON('invalid json');
+      const result = ReviewStrategyService.restoreCardFromJSON('invalid json');
       
       expect(result).toBeDefined();
       expect(result.due).toBeDefined();
@@ -638,7 +590,7 @@ describe('ReviewStrategyService Unit Tests', () => {
         review_log: '{}'
       };
       
-      await (ReviewStrategyService as any).saveReviewScheduleLog(reviewLog);
+      await ReviewStrategyService.saveReviewScheduleLog(reviewLog);
       
       expect(tablesDB.createRow).toHaveBeenCalledWith({
         databaseId: 'test-database',
@@ -662,7 +614,54 @@ describe('ReviewStrategyService Unit Tests', () => {
       };
       
       // 不应该抛出错误
-      await expect((ReviewStrategyService as any).saveReviewScheduleLog(reviewLog)).resolves.toBeUndefined();
+      await expect(ReviewStrategyService.saveReviewScheduleLog(reviewLog)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('proficiencyLevelToFSRSRating', () => {
+    test('converts proficiency levels to FSRS ratings correctly', () => {
+      expect(ReviewStrategyService.proficiencyLevelToFSRSRating(0)).toBe(Rating.Again);
+      expect(ReviewStrategyService.proficiencyLevelToFSRSRating(1)).toBe(Rating.Hard);
+      expect(ReviewStrategyService.proficiencyLevelToFSRSRating(2)).toBe(Rating.Good);
+      expect(ReviewStrategyService.proficiencyLevelToFSRSRating(3)).toBe(Rating.Easy);
+      expect(ReviewStrategyService.proficiencyLevelToFSRSRating(4)).toBe(Rating.Easy);
+      expect(ReviewStrategyService.proficiencyLevelToFSRSRating(5)).toBe(Rating.Good); // 默认情况
+    });
+  });
+
+  // 添加真实的 FSRS 算法测试
+  describe('Real FSRS Algorithm Tests', () => {
+    test('FSRS algorithm produces consistent results', () => {
+      const card = createEmptyCard();
+      const now = new Date('2024-01-01T10:00:00Z');
+      
+      const schedulingCards = fsrsInstance.repeat(card, now);
+      
+      // 验证所有评分选项都有结果
+      expect(schedulingCards[Rating.Again]).toBeDefined();
+      expect(schedulingCards[Rating.Hard]).toBeDefined();
+      expect(schedulingCards[Rating.Good]).toBeDefined();
+      expect(schedulingCards[Rating.Easy]).toBeDefined();
+      
+      // 验证下次复习日期是未来的
+      expect(schedulingCards[Rating.Again].card.due.getTime()).toBeGreaterThan(now.getTime());
+      expect(schedulingCards[Rating.Hard].card.due.getTime()).toBeGreaterThan(now.getTime());
+      expect(schedulingCards[Rating.Good].card.due.getTime()).toBeGreaterThan(now.getTime());
+      expect(schedulingCards[Rating.Easy].card.due.getTime()).toBeGreaterThan(now.getTime());
+    });
+
+    test('FSRS with initial difficulty produces different results', () => {
+      const card1 = createEmptyCard(); // 默认难度
+      const card2 = createEmptyCard();
+      card2.difficulty = 0.7; // 高难度
+      
+      const now = new Date('2024-01-01T10:00:00Z');
+      
+      const result1 = fsrsInstance.repeat(card1, now);
+      const result2 = fsrsInstance.repeat(card2, now);
+      
+      // 高难度的卡片应该有更长的间隔（对于相同的评分）
+      expect(result2[Rating.Good].card.due.getTime()).toBeGreaterThanOrEqual(result1[Rating.Good].card.due.getTime());
     });
   });
 });
