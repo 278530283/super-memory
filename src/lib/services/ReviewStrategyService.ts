@@ -85,44 +85,6 @@ class ReviewStrategyService {
   }
 
   /**
-   * 根据单词拼写长度计算初始难度
-   * @param spelling 单词拼写
-   * @returns 初始难度值 (0-1之间，越高表示越难)
-   */
-  calculateInitialDifficulty(spelling: string): number {
-    if (!spelling) return 0.3; // 默认难度
-    
-    const length = spelling.length;
-    
-    // 根据单词长度设置初始难度
-    if (length <= 4) {
-      return 0.1; // 短单词，容易
-    } else if (length <= 6) {
-      return 0.3; // 中等长度单词，中等难度
-    } else if (length <= 8) {
-      return 0.5; // 较长单词，较难
-    } else {
-      return 0.7; // 长单词，很难
-    }
-  }
-
-  /**
-   * 创建带有初始难度的FSRS卡片
-   * @param spelling 单词拼写（用于计算初始难度）
-   * @returns 配置了初始难度的卡片
-   */
-  private createCardWithDifficulty(spelling: string): Card {
-    const card = createEmptyCard();
-    
-    if (spelling) {
-      // 根据单词长度设置初始难度
-      card.difficulty = this.calculateInitialDifficulty(spelling);
-    }
-    
-    return card;
-  }
-
-  /**
    * 从JSON字符串恢复Card对象
    */
   restoreCardFromJSON(cardJSON: string): Card {
@@ -418,8 +380,8 @@ private createTraditionalReviewLog(
       if (userWordProgress.review_config) {
         card = this.restoreCardFromJSON(userWordProgress.review_config);
       } else {
-        // 首次创建卡片时，根据单词长度设置初始难度
-        card = this.createCardWithDifficulty(spelling);
+        // 首次创建卡片
+        card = createEmptyCard();
       }
 
       // 使用FSRS算法计算下次复习
@@ -484,7 +446,7 @@ private createTraditionalReviewLog(
   /**
    * 获取所有FSRS评分选项（用于显示预测）
    */
-  getFSRSPreviewOptions(
+    getFSRSPreviewOptions(
     userWordProgress: CreateUserWordProgress, 
     reviewDate: string = new Date().toISOString(),
     spelling: string
@@ -503,7 +465,7 @@ private createTraditionalReviewLog(
         card = this.restoreCardFromJSON(userWordProgress.review_config);
       } else {
         // 首次创建卡片时，根据单词长度设置初始难度
-        card = this.createCardWithDifficulty(spelling);
+        card = createEmptyCard();
       }
 
       // 获取所有评分选项
