@@ -37,7 +37,7 @@ export default function ReviewStrategySettings() {
         {
           text: '确定',
           onPress: () => {
-            router.replace('/profile');
+            router.back();
           }
         }
       ]);
@@ -79,9 +79,6 @@ export default function ReviewStrategySettings() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>复习策略设置</Text>
-      <Text style={styles.subtitle}>选择适合你的单词复习算法</Text>
-      
       <View style={styles.strategiesContainer}>
         {strategies.map((strategy) => (
           <TouchableOpacity
@@ -135,37 +132,29 @@ export default function ReviewStrategySettings() {
         ))}
       </View>
 
-      {/* 策略说明 */}
-      <View style={styles.infoSection}>
-        <Text style={styles.infoTitle}>算法说明</Text>
-        <Text style={styles.infoText}>
-          • <Text style={styles.infoHighlight}>FSRS智能算法</Text>：基于最新的记忆科学研究，会根据你的学习表现动态调整复习间隔，实现最高效的学习效果。
-        </Text>
-        <Text style={styles.infoText}>
-          • <Text style={styles.infoHighlight}>传统间隔重复</Text>：使用固定的复习时间表（如1天、3天、7天等），简单直观，适合刚开始使用间隔重复的用户。
-        </Text>
-      </View>
-
       {/* 操作按钮 */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
-          onPress={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>保存设置</Text>
-          )}
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.cancelButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.cancelButtonText}>取消</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity 
+            style={[styles.cancelButton, isSaving && styles.cancelButtonDisabled]}
+            onPress={() => router.back()}
+            disabled={isSaving}
+          >
+            <Text style={styles.cancelButtonText}>取消</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+            onPress={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>保存设置</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -318,12 +307,18 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginBottom: 24,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   saveButton: { 
+    flex: 1,
     backgroundColor: '#10B981', 
     padding: 16, 
     borderRadius: 8, 
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
   },
   saveButtonDisabled: { 
     backgroundColor: '#A0A0A0' 
@@ -334,12 +329,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelButton: { 
+    flex: 1,
     padding: 16, 
     borderRadius: 8, 
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: 'white',
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
   },
   cancelButtonText: { 
     color: '#666',

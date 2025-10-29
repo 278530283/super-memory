@@ -9,22 +9,26 @@ export default function ProfileLayout() {
   
   return (
     <Stack
+    // 高度低一点
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#4A90E2',
+          backgroundColor: '#f1f1f1',
         },
-        headerTintColor: '#fff',
+        headerTintColor: '#000000',
         headerTitleStyle: {
           fontWeight: 'bold',
+          fontSize: 16,
         },
+        headerTitleAlign: 'center',
+        // 全局返回按钮配置
         headerLeft: () => (
           <TouchableOpacity 
             onPress={() => router.back()}
-            style={{ marginLeft: 16 }}
+            style={{ marginLeft: 10 }}
           >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={18} color="#000000" />
           </TouchableOpacity>
-        ),
+        )
       }}
     >
       <Stack.Screen
@@ -35,12 +39,24 @@ export default function ProfileLayout() {
         }}
       />
       {/* 添加个人资料子页面配置 */}
-      {/* <Stack.Screen
-        name="settings"
-        options={{
-          title: '学习设置',
+      <Stack.Screen
+        name="settings/preferences"
+        options={({ route }: any) => {
+          return {
+            title: `学习偏好`,
+            headerLeft: () => null,
+          };
         }}
-      /> */}
+      />
+      <Stack.Screen
+        name="settings/review-strategy"
+        options={({ route }: any) => {
+          return {
+            title: `复习策略`,
+            headerLeft: () => null,
+          };
+        }}
+      />
       {/* <Stack.Screen
         name="reports"
         options={{

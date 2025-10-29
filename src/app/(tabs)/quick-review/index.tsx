@@ -7,7 +7,7 @@ export default function QuickReviewScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>快速复习</Text>
       <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>立即开始快速复习</Text>
+        <Text style={styles.buttonText}>立即开始</Text>
       </TouchableOpacity>
       <Text style={styles.subtitle}>今日待复习：15个单词</Text>
       {/* Add logic to fetch and display review words */}

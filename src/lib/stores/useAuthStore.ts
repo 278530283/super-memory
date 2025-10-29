@@ -99,23 +99,23 @@ const useAuthStore = create<AuthState>()(
       },
 
       updateName: async (newName) => {
-        set({ loading: true, error: null });
+        set({ error: null });
         try {
           const updatedUser = await userService.updateName(newName);
-          set({ user: updatedUser, lastRefreshed: Date.now(), loading: false });
+          set({ user: updatedUser, lastRefreshed: Date.now()});
         } catch (error: any) {
-          set({ error: error.message || 'Failed to update user name', loading: false });
+          set({ error: error.message || 'Failed to update user name' });
           throw error;
         }
       },
 
       updatePreferences: async (updates) => {
-        set({ loading: true, error: null });
+        set({ error: null });
         try {
           const updatedUser = await userService.updatePreferences(updates);
-          set({ user: updatedUser, lastRefreshed: Date.now(), loading: false });
+          set({ user: updatedUser, lastRefreshed: Date.now() });
         } catch (error: any) {
-          set({ error: error.message || 'Failed to update preferences', loading: false });
+          set({ error: error.message || 'Failed to update preferences' });
           throw error;
         }
       },

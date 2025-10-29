@@ -13,7 +13,6 @@ export default function SpecialTrainingScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>专项能力训练</Text>
       <View style={styles.grid}>
         {trainings.map((training, index) => (
           <TouchableOpacity key={index} style={styles.card}>

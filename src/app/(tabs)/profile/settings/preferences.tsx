@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import RNPickerSelect from 'react-native-picker-select';
 
 export default function PreferencesSettings() {
   const [learningMode, setLearningMode] = useState<string>('2');
@@ -45,7 +44,7 @@ export default function PreferencesSettings() {
         {
           text: '确定',
           onPress: () => {
-            router.replace('/profile');
+            router.back();
           }
         }
       ]);
@@ -58,7 +57,6 @@ export default function PreferencesSettings() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>学习偏好设置</Text>
       
       {/* 学习模式选择 */}
       <View style={styles.section}>
@@ -119,47 +117,29 @@ export default function PreferencesSettings() {
         </View>
       </View>
 
-      {/* 发音偏好 */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>发音偏好</Text>
-        <Text style={styles.sectionDescription}>
-          选择你喜欢的英语发音方式
-        </Text>
-        
-        <View style={styles.pickerContainer}>
-          <RNPickerSelect
-            onValueChange={(value) => setPronounce(value)}
-            items={[
-              { label: '英式发音 (UK)', value: '1' },
-              { label: '美式发音 (US)', value: '2' },
-            ]}
-            value={pronounce}
-            style={pickerSelectStyles}
-            useNativeAndroidPickerStyle={false}
-          />
-        </View>
-      </View>
-
       {/* 操作按钮 */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
-          onPress={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>保存设置</Text>
-          )}
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.cancelButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.cancelButtonText}>取消</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity 
+            style={[styles.cancelButton, isSaving && styles.cancelButtonDisabled]}
+            onPress={() => router.back()}
+            disabled={isSaving}
+          >
+            <Text style={styles.cancelButtonText}>取消</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+            onPress={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>保存设置</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -274,12 +254,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 24,
   },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   saveButton: { 
+    flex: 1,
     backgroundColor: '#4A90E2', 
     padding: 16, 
     borderRadius: 8, 
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
   },
   saveButtonDisabled: { 
     backgroundColor: '#A0A0A0' 
@@ -290,20 +276,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cancelButton: { 
+    flex: 1,
     padding: 16, 
     borderRadius: 8, 
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
     backgroundColor: 'white',
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
   },
   cancelButtonText: { 
     color: '#666',
     fontSize: 16,
   },
-});
-
-const pickerSelectStyles = StyleSheet.create({
   inputIOS: {
     fontSize: 16,
     paddingVertical: 12,

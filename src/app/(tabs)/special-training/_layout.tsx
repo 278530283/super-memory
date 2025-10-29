@@ -8,25 +8,30 @@ export default function SpecialTrainingLayout() {
   const router = useRouter();
   
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: '#4A90E2',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-        headerLeft: () => (
-          <TouchableOpacity 
-            onPress={() => router.back()}
-            style={{ marginLeft: 16 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-        ),
-      }}
-    >
+    
+        <Stack
+        // 高度低一点
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: '#f1f1f1',
+            },
+            headerTintColor: '#000000',
+            headerTitleStyle: {
+              fontWeight: 'bold',
+              fontSize: 16,
+            },
+            headerTitleAlign: 'center',
+            // 全局返回按钮配置
+            headerLeft: () => (
+              <TouchableOpacity 
+                onPress={() => router.back()}
+                style={{ marginLeft: 10 }}
+              >
+                <Ionicons name="arrow-back" size={18} color="#000000" />
+              </TouchableOpacity>
+            )
+          }}
+        >
       <Stack.Screen
         name="index"
         options={{

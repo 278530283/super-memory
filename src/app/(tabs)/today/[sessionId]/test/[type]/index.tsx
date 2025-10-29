@@ -360,7 +360,7 @@ export default function TestScreen() {
           accessibilityLabel="跳过"
           accessibilityHint="跳过当前单词"
         >
-          <Ionicons name="play-skip-forward" size={24} color="#808080" />
+          <Text style={styles.skipButtonText}>跳过</Text>
         </TouchableOpacity>}
       </View>
       
@@ -481,6 +481,11 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  skipButtonText: {
+    color: '#4A90E2',
     fontSize: 16,
     fontWeight: '600',
   },
