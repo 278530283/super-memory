@@ -375,7 +375,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     const wordId = currentWord.$id;
     const phase = testType === 'pre_test' ? 1 : 2;
     const testDate = new Date().toISOString().split('T')[0];
-    const strategyType = appwriteUser.prefs.reviewStrategy;
+    const strategyType = appwriteUser.prefs.reviewStrategy || 2;
 
     try {
       // 停止旧的 actor

@@ -23,7 +23,7 @@ class ReviewStrategyService {
     const params = generatorParameters({
       maximum_interval: 36500,
       enable_fuzz: true,
-      enable_short_term: true
+      enable_short_term: false
     });
     this.fsrsInstance = fsrs(params);
   }
@@ -345,13 +345,13 @@ private createTraditionalReviewLog(
   scheduleDays: number
 ): ReviewScheduleLog {
   return {
-    id: '', // 将在保存时生成
+    $id: '', // 将在保存时生成
     user_id: userWordProgress.user_id,
     word_id: userWordProgress.word_id,
     review_time: reviewDate,
     schedule_days: scheduleDays,
     next_review_time: nextReviewDate,
-    strategy_id: parseInt(strategyId),
+    strategy_id: strategyId,
     // 传统策略没有FSRS相关字段，可以留空或存储其他信息
     review_log: JSON.stringify({
       strategy_type: 'TRADITIONAL',
@@ -397,13 +397,13 @@ private createTraditionalReviewLog(
 
       // 生成复习日志
       const reviewLog: ReviewScheduleLog = {
-        id: '', // 将在保存时生成
+        $id: '', // 将在保存时生成
         user_id: userWordProgress.user_id,
         word_id: userWordProgress.word_id,
         review_time: reviewDate,
         schedule_days: scheduleDays,
         next_review_time: scheduledCard.card.due.toISOString(),
-        strategy_id: parseInt(STRATEGY_IDS.FSRS_DEFAULT),
+        strategy_id: STRATEGY_IDS.FSRS_DEFAULT,
         review_config: this.serializeCardToJSON(scheduledCard.card),
         review_log: JSON.stringify(scheduledCard.log)
       };
@@ -425,13 +425,13 @@ private createTraditionalReviewLog(
         nextReviewDate: defaultDate,
         fsrsCard: this.serializeCardToJSON(emptyCard),
         reviewLog: {
-          id: '',
+          $id: '',
           user_id: userWordProgress.user_id,
           word_id: userWordProgress.word_id,
           review_time: reviewDate,
           schedule_days: 1,
           next_review_time: defaultDate,
-          strategy_id: parseInt(STRATEGY_IDS.FSRS_DEFAULT),
+          strategy_id: STRATEGY_IDS.FSRS_DEFAULT,
           review_config: this.serializeCardToJSON(emptyCard),
           review_log: JSON.stringify({ 
             error: 'FSRS calculation failed', 

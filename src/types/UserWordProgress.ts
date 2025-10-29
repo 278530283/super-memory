@@ -12,7 +12,7 @@ export interface UserWordProgress {
   last_review_date?: string | null; // ISO String
   reviewed_times?: number | null;
   next_review_date?: string | null; // ISO String
-  review_config?: string; // 复习配置信息 (JSON格式)
+  review_config?: string | null; // 复习配置信息 (JSON格式)
 }
 
 // Type for creating a new word progress record (without Appwrite's $id)

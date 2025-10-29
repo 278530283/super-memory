@@ -3,7 +3,6 @@
 
 export interface ReviewStrategy {
   $id: string; // Appwrite Document ID (对应MySQL中的id字段)
-  id: number; // 策略ID (tinyint)
   strategy_type: number; // 策略类型 (1=传统手动策略, 2=FSRS算法策略)
   strategy_name: string; // 策略名称（密集/正常/稀疏/FSRS）
   applicable_condition: string; // 适用条件（如"长难词+L0"）

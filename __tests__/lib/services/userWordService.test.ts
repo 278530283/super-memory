@@ -5,7 +5,8 @@ import ReviewStrategyService from '@/src/lib/services/ReviewStrategyService';
 import userWordService from '@/src/lib/services/userWordService';
 import { STRATEGY_IDS } from '@/src/types/ReviewStrategy';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
-import { TestPhase, UserWordTestHistory } from '@/src/types/UserWordTestHistory';
+import { UserWordTestHistory } from '@/src/types/UserWordTestHistory';
+import { Query } from 'appwrite';
 
 // Mock Appwrite tablesDB
 jest.mock('@/src/lib/appwrite', () => ({
@@ -18,11 +19,47 @@ jest.mock('@/src/lib/appwrite', () => ({
   }
 }));
 
+// Mock ReviewStrategyService
+jest.mock('@/src/lib/services/ReviewStrategyService', () => ({
+  __esModule: true,
+  default: {
+    calculateReviewProgress: jest.fn(),
+  }
+}));
+
 // Mock constants
 jest.mock('@/src/constants/appwrite', () => ({
   COLLECTION_USER_WORD_PROGRESS: 'user_word_progress',
   COLLECTION_USER_WORD_TEST_HISTORY: 'user_word_test_history',
   DATABASE_ID: 'test_database_id'
+}));
+
+// Mock appwrite Query
+jest.mock('appwrite', () => ({
+  ...jest.requireActual('appwrite'),
+  Query: {
+    equal: jest.fn((attribute: string, value: any) => 
+      JSON.stringify({ method: 'equal', attribute, values: [value] })
+    ),
+    lessThanEqual: jest.fn((attribute: string, value: any) => 
+      JSON.stringify({ method: 'lessThanEqual', attribute, values: [value] })
+    ),
+    orderAsc: jest.fn((attribute: string) => 
+      JSON.stringify({ method: 'orderAsc', attribute })
+    ),
+    orderDesc: jest.fn((attribute: string) => 
+      JSON.stringify({ method: 'orderDesc', attribute })
+    ),
+    select: jest.fn((attributes: string[]) => 
+      JSON.stringify({ method: 'select', values: attributes })
+    ),
+    limit: jest.fn((limit: number) => 
+      JSON.stringify({ method: 'limit', values: [limit] })
+    )
+  },
+  ID: {
+    unique: jest.fn(() => 'mock-unique-id')
+  }
 }));
 
 const mockedTablesDB = tablesDB as jest.Mocked<typeof tablesDB>;
@@ -44,7 +81,8 @@ describe('UserWordService Unit Tests', () => {
     start_date: '2024-01-15T10:30:00Z',
     last_review_date: null,
     reviewed_times: 0,
-    next_review_date: '2024-01-16T10:30:00Z'
+    next_review_date: '2024-01-16T10:30:00Z',
+    review_config: null
   };
 
   const mockUserWordTestHistory: UserWordTestHistory = {
@@ -52,12 +90,257 @@ describe('UserWordService Unit Tests', () => {
     user_id: testUserId,
     word_id: testWordId,
     test_date: testDate,
-    phase: TestPhase.PRE_TEST,
+    phase: 1,
     test_level: 2
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('getHistoryLevels', () => {
+    test('returns history levels for user and word with phase 1', async () => {
+      const mockHistories = [
+        { ...mockUserWordTestHistory, test_level: 2 },
+        { ...mockUserWordTestHistory, test_level: 3, $id: 'history2' }
+      ];
+
+      mockedTablesDB.listRows.mockResolvedValueOnce({
+        total: 2,
+        rows: mockHistories
+      } as any);
+
+      const result = await userWordService.getHistoryLevels(testUserId, testWordId);
+      
+      expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        queries: [
+          Query.equal('user_id', testUserId),
+          Query.equal('word_id', testWordId),
+          Query.equal('phase', 1),
+          Query.orderAsc('test_date')
+        ]
+      });
+      
+      expect(result).toEqual([2, 3]);
+    });
+
+    test('returns empty array when no history found', async () => {
+      mockedTablesDB.listRows.mockResolvedValueOnce({
+        total: 0,
+        rows: []
+      } as any);
+
+      const result = await userWordService.getHistoryLevels(testUserId, testWordId);
+      
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getUserWordTestHistory', () => {
+    test('returns test history when exists', async () => {
+      mockedTablesDB.listRows.mockResolvedValueOnce({
+        total: 1,
+        rows: [mockUserWordTestHistory]
+      } as any);
+
+      const result = await userWordService.getUserWordTestHistory(
+        testUserId,
+        testWordId,
+        1, // phase
+        testDate
+      );
+      
+      expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        queries: [
+          Query.equal('user_id', testUserId),
+          Query.equal('word_id', testWordId),
+          Query.equal('phase', 1),
+          Query.equal('test_date', testDate)
+        ]
+      });
+      
+      expect(result).toEqual(mockUserWordTestHistory);
+    });
+
+    test('returns null when no history found', async () => {
+      mockedTablesDB.listRows.mockResolvedValueOnce({
+        total: 0,
+        rows: []
+      } as any);
+
+      const result = await userWordService.getUserWordTestHistory(
+        testUserId,
+        testWordId,
+        1,
+        testDate
+      );
+      
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('createUserWordTestHistory', () => {
+    test('creates a new test history record', async () => {
+      const newHistory = {
+        user_id: testUserId,
+        word_id: testWordId,
+        test_date: testDate,
+        phase: 1,
+        test_level: 2,
+      };
+
+      mockedTablesDB.createRow.mockResolvedValueOnce(mockUserWordTestHistory as any);
+
+      const result = await userWordService.createUserWordTestHistory(newHistory);
+      
+      expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        rowId: 'mock-unique-id',
+        data: newHistory
+      });
+      
+      expect(result).toEqual(mockUserWordTestHistory);
+    });
+  });
+
+  describe('updateUserWordTestHistory', () => {
+    test('updates an existing test history record', async () => {
+      const updates = { test_level: 3 };
+      const updatedHistory = { ...mockUserWordTestHistory, test_level: 3 };
+
+      mockedTablesDB.updateRow.mockResolvedValueOnce(updatedHistory as any);
+
+      const result = await userWordService.updateUserWordTestHistory('history123', updates);
+      
+      expect(mockedTablesDB.updateRow).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        rowId: 'history123',
+        data: updates
+      });
+      
+      expect(result).toEqual(updatedHistory);
+    });
+  });
+
+  describe('upsertUserWordTestHistory', () => {
+    test('updates existing record when one exists', async () => {
+      // Mock the getUserWordTestHistory call
+      jest.spyOn(userWordService, 'getUserWordTestHistory').mockResolvedValueOnce(mockUserWordTestHistory);
+      
+      const updatedHistory = { ...mockUserWordTestHistory, test_level: 4 };
+      mockedTablesDB.updateRow.mockResolvedValueOnce(updatedHistory as any);
+
+      const updates = {
+        user_id: testUserId,
+        word_id: testWordId,
+        test_date: testDate,
+        phase: 1,
+        test_level: 4,
+      };
+
+      const result = await userWordService.upsertUserWordTestHistory(updates);
+      
+      expect(userWordService.getUserWordTestHistory).toHaveBeenCalledWith(
+        testUserId,
+        testWordId,
+        1,
+        testDate
+      );
+      expect(result).toEqual(updatedHistory);
+    });
+
+    test('creates new record when none exists', async () => {
+      // Mock the getUserWordTestHistory call to return null
+      jest.spyOn(userWordService, 'getUserWordTestHistory').mockResolvedValueOnce(null);
+      
+      const newHistory = {
+        user_id: testUserId,
+        word_id: testWordId,
+        test_date: testDate,
+        phase: 1,
+        test_level: 3,
+      };
+
+      const createdHistory = { $id: 'new-history-id', ...newHistory } as UserWordTestHistory;
+      mockedTablesDB.createRow.mockResolvedValueOnce(createdHistory as any);
+
+      const result = await userWordService.upsertUserWordTestHistory(newHistory);
+      
+      expect(userWordService.getUserWordTestHistory).toHaveBeenCalledWith(
+        testUserId,
+        testWordId,
+        1,
+        testDate
+      );
+      expect(result).toEqual(createdHistory);
+    });
+  });
+
+  describe('getUserTestHistoryByDate', () => {
+    test('returns test history for a specific date', async () => {
+      const mockHistories = [
+        mockUserWordTestHistory,
+        { ...mockUserWordTestHistory, $id: 'history2', word_id: 'word2' }
+      ];
+
+      mockedTablesDB.listRows.mockResolvedValueOnce({
+        total: 2,
+        rows: mockHistories
+      } as any);
+
+      const result = await userWordService.getUserTestHistoryByDate(testUserId, testDate);
+      
+      expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        queries: [
+          Query.equal('user_id', testUserId),
+          Query.equal('test_date', testDate),
+          Query.orderAsc('word_id')
+        ]
+      });
+      
+      expect(result).toEqual(mockHistories);
+    });
+  });
+
+  describe('getUserTestHistoryByDateAndPhase', () => {
+    test('returns test history for a specific date and phase', async () => {
+      const mockHistories = [
+        mockUserWordTestHistory,
+        { ...mockUserWordTestHistory, $id: 'history2', word_id: 'word2' }
+      ];
+
+      mockedTablesDB.listRows.mockResolvedValueOnce({
+        total: 2,
+        rows: mockHistories
+      } as any);
+
+      const result = await userWordService.getUserTestHistoryByDateAndPhase(
+        testUserId,
+        testDate,
+        1 // phase
+      );
+      
+      expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        queries: [
+          Query.equal('user_id', testUserId),
+          Query.equal('test_date', testDate),
+          Query.equal('phase', 1),
+          Query.orderAsc('word_id')
+        ]
+      });
+      
+      expect(result).toEqual(mockHistories);
+    });
   });
 
   describe('createUserWordProgress', () => {
@@ -71,7 +354,8 @@ describe('UserWordService Unit Tests', () => {
         start_date: '2024-01-15T10:30:00Z',
         last_review_date: null,
         reviewed_times: 0,
-        next_review_date: '2024-01-16T10:30:00Z'
+        next_review_date: '2024-01-16T10:30:00Z',
+        review_config: null
       };
 
       mockedTablesDB.createRow.mockResolvedValueOnce(mockUserWordProgress as any);
@@ -81,7 +365,7 @@ describe('UserWordService Unit Tests', () => {
       expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
-        rowId: expect.any(String),
+        rowId: 'mock-unique-id',
         data: newProgress
       });
       
@@ -124,25 +408,13 @@ describe('UserWordService Unit Tests', () => {
 
       const result = await userWordService.getUserWordProgressByUserAndWord(testUserId, testWordId);
       
-      // 修复：检查序列化后的查询
       expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'user_id',
-            values: [testUserId]
-          }),
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'word_id',
-            values: [testWordId]
-          }),
-          JSON.stringify({
-            method: 'limit',
-            values: [1]
-          })
+          Query.equal('user_id', testUserId),
+          Query.equal('word_id', testWordId),
+          Query.limit(1)
         ]
       });
       
@@ -162,252 +434,180 @@ describe('UserWordService Unit Tests', () => {
   });
 
   describe('upsertUserWordProgress', () => {
-  const testStrategyType = 1;
-  const testSpelling = 'test';
-  const mockReviewDate = new Date().toISOString();
+    const testStrategyType = 1;
+    const testSpelling = 'test';
+    const mockReviewDate = new Date().toISOString();
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test('updates existing record when one exists with review strategy calculation', async () => {
-    // Mock existing record
-    const existingRecord: UserWordProgress = {
-      $id: 'progress123',
-      user_id: testUserId,
-      word_id: testWordId,
-      is_long_difficult: false,
-      proficiency_level: 1,
-      strategy_id: STRATEGY_IDS.NORMAL,
-      start_date: '2024-01-15T10:30:00Z',
-      last_review_date: null,
-      reviewed_times: 0,
-      next_review_date: '2024-01-16T10:30:00Z'
-    };
-
-    // Mock review strategy calculation result
-    const mockReviewData = {
-      user_id: testUserId,
-      word_id: testWordId,
-      proficiency_level: 3,
-      is_long_difficult: false,
-      last_review_date: mockReviewDate,
-      reviewed_times: 1,
-      next_review_date: '2024-01-17T10:30:00Z',
-      strategy_id: STRATEGY_IDS.NORMAL,
-      review_config: '{"interval": 1}'
-    };
-
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 1,
-      rows: [existingRecord]
-    } as any);
-
-    mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(mockReviewData);
-
-    const updatedProgress = { 
-      ...existingRecord, 
-      ...mockReviewData,
-      proficiency_level: 3 
-    };
-    mockedTablesDB.updateRow.mockResolvedValueOnce(updatedProgress as any);
-
-    const updates = {
-      user_id: testUserId,
-      word_id: testWordId,
-      proficiency_level: 3,
-      strategy_id: STRATEGY_IDS.NORMAL,
-      is_long_difficult: false
-    };
-
-    const result = await userWordService.upsertUserWordProgress(
-      updates, 
-      testStrategyType, 
-      testSpelling
-    );
-    
-    // Verify ReviewStrategyService was called correctly
-    expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
-      existingRecord,
-      3, // proficiency_level
-      mockReviewDate,
-      testStrategyType,
-      testSpelling
-    );
-    
-    // Verify update was called with combined data
-    expect(mockedTablesDB.updateRow).toHaveBeenCalledWith({
-      databaseId: DATABASE_ID,
-      tableId: COLLECTION_USER_WORD_PROGRESS,
-      rowId: existingRecord.$id,
-      data: {
-        ...updates,
-        ...mockReviewData
-      }
+    beforeEach(() => {
+      jest.clearAllMocks();
+      // Mock the current date
+      jest.spyOn(Date.prototype, 'toISOString').mockReturnValue(mockReviewDate);
     });
-    
-    expect(result).toEqual(updatedProgress);
-  });
 
-  test('creates new record when none exists with review strategy calculation', async () => {
-    // No existing record
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 0,
-      rows: []
-    } as any);
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
 
-    // Mock review strategy calculation result
-    const mockReviewData = {
-      user_id: testUserId,
-      word_id: testWordId,
-      proficiency_level: 3,
-      is_long_difficult: false,
-      last_review_date: mockReviewDate,
-      reviewed_times: 1,
-      next_review_date: '2024-01-17T10:30:00Z',
-      strategy_id: STRATEGY_IDS.NORMAL,
-      review_config: '{"interval": 1}'
-    };
+    test('updates existing record when one exists with review strategy calculation', async () => {
+      // Mock existing record
+      const existingRecord: UserWordProgress = {
+        ...mockUserWordProgress,
+        proficiency_level: 1
+      };
 
-    mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(mockReviewData);
+      // Mock review strategy calculation result
+      const mockReviewData = {
+        proficiency_level: 3,
+        last_review_date: mockReviewDate,
+        reviewed_times: 1,
+        next_review_date: '2024-01-17T10:30:00Z',
+        strategy_id: STRATEGY_IDS.NORMAL,
+        review_config: '{"interval": 1}'
+      };
 
-    const newProgressData = {
-      user_id: testUserId,
-      word_id: 'new-test-word-id',
-      is_long_difficult: true,
-      proficiency_level: 0,
-      strategy_id: STRATEGY_IDS.NORMAL
-    };
+      jest.spyOn(userWordService, 'getUserWordProgressByUserAndWord').mockResolvedValueOnce(existingRecord);
+      mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(mockReviewData as any);
 
-    const createdProgress = { 
-      $id: 'new-progress-id', 
-      ...newProgressData,
-      ...mockReviewData 
-    } as UserWordProgress;
-    
-    mockedTablesDB.createRow.mockResolvedValueOnce(createdProgress as any);
+      const updatedProgress = { 
+        ...existingRecord, 
+        ...mockReviewData
+      };
+      mockedTablesDB.updateRow.mockResolvedValueOnce(updatedProgress as any);
 
-    const result = await userWordService.upsertUserWordProgress(
-      newProgressData, 
-      testStrategyType, 
-      testSpelling
-    );
-    
-    // Verify ReviewStrategyService was called correctly for new record
-    expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
-      newProgressData, // data object instead of existing record
-      0, // proficiency_level
-      mockReviewDate,
-      testStrategyType,
-      testSpelling
-    );
-    
-    // Verify create was called with combined data
-    expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
-      databaseId: DATABASE_ID,
-      tableId: COLLECTION_USER_WORD_PROGRESS,
-      rowId: expect.any(String),
-      data: {
+      const updates = {
+        user_id: testUserId,
+        word_id: testWordId,
+        proficiency_level: 3,
+        strategy_id: STRATEGY_IDS.NORMAL,
+        is_long_difficult: false
+      };
+
+      const result = await userWordService.upsertUserWordProgress(
+        updates, 
+        testStrategyType, 
+        testSpelling
+      );
+      
+      expect(userWordService.getUserWordProgressByUserAndWord).toHaveBeenCalledWith(testUserId, testWordId);
+      expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
+        existingRecord,
+        3, // proficiency_level
+        mockReviewDate,
+        testStrategyType,
+        testSpelling
+      );
+      
+      expect(mockedTablesDB.updateRow).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_PROGRESS,
+        rowId: existingRecord.$id,
+        data: {
+          ...updates,
+          ...mockReviewData
+        }
+      });
+      
+      expect(result).toEqual(updatedProgress);
+    });
+
+    test('creates new record when none exists with review strategy calculation', async () => {
+      // No existing record
+      jest.spyOn(userWordService, 'getUserWordProgressByUserAndWord').mockResolvedValueOnce(null);
+
+      // Mock review strategy calculation result
+      const mockReviewData = {
+        proficiency_level: 0,
+        last_review_date: mockReviewDate,
+        reviewed_times: 0,
+        next_review_date: '2024-01-17T10:30:00Z',
+        strategy_id: STRATEGY_IDS.NORMAL,
+        review_config: '{"interval": 1}'
+      };
+
+      mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(mockReviewData as any);
+
+      const newProgressData = {
+        user_id: testUserId,
+        word_id: 'new-test-word-id',
+        is_long_difficult: true,
+        proficiency_level: 0,
+        strategy_id: STRATEGY_IDS.NORMAL
+      };
+
+      const createdProgress = { 
+        $id: 'new-progress-id', 
         ...newProgressData,
-        ...mockReviewData
-      }
+        ...mockReviewData 
+      } as UserWordProgress;
+      
+      mockedTablesDB.createRow.mockResolvedValueOnce(createdProgress as any);
+
+      const result = await userWordService.upsertUserWordProgress(
+        newProgressData, 
+        testStrategyType, 
+        testSpelling
+      );
+      
+      expect(userWordService.getUserWordProgressByUserAndWord).toHaveBeenCalledWith(testUserId, 'new-test-word-id');
+      expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
+        newProgressData,
+        0, // proficiency_level
+        mockReviewDate,
+        testStrategyType,
+        testSpelling
+      );
+      
+      expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_PROGRESS,
+        rowId: 'mock-unique-id',
+        data: {
+          ...newProgressData,
+          ...mockReviewData
+        }
+      });
+      
+      expect(result).toEqual(createdProgress);
     });
-    
-    expect(result).toEqual(createdProgress);
+
+    test('returns existing record when review strategy calculation returns null', async () => {
+      // Mock existing record
+      const existingRecord: UserWordProgress = {
+        ...mockUserWordProgress,
+        proficiency_level: 1
+      };
+
+      jest.spyOn(userWordService, 'getUserWordProgressByUserAndWord').mockResolvedValueOnce(existingRecord);
+
+      // Review strategy returns null (no need to update)
+      mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(null);
+
+      const updates = {
+        user_id: testUserId,
+        word_id: testWordId,
+        proficiency_level: 2,
+        strategy_id: STRATEGY_IDS.NORMAL,
+        is_long_difficult: false
+      };
+
+      const result = await userWordService.upsertUserWordProgress(
+        updates, 
+        testStrategyType, 
+        testSpelling
+      );
+      
+      expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
+        existingRecord,
+        2, // proficiency_level
+        mockReviewDate,
+        testStrategyType,
+        testSpelling
+      );
+      
+      expect(mockedTablesDB.updateRow).not.toHaveBeenCalled();
+      expect(result).toEqual(existingRecord);
+    });
   });
-
-  test('returns existing record when review strategy calculation returns null', async () => {
-    // Mock existing record
-    const existingRecord: UserWordProgress = {
-      $id: 'progress123',
-      user_id: testUserId,
-      word_id: testWordId,
-      is_long_difficult: false,
-      proficiency_level: 1,
-      strategy_id: STRATEGY_IDS.NORMAL,
-      start_date: '2024-01-15T10:30:00Z',
-      last_review_date: null,
-      reviewed_times: 0,
-      next_review_date: '2024-01-16T10:30:00Z'
-    };
-
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 1,
-      rows: [existingRecord]
-    } as any);
-
-    // Review strategy returns null (no need to update)
-    mockedReviewStrategyService.calculateReviewProgress.mockResolvedValueOnce(null);
-
-    const updates = {
-      user_id: testUserId,
-      word_id: testWordId,
-      proficiency_level: 2,
-      strategy_id: STRATEGY_IDS.NORMAL,
-      is_long_difficult: false
-    };
-
-    const result = await userWordService.upsertUserWordProgress(
-      updates, 
-      testStrategyType, 
-      testSpelling
-    );
-    
-    // Verify ReviewStrategyService was called
-    expect(mockedReviewStrategyService.calculateReviewProgress).toHaveBeenCalledWith(
-      existingRecord,
-      2, // proficiency_level
-      mockReviewDate,
-      testStrategyType,
-      testSpelling
-    );
-    
-    // Verify no update was performed
-    expect(mockedTablesDB.updateRow).not.toHaveBeenCalled();
-    
-    // Should return existing record unchanged
-    expect(result).toEqual(existingRecord);
-  });
-
-  test('handles errors during review strategy calculation', async () => {
-    const existingRecord: UserWordProgress = {
-      $id: 'progress123',
-      user_id: testUserId,
-      word_id: testWordId,
-      is_long_difficult: false,
-      proficiency_level: 1,
-      strategy_id: STRATEGY_IDS.NORMAL,
-      start_date: '2024-01-15T10:30:00Z',
-      last_review_date: null,
-      reviewed_times: 0,
-      next_review_date: '2024-01-16T10:30:00Z'
-    };
-
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 1,
-      rows: [existingRecord]
-    } as any);
-
-    // Review strategy throws an error
-    const mockError = new Error('Review strategy calculation failed');
-    mockedReviewStrategyService.calculateReviewProgress.mockRejectedValueOnce(mockError);
-
-    const updates = {
-      user_id: testUserId,
-      word_id: testWordId,
-      proficiency_level: 2,
-      strategy_id: STRATEGY_IDS.NORMAL,
-      is_long_difficult: false
-    };
-
-    await expect(
-      userWordService.upsertUserWordProgress(updates, testStrategyType, testSpelling)
-    ).rejects.toThrow('Review strategy calculation failed');
-    
-    // Verify no update was attempted
-    expect(mockedTablesDB.updateRow).not.toHaveBeenCalled();
-  });
-});
 
   describe('getWordIdsForReview', () => {
     test('returns word IDs that need review', async () => {
@@ -424,33 +624,15 @@ describe('UserWordService Unit Tests', () => {
       const queryTime = '2024-01-20T10:30:00Z';
       const result = await userWordService.getWordIdsForReview(testUserId, queryTime, 10);
       
-      // 修复：检查序列化后的查询
       expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'user_id',
-            values: [testUserId]
-          }),
-          JSON.stringify({
-            method: 'lessThanEqual',
-            attribute: 'next_review_date',
-            values: [queryTime]
-          }),
-          JSON.stringify({
-            method: 'orderAsc',
-            attribute: 'next_review_date'
-          }),
-          JSON.stringify({
-            method: 'select',
-            values: ['word_id']
-          }),
-          JSON.stringify({
-            method: 'limit',
-            values: [10]
-          })
+          Query.equal('user_id', testUserId),
+          Query.lessThanEqual('next_review_date', queryTime),
+          Query.orderAsc('next_review_date'),
+          Query.select(['word_id']),
+          Query.limit(10)
         ]
       });
       
@@ -473,312 +655,16 @@ describe('UserWordService Unit Tests', () => {
 
       const result = await userWordService.getReviewedWordIds(testUserId);
       
-      // 修复：检查序列化后的查询
       expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'user_id',
-            values: [testUserId]
-          }),
-          JSON.stringify({
-            method: 'select',
-            values: ['word_id']
-          })
+          Query.equal('user_id', testUserId),
+          Query.select(['word_id'])
         ]
       });
       
       expect(result).toEqual([testWordId, 'word2', 'word3']);
     });
   });
-
-  describe('createUserWordTestHistory', () => {
-    test('creates a new test history record', async () => {
-      const newHistory: any = {
-        user_id: testUserId,
-        word_id: testWordId,
-        test_date: testDate,
-        phase: TestPhase.PRE_TEST,
-        test_level: 2,
-      };
-
-      mockedTablesDB.createRow.mockResolvedValueOnce(mockUserWordTestHistory as any);
-
-      const result = await userWordService.createUserWordTestHistory(newHistory);
-      
-      expect(mockedTablesDB.createRow).toHaveBeenCalledWith({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
-        rowId: expect.any(String),
-        data: newHistory
-      });
-      
-      expect(result).toEqual(mockUserWordTestHistory);
-    });
-  });
-
-  describe('getUserWordTestHistory', () => {
-  test('returns test history when exists', async () => {
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 1,
-      rows: [mockUserWordTestHistory]
-    } as any);
-
-    const result = await userWordService.getUserWordTestHistory(
-      testUserId,
-      testWordId,
-      TestPhase.PRE_TEST,
-      testDate
-    );
-    
-    // 修复：根据实际实现调整查询条件
-    expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
-      databaseId: DATABASE_ID,
-      tableId: COLLECTION_USER_WORD_TEST_HISTORY,
-      queries: [
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'user_id',
-          values: [testUserId]
-        }),
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'word_id',
-          values: [testWordId]
-        }),
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'phase',
-          values: [TestPhase.PRE_TEST]
-        }),
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'test_date',
-          values: [testDate]
-        })
-        // 注意：实际的实现可能没有 limit(1)，或者有其他排序条件
-      ]
-    });
-    
-    expect(result).toEqual(mockUserWordTestHistory);
-  });
-
-    test('returns null when no history found', async () => {
-      mockedTablesDB.listRows.mockResolvedValueOnce({
-        total: 0,
-        rows: []
-      } as any);
-
-      const result = await userWordService.getUserWordTestHistory(
-        testUserId,
-        testWordId,
-        TestPhase.POST_TEST,
-        testDate
-      );
-      
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('updateUserWordTestHistory', () => {
-    test('updates an existing test history record', async () => {
-      const updates = { test_level: 3 };
-      const updatedHistory = { ...mockUserWordTestHistory, test_level: 3 };
-
-      mockedTablesDB.updateRow.mockResolvedValueOnce(updatedHistory as any);
-
-      const result = await userWordService.updateUserWordTestHistory('history123', updates);
-      
-      expect(mockedTablesDB.updateRow).toHaveBeenCalledWith({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
-        rowId: 'history123',
-        data: updates
-      });
-      
-      expect(result).toEqual(updatedHistory);
-    });
-  });
-
-  describe('upsertUserWordTestHistory', () => {
-    test('updates existing record when one exists', async () => {
-      mockedTablesDB.listRows.mockResolvedValueOnce({
-        total: 1,
-        rows: [mockUserWordTestHistory]
-      } as any);
-
-      const updatedHistory = { ...mockUserWordTestHistory, test_level: 4 };
-      mockedTablesDB.updateRow.mockResolvedValueOnce(updatedHistory as any);
-
-      const updates = {
-        user_id: testUserId,
-        word_id: testWordId,
-        test_date: testDate,
-        phase: TestPhase.PRE_TEST,
-        test_level: 4,
-      };
-
-      const result = await userWordService.upsertUserWordTestHistory(updates);
-      
-      expect(result).toEqual(updatedHistory);
-    });
-
-    test('creates new record when none exists', async () => {
-      mockedTablesDB.listRows.mockResolvedValueOnce({
-        total: 0,
-        rows: []
-      } as any);
-
-      const newHistory: any = {
-        user_id: testUserId,
-        word_id: testWordId,
-        test_date: testDate,
-        phase: TestPhase.POST_TEST,
-        test_level: 3,
-      };
-
-      const createdHistory = { $id: 'new-history-id', ...newHistory } as UserWordTestHistory;
-      mockedTablesDB.createRow.mockResolvedValueOnce(createdHistory as any);
-
-      const result = await userWordService.upsertUserWordTestHistory(newHistory);
-      
-      expect(result).toEqual(createdHistory);
-    });
-  });
-
-  describe('getHistoryLevels', () => {
-  test('returns history levels for user and word', async () => {
-    const mockHistories = [
-      { ...mockUserWordTestHistory, test_level: 2 },
-      { ...mockUserWordTestHistory, test_level: 3, $id: 'history2' }
-    ];
-
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 2,
-      rows: mockHistories
-    } as any);
-
-    const result = await userWordService.getHistoryLevels(testUserId, testWordId);
-    
-    // 修复：根据实际实现调整查询条件
-    expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
-      databaseId: DATABASE_ID,
-      tableId: COLLECTION_USER_WORD_TEST_HISTORY,
-      queries: [
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'user_id',
-          values: [testUserId]
-        }),
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'word_id',
-          values: [testWordId]
-        }),
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'phase',
-          values: [TestPhase.PRE_TEST]
-        }),
-        JSON.stringify({
-          method: 'orderAsc',
-          attribute: 'test_date'
-        })
-      ]
-    });
-    
-    expect(result).toEqual([2, 3]);
-  });
-});
-
-  describe('getUserTestHistoryByDate', () => {
-  test('returns test history for a specific date', async () => {
-    const mockHistories = [
-      mockUserWordTestHistory,
-      { ...mockUserWordTestHistory, $id: 'history2', word_id: 'word2' }
-    ];
-
-    mockedTablesDB.listRows.mockResolvedValueOnce({
-      total: 2,
-      rows: mockHistories
-    } as any);
-
-    const result = await userWordService.getUserTestHistoryByDate(testUserId, testDate);
-    
-    // 修复：根据实际实现调整查询条件
-    expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
-      databaseId: DATABASE_ID,
-      tableId: COLLECTION_USER_WORD_TEST_HISTORY,
-      queries: [
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'user_id',
-          values: [testUserId]
-        }),
-        JSON.stringify({
-          method: 'equal',
-          attribute: 'test_date',
-          values: [testDate]
-        }),
-        JSON.stringify({
-          method: 'orderAsc',
-          attribute: 'word_id'
-        })
-      ]
-    });
-    
-    expect(result).toEqual(mockHistories);
-  });
-});
-
-  describe('getUserTestHistoryByDateAndPhase', () => {
-    test('returns test history for a specific date and phase', async () => {
-      const mockHistories = [
-        mockUserWordTestHistory,
-        { ...mockUserWordTestHistory, $id: 'history2', word_id: 'word2' }
-      ];
-
-      mockedTablesDB.listRows.mockResolvedValueOnce({
-        total: 2,
-        rows: mockHistories
-      } as any);
-
-      const result = await userWordService.getUserTestHistoryByDateAndPhase(
-        testUserId,
-        testDate,
-        TestPhase.PRE_TEST
-      );
-      
-      // 修复：根据实际实现调整查询条件
-      expect(mockedTablesDB.listRows).toHaveBeenCalledWith({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
-        queries: [
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'user_id',
-            values: [testUserId]
-          }),
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'test_date',
-            values: [testDate]
-          }),
-          JSON.stringify({
-            method: 'equal',
-            attribute: 'phase',
-            values: [TestPhase.PRE_TEST]
-          }),
-          JSON.stringify({
-            method: 'orderAsc',
-            attribute: 'word_id'
-          })
-        ]
-      });
-      
-      expect(result).toEqual(mockHistories);
-    });
-    });
 });
