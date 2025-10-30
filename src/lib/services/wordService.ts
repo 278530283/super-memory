@@ -272,7 +272,7 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
  * 查询新学的单词（只返回单词ID，按照frequency排序）
  * @param userId 用户ID
  * @param reviewedWordIds 已复习过的单词ID数组（需要排除）
- * @param difficultyLevel 难度等级（可选）
+ * @param englishLevel 英语水平（可选），0:零基础 1：小学 2：初中 3：高中
  * @param tag 标签（可选），支持模糊匹配（如输入"gk"可以匹配到"gk, zk gk"）
  * @param limit 限制返回数量，默认10
  * @returns Promise<string[]> 新学单词ID数组
@@ -280,8 +280,8 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
 async getNewWordIds(
   userId: string,
   reviewedWordIds: string[] = [],
-  difficultyLevel?: number,
-  tag?: string,
+  englishLevel?: number,
+  tag?: string | null,
   limit: number = 20
 ): Promise<string[]> {
   try {
@@ -295,7 +295,8 @@ async getNewWordIds(
     }
 
     // 难度等级筛选
-    if (difficultyLevel !== undefined) {
+    if (englishLevel !== undefined) {
+      const difficultyLevel = this.getDifficultyLevel(englishLevel);
       queries.push(Query.equal('difficulty_level', difficultyLevel));
     }
 
@@ -323,6 +324,26 @@ async getNewWordIds(
   } catch (error) {
     console.error("WordService.getNewWordIds error:", error);
     throw error;
+  }
+}
+
+/**
+ * 将englishLevel映射到对应的难度级别
+ * @param englishLevel 英语水平等级（0-3及其他）
+ * @returns 映射后的难度级别（1,2,3）
+ */
+getDifficultyLevel(englishLevel: number): number {
+  // 检查0、1、2 -> 难度1：中考
+  if ([0, 1, 2].includes(englishLevel)) {
+      return 1;
+  }
+  // 检查3 -> 难度2：高考
+  else if (englishLevel === 3) {
+      return 2;
+  }
+  // 其他情况（包括负数、4及以上等）-> 难度3
+  else {
+      return 3;
   }
 }
 

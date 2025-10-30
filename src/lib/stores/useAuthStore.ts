@@ -112,7 +112,18 @@ const useAuthStore = create<AuthState>()(
       updatePreferences: async (updates) => {
         set({ error: null });
         try {
-          const updatedUser = await userService.updatePreferences(updates);
+          const state = get();
+          if (!state.user) {
+            throw new Error('User not found');
+          }
+      
+          // 获取当前偏好设置
+          const currentPrefs = state.user.prefs || {};
+          
+          // 合并当前偏好设置和更新内容
+          const mergedPrefs = { ...currentPrefs, ...updates };
+      
+          const updatedUser = await userService.updatePreferences(mergedPrefs);
           set({ user: updatedUser, lastRefreshed: Date.now() });
         } catch (error: any) {
           set({ error: error.message || 'Failed to update preferences' });

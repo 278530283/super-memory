@@ -569,7 +569,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     try {
       const userId = appwriteUser.$id;
       const wordId = currentWord.$id;
-      const strategyType = appwriteUser.prefs.reviewStrategy;
+      const strategyType = appwriteUser.prefs.reviewStrategy || 2;
 
       console.log(`[TestStore] Skipping word ${wordId} for user ${userId}`);
 

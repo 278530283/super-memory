@@ -20,7 +20,7 @@ interface DailyLearningState {
     sessionId: string,
     userId: string,
     modeId: string,
-    difficultyLevel: number
+    englishLevel: number
   ) => Promise<void>;
 }
 
@@ -72,14 +72,14 @@ const useDailyLearningStore = create<DailyLearningState>((set) => ({
     }
   },
   clearError: () => set({ error: null }),
-  addIncrementalWords: async (sessionId, userId, modeId, difficultyLevel) => {
+  addIncrementalWords: async (sessionId, userId, modeId, englishLevel) => {
     set({ error: null });
     try {
       const updatedSession = await dailyLearningService.addIncrementalWordsToSession(
         sessionId,
         userId,
         modeId,
-        difficultyLevel
+        englishLevel
       );
       console.log("Updated session:", updatedSession);
       set({ session: updatedSession });

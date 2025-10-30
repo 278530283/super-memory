@@ -213,7 +213,7 @@ class DailyLearningService {
    * @param modeId The ID of the selected learning mode.
    * @returns An object containing arrays of word IDs for pre-test, learning, and post-test.
    */
-  async generateTodaysWordLists(userId: string, modeId: string, difficultyLevel: number): Promise<{ pre_test: string[]; post_test: string[] }> {
+  async generateTodaysWordLists(userId: string, modeId: string, englishLevel: number): Promise<{ pre_test: string[]; post_test: string[] }> {
     try {
       // 1. Fetch User Preferences and Learning Mode Details
       const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
@@ -230,7 +230,7 @@ class DailyLearningService {
       console.log("User need review word count:", wordIdsForReview.length);
 
       // 4. Get New Word IDs
-      const newWordIds = await wordService.getNewWordIds(userId, reviewedWordIds, difficultyLevel, 'zk', mode.word_count);
+      const newWordIds = await wordService.getNewWordIds(userId, reviewedWordIds, englishLevel, null, mode.word_count);
       console.log("User new word count:", newWordIds.length);
 
       // 5. Combine Word IDs
@@ -251,17 +251,18 @@ class DailyLearningService {
    * This method randomly selects words based on mode and difficulty level.
    * @param userId The ID of the user.
    * @param modeId The ID of the selected learning mode.
-   * @param difficultyLevel The difficulty level for word selection.
+   * @param englishLevel The english level for word selection.
    * @param excludeWordIds 需要排除的单词ID列表（通常是当前会话中已存在的单词）
    * @returns An array of word IDs for incremental learning.
    */
   async generateIncrementalWordsList(
     userId: string, 
     modeId: string, 
-    difficultyLevel: number,
+    englishLevel: number,
     excludeWordIds: string[] = []
   ): Promise<string[]> {
     try {
+      console.log(`[DailyLearningService] Generating incremental words list for user ${userId}`);
       // 1. Fetch Learning Mode Details to get word count
       const mode = await learningModeService.getLearningMode(modeId) as unknown as LearningMode;
       
@@ -277,8 +278,8 @@ class DailyLearningService {
       const newWordIds = await wordService.getNewWordIds(
         userId, 
         allExcludedWordIds, // 传入所有需要排除的单词ID
-        difficultyLevel, 
-        'zk', 
+        englishLevel, 
+        null, 
         mode.word_count
       );
       
@@ -305,16 +306,17 @@ class DailyLearningService {
  * @param sessionId The ID of the existing session
  * @param userId The ID of the user
  * @param modeId The ID of the learning mode
- * @param difficultyLevel The difficulty level for word selection
+ * @param englishLevel The english level for word selection
  * @returns The updated session
  */
 async addIncrementalWordsToSession(
   sessionId: string,
   userId: string,
   modeId: string,
-  difficultyLevel: number
+  englishLevel: number
 ): Promise<DailyLearningSession> {
   try {
+    console.log("[DailyLearningService] addIncrementalWordsToSession, userId:", userId, ", modeId:", modeId, ", englishLevel:", englishLevel);
     // 1. Get current session
     const currentSession = await this.getSessionById(sessionId);
     if (!currentSession) {
@@ -325,7 +327,7 @@ async addIncrementalWordsToSession(
     const incrementalWords = await this.generateIncrementalWordsList(
       userId,
       modeId,
-      difficultyLevel,
+      englishLevel,
       currentSession.pre_test_word_ids // 排除当前会话中所有已存在的单词
     );
 

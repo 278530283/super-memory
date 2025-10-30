@@ -73,11 +73,11 @@ export default function TodayScreen() {
           console.log('[TodayScreen] 创建新的会话...');
             const userPrefs = useAuthStore.getState().user?.prefs;
             const modeId = userPrefs?.learningMode || "2";
-            const difficultyLevel = userPrefs?.englishLevel || 1;
+            const englishLevel = userPrefs?.englishLevel || 1;
 
             try {
                 setIsLoading(true);
-                const initialWordIds = await dailyLearningService.generateTodaysWordLists(user.$id, modeId, difficultyLevel);
+                const initialWordIds = await dailyLearningService.generateTodaysWordLists(user.$id, modeId, englishLevel);
                 await createSession(user.$id, modeId, initialWordIds);
             } catch (err) {
                 console.error("Failed to create new session:", err);
@@ -156,14 +156,14 @@ export default function TodayScreen() {
       // 1. 获取用户偏好设置
       const userPrefs = useAuthStore.getState().user?.prefs;
       const modeId = userPrefs?.learningMode || "2";
-      const difficultyLevel = userPrefs?.englishLevel || 1;
+      const englishLevel = userPrefs?.englishLevel || 1;
 
       // 2. 使用 store 方法添加加量单词
       await useDailyLearningStore.getState().addIncrementalWords(
         session.$id,
         user.$id,
         modeId,
-        difficultyLevel
+        englishLevel
       );
 
       // 3. 关闭模态框

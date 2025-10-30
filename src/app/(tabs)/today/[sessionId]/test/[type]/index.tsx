@@ -241,7 +241,7 @@ export default function TestScreen() {
     
     Alert.alert(
       '跳过单词',
-      `确定要跳过单词 "${currentWord.spelling}" 吗？`,
+      `确定要跳过该单词吗？`,
       [
         {
           text: '取消',
