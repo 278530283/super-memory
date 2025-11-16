@@ -376,6 +376,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     const phase = testType === 'pre_test' ? 1 : 2;
     const testDate = new Date().toISOString().split('T')[0];
     const strategyType = appwriteUser.prefs.reviewStrategy || 2;
+    const enableSpelling = appwriteUser.prefs.enableSpelling || false;
 
     try {
       // 停止旧的 actor
@@ -397,7 +398,8 @@ export const useTestStore = create<TestState>()((set, get) => ({
         console.log(`[TestStore] Creating preTestMachine actor for word ${wordId}`);
         newActor = createActor(preTestMachine, {
           input: {
-            historyLevels: historyLevels
+            historyLevels: historyLevels,
+            enableSpelling: enableSpelling
           },
         }) as TestActor;
       } else {
@@ -492,38 +494,88 @@ export const useTestStore = create<TestState>()((set, get) => ({
                 // 即使历史保存失败，也继续尝试保存进度
               }
 
-              // --- 然后保存 UserWordProgress ---
-              try {
-                if(phase === 1){
-                  const isLongDifficult = currentWord!.spelling.length > 8 && currentWord!.syllable_count >= 3;
-                  const progressData: CreateUserWordProgress = {
-                    user_id: userId,
-                    word_id: wordId,
-                    proficiency_level: finalLevel!,
-                    is_long_difficult: isLongDifficult
-                  };
-                  console.log('[TestStore] Saving user word progress for word:', wordId);
-                  await userWordService.upsertUserWordProgress(progressData, strategyType, currentWord!.spelling);
-                  console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
+            // --- 关键修改：根据测试类型保存 UserWordProgress ---
+            try {
+              if (phase === 1) {
+                // 学前测试：直接保存测试等级
+                const isLongDifficult = currentWord!.spelling.length > 8 && currentWord!.syllable_count >= 3;
+                const progressData: CreateUserWordProgress = {
+                  user_id: userId,
+                  word_id: wordId,
+                  proficiency_level: finalLevel!,
+                  is_long_difficult: isLongDifficult
+                };
+                console.log('[TestStore] Saving user word progress for pre-test word:', wordId);
+                await userWordService.upsertUserWordProgress(progressData, strategyType, currentWord!.spelling);
+                console.log('[TestStore] User word progress saved for word:', wordId, 'to level:', finalLevel);
+              } else {
+                // 当日测试：根据学习前等级和测试等级计算单词难度
+                console.log('[TestStore] Calculating word difficulty for post-test word:', wordId);
+                
+                // 获取学习前等级（从历史记录中获取）
+                const userWordProgress = await userWordService.getUserWordProgressByUserAndWord(userId, wordId);
+                if(userWordProgress === null){
+                  console.error('[TestStore] Failed to get user word progress for word:', wordId);
                 }
-              } catch (progressError: any) {
-                console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
-                set({ error: `保存单词 ${currentWord!.spelling} 进度时出现问题` });
+                else{
+                  const preTestLevel = userWordProgress?.proficiency_level || 0;
+                
+                // 根据映射关系计算单词难度
+                let difficultyLevel: number;
+                
+                if (preTestLevel === 0) {
+                  // 学习前等级为 L0
+                  if (finalLevel === 3) {
+                    difficultyLevel = 1; // 简单
+                  } else if (finalLevel === 1 || finalLevel === 2) {
+                    difficultyLevel = 2; // 正常
+                  } else {
+                    difficultyLevel = 3; // 困难
+                  }
+                } else if (preTestLevel === 1 || preTestLevel === 2) {
+                  // 学习前等级为 L1 或 L2
+                  if (finalLevel === 3) {
+                    difficultyLevel = 1; // 简单
+                  } else if (finalLevel === 1 || finalLevel === 2) {
+                    difficultyLevel = 2; // 正常
+                  } else {
+                    difficultyLevel = 3; // 困难
+                  }
+                } else {
+                  // 学习前等级为 L3
+                  if (finalLevel === 3) {
+                    difficultyLevel = 3; // 困难
+                  } else {
+                    difficultyLevel = 3; // 其他情况也视为困难
+                  }
+                }
+                
+                console.log(`[TestStore] Difficulty calculation: preTestLevel=${preTestLevel}, testLevel=${finalLevel}, difficultyLevel=${difficultyLevel}`);
+                
+                const progressData = { proficiency_level: difficultyLevel };
+                console.log('[TestStore] Saving user word progress with calculated difficulty for word:', wordId);
+                await userWordService.updateUserWordProgress(userWordProgress.$id, progressData);
+                console.log('[TestStore] User word progress with difficulty saved for word:', wordId, 'difficulty level:', difficultyLevel);
+                }
               }
-              
-              // 更新 DailyLearningStore 的进度 - 使用 wordIds.length 而不是 wordList.length
-              const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
-              await useDailyLearningStore.getState().updateSessionProgress(session.$id, {
-                [progressField]: `${currentWordIndex + 1}/${wordIds.length}`,
-              });
-            })();
-          } else {
-            console.warn(`[TestStore] Could not determine final level for word ${wordId} from state '${stateValue}'`);
-            set({ error: `无法确定单词 ${currentWord.spelling} 的最终掌握等级` });
-          }
+            } catch (progressError: any) {
+              console.error('[TestStore] Failed to save user word progress for word:', wordId, progressError);
+              set({ error: `保存单词 ${currentWord!.spelling} 进度时出现问题` });
+            }
+            
+            // 更新 DailyLearningStore 的进度 - 使用 wordIds.length 而不是 wordList.length
+            const progressField = testType === 'pre_test' ? 'pre_test_progress' : 'post_test_progress';
+            await useDailyLearningStore.getState().updateSessionProgress(session.$id, {
+              [progressField]: `${currentWordIndex + 1}/${wordIds.length}`,
+            });
+          })();
+        } else {
+          console.warn(`[TestStore] Could not determine final level for word ${wordId} from state '${stateValue}'`);
+          set({ error: `无法确定单词 ${currentWord.spelling} 的最终掌握等级` });
         }
-        set({ currentActorSnapshot: state });
-      });
+      }
+      set({ currentActorSnapshot: state });
+    });
 
       // 启动 actor
       newActor.start();

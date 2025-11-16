@@ -1,7 +1,9 @@
 // src/components/features/today/TestTypes/Learn.tsx
+import speechRecognitionService from '@/src/lib/services/speechRecognitionService';
 import { ExampleSentence, TestTypeProps } from '@/src/types/Word';
 import { Ionicons } from '@expo/vector-icons';
-import { AudioModule } from 'expo-audio';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { AudioModule, AudioQuality, createAudioPlayer, RecordingOptions, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import * as Speech from 'expo-speech';
 import React, { JSX, useCallback, useEffect, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -9,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,10 +19,14 @@ import {
   View
 } from 'react-native';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
   <View style={styles.errorContainer}>
-    <Ionicons name="warning" size={48} color="#FF9500" />
+    <View style={styles.errorIconContainer}>
+      <Ionicons name="warning" size={64} color="#FF9500" />
+    </View>
     <Text style={styles.errorText}>组件加载失败</Text>
     <Text style={styles.errorSubText}>{error.message}</Text>
     <TouchableOpacity style={styles.retryButton} onPress={resetErrorBoundary}>
@@ -45,9 +52,11 @@ const LearnFC: React.FC<TestTypeProps> = ({
   onAnswer, 
   testType = 'learn'
 }) => {
+  const navigation = useNavigation();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
   // 发音相关状态
   const [isPlaying, setIsPlaying] = useState(false);
@@ -62,52 +71,145 @@ const LearnFC: React.FC<TestTypeProps> = ({
   // 修改状态：为每个例句单独管理高亮状态
   const [activeSegments, setActiveSegments] = useState<{ [exampleIndex: number]: string | null }>({});
 
+  // 新增：跟读练习相关状态
+  const [showFollowRead, setShowFollowRead] = useState(false);
+  const [recognizedText, setRecognizedText] = useState<string | null>(null);
+  const [followReadFeedback, setFollowReadFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioSource, setAudioSource] = useState<string>('');
+
+  // 录音配置
+  const recordOptions: RecordingOptions = {
+    extension: '.m4a',
+    sampleRate: 8000,
+    numberOfChannels: 2,
+    bitRate: 48000,
+    android: {
+      outputFormat: 'mpeg4',
+      audioEncoder: 'aac',
+    },
+    ios: {
+      outputFormat: 'aac ',
+      audioQuality: AudioQuality.MAX,
+      linearPCMBitDepth: 16,
+      linearPCMIsBigEndian: false,
+      linearPCMIsFloat: false,
+    },
+    web: {
+      mimeType: 'audio/webm',
+      bitsPerSecond: 128000,
+    },
+  };
+
+  const audioRecorder = useAudioRecorder(recordOptions);
+  const recorderState = useAudioRecorderState(audioRecorder);
+  let audioPlayer = useAudioPlayer(audioSource);
+  let playerStatus = useAudioPlayerStatus(audioPlayer);
+
+  // 监听页面焦点，动态设置顶部栏显示状态
+  useFocusEffect(
+    useCallback(() => {
+      // 当学习页面获得焦点时，隐藏顶部栏
+      navigation.setOptions({
+        headerShown: false
+      });
+
+      return () => {
+        // 当学习页面失去焦点时，不需要恢复顶部栏显示
+        // 因为其他页面会在自己的 useFocusEffect 中设置
+        navigation.setOptions({
+        headerShown: true
+      });
+      };
+    }, [navigation])
+  );
+
+  // 检查录音权限和初始化音频模式
+  useEffect(() => {
+    const checkPermissionAndSetup = async () => {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      const permission = status.granted;
+      setHasRecordingPermission(permission);
+      
+      if (!permission) {
+        Alert.alert(
+          '权限不足',
+          '需要录音权限才能正常使用听力测试功能，请在设置中开启权限。',
+          [{ text: '知道了' }]
+        );
+      }
+
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
+    };
+
+    checkPermissionAndSetup();
+  }, []);
+
+  // 动画效果
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, [fadeAnim, scaleAnim]);
+
   // 处理双语片段数据
   const processBilingualSegments = useCallback((example: ExampleSentence): BilingualSegment[] => {
-  const segments: BilingualSegment[] = [];
-  
-  if (!example.trans) return segments;
-  
-  // 收集所有中文位置信息，用于检测重复
-  const chinesePositions: { [key: string]: boolean } = {};
-  
-  Object.entries(example.trans).forEach(([enKey, chValue], index) => {
-    const enStart = example.en.indexOf(enKey);
-    const chStart = example.ch.indexOf(chValue);
+    const segments: BilingualSegment[] = [];
     
-    if (enStart !== -1 && chStart !== -1) {
-      // 检查这个中文片段是否已经被其他片段包含
-      let isOverlapping = false;
+    if (!example.trans) return segments;
+    
+    // 收集所有中文位置信息，用于检测重复
+    const chinesePositions: { [key: string]: boolean } = {};
+    
+    Object.entries(example.trans).forEach(([enKey, chValue], index) => {
+      const enStart = example.en.indexOf(enKey);
+      const chStart = example.ch.indexOf(chValue);
       
-      // 简单的重叠检测：如果这个中文文本已经出现在其他片段覆盖的区域，则跳过
-      for (let i = chStart; i < chStart + chValue.length; i++) {
-        if (chinesePositions[i]) {
-          isOverlapping = true;
-          break;
-        }
-      }
-      
-      if (!isOverlapping) {
-        // 标记这个中文片段占用的位置
+      if (enStart !== -1 && chStart !== -1) {
+        // 检查这个中文片段是否已经被其他片段包含
+        let isOverlapping = false;
+        
+        // 简单的重叠检测：如果这个中文文本已经出现在其他片段覆盖的区域，则跳过
         for (let i = chStart; i < chStart + chValue.length; i++) {
-          chinesePositions[i] = true;
+          if (chinesePositions[i]) {
+            isOverlapping = true;
+            break;
+          }
         }
         
-        segments.push({
-          id: `segment_${index}`,
-          enKey,
-          chValue,
-          enStart,
-          enEnd: enStart + enKey.length,
-          chStart,
-          chEnd: chStart + chValue.length,
-        });
+        if (!isOverlapping) {
+          // 标记这个中文片段占用的位置
+          for (let i = chStart; i < chStart + chValue.length; i++) {
+            chinesePositions[i] = true;
+          }
+          
+          segments.push({
+            id: `segment_${index}`,
+            enKey,
+            chValue,
+            enStart,
+            enEnd: enStart + enKey.length,
+            chStart,
+            chEnd: chStart + chValue.length,
+          });
+        }
       }
-    }
-  });
-  
-  return segments.sort((a, b) => a.enStart - b.enStart);
-}, []);
+    });
+    
+    return segments.sort((a, b) => a.enStart - b.enStart);
+  }, []);
 
   // 高亮处理函数
   const handleSegmentPress = useCallback((exampleIndex: number, segmentId: string) => {
@@ -148,11 +250,10 @@ const LearnFC: React.FC<TestTypeProps> = ({
         <TouchableOpacity
           key={`segment_${index}`}
           onPress={() => handleSegmentPress(exampleIndex, segment.id)}
-          style={styles.wordContainer}
         >
           <Text style={[
-            styles.englishSegment, // 基础英文样式
-            activeSegments[exampleIndex] === segment.id && styles.highlightedEnglish // 点击后只变颜色
+            styles.englishSegment,
+            activeSegments[exampleIndex] === segment.id && styles.highlightedEnglish
           ]}>
             {segment.enKey}
           </Text>
@@ -212,11 +313,10 @@ const LearnFC: React.FC<TestTypeProps> = ({
         <TouchableOpacity
           key={`segment_${index}`}
           onPress={() => handleSegmentPress(exampleIndex, segment.id)}
-          style={styles.wordContainer}
         >
           <Text style={[
-            styles.chineseSegment, // 基础中文样式
-            activeSegments[exampleIndex] === segment.id && styles.highlightedChinese // 点击后只变颜色
+            styles.chineseSegment,
+            activeSegments[exampleIndex] === segment.id && styles.highlightedChinese
           ]}>
             {segment.chValue}
           </Text>
@@ -244,34 +344,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
       </View>
     );
   }, [processBilingualSegments, activeSegments, handleSegmentPress]);
-
-  // 检查录音权限
-  useEffect(() => {
-    const checkPermission = async () => {
-      const status = await AudioModule.requestRecordingPermissionsAsync();
-      const permission = status.granted;
-      setHasRecordingPermission(permission);
-      
-      if (!permission) {
-        Alert.alert(
-          '权限不足',
-          '需要录音权限才能正常使用听力测试功能，请在设置中开启权限。',
-          [{ text: '知道了' }]
-        );
-      }
-    };
-
-    checkPermission();
-  }, []);
-
-  // 动画效果
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim]);
 
   // 播放单词发音
   const playWordSound = useCallback(async () => {
@@ -321,6 +393,116 @@ const LearnFC: React.FC<TestTypeProps> = ({
       }
     };
   }, [playCount, playWordSound, hasRecordingPermission]);
+
+  // 新增：跟读练习功能
+  const handleStartRecording = async () => {
+    console.log('[Learn] Preparing to record...');
+    if (recorderState.isRecording) {
+        console.log('[Learn] Recording already in progress.');
+        return;
+    }
+    try {
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsRecording(true);
+      setRecognizedText('');
+      setAudioSource('');
+      setFollowReadFeedback(null);
+    } catch (error: any) {
+      console.error('[Learn] Failed to start recording:', error);
+      Alert.alert('录音失败', error.message || '无法开始录音。');
+    }
+  };
+
+  const handleStopRecording = async () => {
+    console.log('[Learn] Stopping recording, current state:', recorderState);
+    
+    if (!recorderState.isRecording) {
+        console.log('[Learn] No recording in progress to stop.');
+        return;
+    }
+    
+    try {
+        const uri = audioRecorder.uri;
+        if (!uri) {
+            console.error('[Learn] URI is null or undefined');
+            Alert.alert('录音失败', '无法获取录音文件路径。');
+            return;
+        }
+        setAudioSource(uri);
+        await audioRecorder.stop();
+        setIsRecording(false);
+        
+        // 这里可以调用语音识别服务
+        const result = await speechRecognitionService.recognizeSpeech(uri, word.spelling);
+        setRecognizedText(result.recognizedText || '');
+        const isCorrect = result.recognizedText === word.spelling;
+        setFollowReadFeedback({
+          correct: isCorrect,
+          message: isCorrect ? '发音准确！' : '再试一次，注意发音'
+        });
+        // 模拟识别结果
+        // setTimeout(() => {
+        //   const isCorrect = Math.random() > 0.3; // 模拟70%正确率
+        //   setRecognizedText(isCorrect ? word.spelling : 'recognized');
+        //   setFollowReadFeedback({
+        //     correct: isCorrect,
+        //     message: isCorrect ? '发音准确！' : '再试一次，注意发音'
+        //   });
+        // }, 1000);
+        
+    } catch (serviceError: any) {
+      console.error('[Learn] Error from speech recognition service or during stop:', serviceError);
+      Alert.alert('录音/识别失败', serviceError.message || '处理录音时出现错误。');
+      setIsRecording(false);
+    }
+  };
+
+  // 处理播放录音
+  const handlePlayRecording = async () => {
+    if (recorderState.isRecording) {
+        console.log('[Learn] Cannot play while recording.');
+        return;
+    }
+
+    if (audioSource === null || audioSource.length === 0) {
+        Alert.alert('没有可播放的录音', '请先录制一段语音。');
+        return;
+    }
+
+    try {
+      audioPlayer = createAudioPlayer(audioSource);
+      audioPlayer.seekTo(0);
+      audioPlayer.play();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      playerStatus = audioPlayer.currentStatus;
+    } catch (error) {
+        console.error('[Learn] Failed to play recording:', error);
+        Alert.alert('播放失败', '无法播放录音，请重试。');
+    }
+  };
+
+  // 处理停止播放
+  const handleStopPlayback = async () => {
+      if (audioPlayer && playerStatus.isLoaded && playerStatus.playing) {
+          try {
+              audioPlayer.remove();
+          } catch (error) {
+              console.error('[Learn] Failed to stop playback:', error);
+          }
+      }
+  };
+
+  // 切换跟读练习显示
+  const toggleFollowRead = useCallback(() => {
+    setShowFollowRead(prev => !prev);
+    // 重置跟读状态
+    if (showFollowRead) {
+      setRecognizedText(null);
+      setFollowReadFeedback(null);
+      setAudioSource('');
+    }
+  }, [showFollowRead]);
 
   // 处理下一题
   const handleNext = useCallback(() => {
@@ -382,7 +564,9 @@ const LearnFC: React.FC<TestTypeProps> = ({
   if (hasRecordingPermission === false) {
     return (
       <View style={styles.permissionDeniedContainer}>
-        <Ionicons name="mic-off" size={48} color="#FF9500" />
+        <View style={styles.permissionDeniedIcon}>
+          <Ionicons name="mic-off" size={64} color="#FF9500" />
+        </View>
         <Text style={styles.permissionDeniedText}>录音权限未开启</Text>
         <Text style={styles.permissionDeniedSubText}>请在设置中开启录音权限以使用听力测试功能</Text>
       </View>
@@ -393,7 +577,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
   if (hasRecordingPermission === null) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
+        <ActivityIndicator size="large" color="#7C3AED" />
         <Text style={styles.loadingText}>正在获取权限...</Text>
       </View>
     );
@@ -408,55 +592,74 @@ const LearnFC: React.FC<TestTypeProps> = ({
           style={[styles.nextButton, isSubmitting && styles.nextButtonDisabled]}
           onPress={handleNext}
           disabled={isSubmitting}
-        accessibilityLabel="提交答案"
-        accessibilityRole="button"
-        accessibilityState={{ disabled: isSubmitting }}
+          accessibilityLabel="提交答案"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isSubmitting }}
         >
           {isSubmitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Text style={styles.nextButtonText}>下一题</Text>
+            <View style={styles.nextButtonContent}>
+              <Text style={styles.nextButtonText}>完成学习</Text>
+              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+            </View>
           )}
         </TouchableOpacity>
       </View>
 
       {/* 可滚动的单词内容区域 */}
-      <Animated.View style={[styles.contentContainer, { opacity: fadeAnim }]}>
+      <Animated.View 
+        style={[
+          styles.contentContainer, 
+          { 
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }]
+          }
+        ]}
+      >
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator={false}
         >
           {/* 顶部单词信息区域 */}
-          <View style={styles.wordHeader}>
-            <View style={styles.wordMain}>
-              <Text style={styles.wordText}>{word.spelling || 'upbringing'}</Text>
-              <TouchableOpacity 
-                style={styles.soundButton}
-                onPress={handlePlaySound}
-                disabled={isPlaying}
-              >
-                <Ionicons 
-                  name={isPlaying ? "volume-medium" : "volume-medium-outline"} 
-                  size={24} 
-                  color="#4A90E2" 
-                />
-              </TouchableOpacity>
-            </View>
-            
-            {/* 音标区域 */}
-            <View style={styles.phoneticContainer}>
-              <Text style={styles.phoneticText}>
-                {word.american_phonetic ? `美 /${word.american_phonetic}/` : 
-                 word.british_phonetic ? `英 /${word.british_phonetic}/` : ''}
-              </Text>
+          <View style={styles.wordCard}>
+            <View style={styles.wordHeader}>
+              <View style={styles.wordMain}>
+                <Text style={styles.wordText}>{word.spelling || 'upbringing'}</Text>
+                <TouchableOpacity 
+                  style={[
+                    styles.soundButton,
+                    isPlaying && styles.soundButtonActive
+                  ]}
+                  onPress={handlePlaySound}
+                  disabled={isPlaying}
+                >
+                  <Ionicons 
+                    name={isPlaying ? "volume-medium" : "volume-medium-outline"} 
+                    size={28} 
+                    color={isPlaying ? "#7C3AED" : "#6B7280"} 
+                  />
+                </TouchableOpacity>
+              </View>
+              
+              {/* 音标区域 */}
+              <View style={styles.phoneticContainer}>
+                <Text style={styles.phoneticText}>
+                  {word.american_phonetic ? `美 /${word.american_phonetic}/` : 
+                  word.british_phonetic ? `英 /${word.british_phonetic}/` : ''}
+                </Text>
+              </View>
             </View>
           </View>
 
           {/* 释义区域 */}
-          <View style={styles.meaningContainer}>
+          <View style={styles.meaningCard}>
             <View style={styles.meaningHeader}>
-              <Text style={styles.meaningTitle}>释义</Text>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="book-outline" size={20} color="#7C3AED" />
+                <Text style={styles.sectionTitle}>释义</Text>
+              </View>
               <TouchableOpacity 
                 style={styles.definitionToggle}
                 onPress={toggleDefinition}
@@ -466,8 +669,8 @@ const LearnFC: React.FC<TestTypeProps> = ({
                 </Text>
                 <Ionicons 
                   name="swap-vertical" 
-                  size={14} 
-                  color="#4A90E2" 
+                  size={16} 
+                  color="#7C3AED" 
                   style={styles.toggleIcon}
                 />
               </TouchableOpacity>
@@ -531,21 +734,24 @@ const LearnFC: React.FC<TestTypeProps> = ({
           </View>
 
           {/* 例句区域 */}
-          <View style={styles.exampleContainer}>
+          <View style={styles.exampleCard}>
             <View style={styles.exampleHeader}>
-              <Text style={styles.exampleTitle}>例句</Text>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color="#7C3AED" />
+                <Text style={styles.sectionTitle}>例句</Text>
+              </View>
               {hasExampleSentences && word.example_sentences!.length > 1 && (
                 <TouchableOpacity 
                   style={styles.moreExamplesButton}
                   onPress={toggleMoreExamples}
                 >
                   <Text style={styles.moreExamplesText}>
-                    {showMoreExamples ? '收起' : '更多'}
+                    {showMoreExamples ? '收起' : `更多 (${word.example_sentences!.length - 1})`}
                   </Text>
                   <Ionicons 
                     name={showMoreExamples ? "chevron-up" : "chevron-down"} 
-                    size={14} 
-                    color="#4A90E2" 
+                    size={16} 
+                    color="#7C3AED" 
                   />
                 </TouchableOpacity>
               )}
@@ -555,23 +761,120 @@ const LearnFC: React.FC<TestTypeProps> = ({
               {exampleSentences.length > 0 ? (
                 exampleSentences.map((example, index) => (
                   <View key={index} style={styles.exampleItem}>
-                    {/* 可点击的英文例句 - 传入例句索引 */}
-                    {renderClickableEnglish(example, index)}
-                    {/* 可点击的中文翻译 - 传入例句索引 */}
-                    {renderClickableChinese(example, index)}
+                    <View style={styles.exampleNumber}>
+                      <Text style={styles.exampleNumberText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.exampleContent}>
+                      {/* 可点击的英文例句 - 传入例句索引 */}
+                      {renderClickableEnglish(example, index)}
+                      {/* 可点击的中文翻译 - 传入例句索引 */}
+                      {renderClickableChinese(example, index)}
+                    </View>
                   </View>
                 ))
               ) : (
-                <Text style={styles.noExamplesText}>暂无例句</Text>
+                <View style={styles.noExamplesContainer}>
+                  <Ionicons name="document-text-outline" size={48} color="#D1D5DB" />
+                  <Text style={styles.noExamplesText}>暂无例句</Text>
+                </View>
               )}
             </View>
           </View>
 
+          {/* 新增：跟读练习区域 */}
+          <View style={styles.followReadCard}>
+            <View style={styles.followReadHeader}>
+              <View style={styles.sectionTitleContainer}>
+                <Ionicons name="mic-outline" size={20} color="#7C3AED" />
+                <Text style={styles.sectionTitle}>跟读练习</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.followReadToggle}
+                onPress={toggleFollowRead}
+              >
+                <Text style={styles.followReadToggleText}>
+                  {showFollowRead ? '收起' : '开始练习'}
+                </Text>
+                <Ionicons 
+                  name={showFollowRead ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color="#7C3AED" 
+                />
+              </TouchableOpacity>
+            </View>
+            
+            {showFollowRead && (
+              <View style={styles.followReadContent}>
+                <Text style={styles.followReadInstruction}>
+                  请跟读下面的单词，注意发音准确
+                </Text>
+                
+                <View style={styles.recordingSection}>
+                  <TouchableOpacity
+                    style={[styles.recordButton, isRecording && styles.recordingActive]}
+                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                    accessibilityLabel={isRecording ? "停止录音" : "开始录音"}
+                  >
+                    <Ionicons
+                      name={isRecording ? "mic" : "mic-outline"}
+                      size={48}
+                      color="#fff"
+                    />
+                  </TouchableOpacity>
+
+                  {/* 识别结果和播放按钮 */}
+                  <View style={styles.resultAndPlayRow}>
+                    <Text style={styles.statusText}>
+                      {isRecording 
+                        ? "正在录音..." 
+                        : recognizedText 
+                          ? `识别结果: ${recognizedText}`
+                          : "点击麦克风开始跟读"}
+                    </Text>
+                    {audioSource && (
+                      <TouchableOpacity
+                          style={styles.playButton}
+                          onPress={playerStatus.playing ? handleStopPlayback : handlePlayRecording}
+                          disabled={isRecording}
+                          accessibilityLabel={playerStatus.playing ? "停止播放录音" : "播放录音"}
+                        >
+                          <Ionicons
+                            name={playerStatus.playing ? "stop-circle" : "play-circle"}
+                            size={28}
+                            color={playerStatus.playing ? "#FF3B30" : "#4A90E2"}
+                          />
+                        </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* 反馈信息 */}
+                  {followReadFeedback && (
+                    <View style={[
+                      styles.feedbackContainer,
+                      followReadFeedback.correct ? styles.correctFeedback : styles.incorrectFeedback
+                    ]}>
+                      <Ionicons 
+                        name={followReadFeedback.correct ? "checkmark-circle" : "close-circle"} 
+                        size={20} 
+                        color={followReadFeedback.correct ? "#10B981" : "#EF4444"} 
+                      />
+                      <Text style={styles.feedbackText}>
+                        {followReadFeedback.message}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+
           {/* 学习提示区域 */}
-          {/* <View style={styles.learningTip}>
-            <Ionicons name="school-outline" size={20} color="#4A90E2" />
-            <Text style={styles.learningTipText}>请仔细学习单词的发音和释义</Text>
-          </View> */}
+          <View style={styles.learningTip}>
+            <View style={styles.tipIcon}>
+              <Ionicons name="school-outline" size={20} color="#7C3AED" />
+            </View>
+            <Text style={styles.learningTipText}>点击例句中的单词可查看对应翻译</Text>
+          </View>
         </ScrollView>
       </Animated.View>
     </View>
@@ -590,7 +893,7 @@ const Learn: React.FC<TestTypeProps> = (props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
   },
   contentContainer: {
     flex: 1,
@@ -599,8 +902,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20, // 为底部按钮留出空间
+    paddingHorizontal: 20,
+    paddingBottom: 100, // 为底部按钮留出更多空间
   },
   errorContainer: {
     flex: 1,
@@ -609,50 +912,84 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#FFFFFF',
   },
+  errorIconContainer: {
+    padding: 16,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 50,
+    marginBottom: 16,
+  },
   errorText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginTop: 16,
-    color: '#1A1A1A',
+    color: '#1E293B',
   },
   errorSubText: {
-    fontSize: 14,
-    color: '#666666',
+    fontSize: 16,
+    color: '#64748B',
     marginTop: 8,
     textAlign: 'center',
+    lineHeight: 22,
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    marginTop: 24,
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   retryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-  // 单词头部区域
+  // 单词卡片区域
+  wordCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    marginTop: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
   wordHeader: {
-    paddingVertical: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    alignItems: 'center',
   },
   wordMain: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   wordText: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: 'bold',
-    color: '#1A1A1A',
-    marginRight: 12,
+    color: '#1E293B',
+    marginRight: 16,
+    textAlign: 'center',
   },
   soundButton: {
-    padding: 4,
+    padding: 12,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  soundButtonActive: {
+    backgroundColor: '#EDE9FE',
+    transform: [{ scale: 1.05 }],
   },
   phoneticContainer: {
     flexDirection: 'row',
@@ -660,38 +997,52 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   phoneticText: {
-    fontSize: 16,
-    color: '#666666',
-    marginRight: 8,
+    fontSize: 18,
+    color: '#64748B',
+    fontStyle: 'italic',
   },
-  // 释义区域
-  meaningContainer: {
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+  // 释义卡片
+  meaningCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   meaningHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  meaningTitle: {
-    fontSize: 16,
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: '#1E293B',
+    marginLeft: 8,
   },
   definitionToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   definitionToggleText: {
-    fontSize: 12,
-    color: '#4A90E2',
+    fontSize: 14,
+    color: '#7C3AED',
+    fontWeight: '500',
     marginRight: 4,
   },
   toggleIcon: {
@@ -702,11 +1053,11 @@ const styles = StyleSheet.create({
   },
   definitionContent: {
     // 英文释义容器
-    gap: 8,
+    gap: 12,
   },
   chineseDefinitionContent: {
     // 中文释义容器
-    gap: 8,
+    gap: 12,
   },
   meaningItem: {
     flexDirection: 'row',
@@ -714,191 +1065,208 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   chinesePartOfSpeech: {
-    fontSize: 15,
-    color: '#FF6B35', // 橙色显示中文词性
+    fontSize: 16,
+    color: '#DC2626',
     fontWeight: '600',
     marginRight: 8,
-    minWidth: 30,
+    minWidth: 36,
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   chineseMeaningText: {
-    fontSize: 15,
-    color: '#1A1A1A',
-    lineHeight: 20,
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
     flex: 1,
     flexWrap: 'wrap',
   },
   englishPartOfSpeech: {
-    fontSize: 15,
-    color: '#4A90E2', // 蓝色显示英文词性
+    fontSize: 16,
+    color: '#7C3AED',
     fontWeight: '600',
-    marginRight: 8,
-    minWidth: 30,
+    marginRight: 6,
+    minWidth: 38,
+    backgroundColor: '#F5F3FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
     fontStyle: 'italic',
   },
   englishMeaningText: {
-    fontSize: 15,
-    color: '#1A1A1A',
-    lineHeight: 20,
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
     flex: 1,
     flexWrap: 'wrap',
     fontStyle: 'italic',
   },
-  // 例句区域
-  exampleContainer: {
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+  // 例句卡片
+  exampleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   exampleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  exampleTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
+    marginBottom: 16,
   },
   moreExamplesButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   moreExamplesText: {
-    fontSize: 12,
-    color: '#4A90E2',
+    fontSize: 14,
+    color: '#7C3AED',
+    fontWeight: '500',
     marginRight: 4,
   },
   examplesList: {
-    gap: 12,
+    gap: 16,
   },
   exampleItem: {
-    gap: 6,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  exampleNumber: {
+    width: 24,
+    height: 24,
+    backgroundColor: '#7C3AED',
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  exampleNumberText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  exampleContent: {
+    flex: 1,
+    gap: 8,
+    alignSelf: 'stretch',
   },
   englishRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
+    // 确保行高一致
+    lineHeight: 22,
+    alignContent: 'flex-start',
+    justifyContent: 'flex-start',
   },
   chineseRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'flex-start',
+    // 确保行高一致
+    lineHeight: 22,
   },
   wordContainer: {
-    marginHorizontal: 1,
-    height: 20, // 与 lineHeight 一致
-    justifyContent: 'center',
   },
   exampleEnglish: {
-    fontSize: 14,
-    color: '#333333',
-    lineHeight: 20,
+    fontSize: 16,
+    color: '#1E293B',
+    lineHeight: 22, // 统一行高
     fontStyle: 'italic',
     includeFontPadding: false,
     textAlignVertical: 'center',
+    flexShrink: 1,
   },
   exampleChinese: {
-    fontSize: 14,
-    color: '#666666',
-    lineHeight: 18,
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 22, // 统一行高
     includeFontPadding: false,
     textAlignVertical: 'center',
+    flexShrink: 1,
   },
   clickableText: {
     includeFontPadding: false,
     textAlignVertical: 'center',
   },
-  // 英文下划线样式
-  englishUnderline: {
-    textDecorationLine: 'underline',
-    textDecorationColor: '#4A90E2', // 蓝色下划线
-    textDecorationStyle: 'solid',
-  },
-  // 中文下划线样式
-  chineseUnderline: {
-    textDecorationLine: 'underline', 
-    textDecorationColor: '#FF6B35', // 橙色下划线
-    textDecorationStyle: 'solid',
-  },
-  // 保持现有的高亮样式
-  highlightedText: {
-    backgroundColor: 'rgba(74, 144, 226, 0.2)',
-    color: '#4A90E2',
-    fontWeight: '600',
-    borderRadius: 3,
-    paddingHorizontal: 2,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-    // 添加下划线
-    textDecorationLine: 'underline',
-    textDecorationColor: '#4A90E2',
+  noExamplesContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
   },
   noExamplesText: {
-    fontSize: 14,
-    color: '#999999',
+    fontSize: 16,
+    color: '#94A3B8',
+    marginTop: 12,
     fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 20,
   },
   // 学习提示区域
   learningTip: {
-    justifyContent: 'center',
-    alignItems: 'center',
     flexDirection: 'row',
-    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  tipIcon: {
+    marginRight: 8,
   },
   learningTipText: {
-    fontSize: 16,
-    color: '#666666',
-    marginLeft: 8,
+    fontSize: 14,
+    color: '#7C3AED',
+    fontWeight: '500',
   },
   // 底部按钮 - 固定在底部
   footer: {
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  right: 0,
-  backgroundColor: 'transparent', // 完全透明
-  paddingHorizontal: 16,
-  paddingVertical: 12,
-  borderTopWidth: 0, // 去掉顶部边框
-  // 移除所有阴影效果
-  shadowColor: 'transparent',
-  shadowOpacity: 0,
-  shadowRadius: 0,
-  shadowOffset: { width: 0, height: 0 },
-  elevation: 0, // Android 移除阴影
-  zIndex: 1000,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    zIndex: 1000,
   },
   nextButton: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 25,
-    paddingVertical: 16,
+    backgroundColor: '#7C3AED',
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: 'center',
-    // 移除按钮的阴影效果，确保完全实心
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0, // Android 移除阴影
-    minHeight: 50,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   nextButtonDisabled: {
-    backgroundColor: '#C5C5C7',
-    // 禁用状态也移除阴影
-    shadowColor: 'transparent',
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 0,
+    backgroundColor: '#CBD5E1',
+    shadowColor: '#CBD5E1',
+    shadowOpacity: 0.3,
+  },
+  nextButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nextButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+    marginRight: 8,
   },
   // 权限相关样式
   permissionDeniedContainer: {
@@ -908,17 +1276,24 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#FFFFFF',
   },
+  permissionDeniedIcon: {
+    padding: 16,
+    backgroundColor: '#FFF7ED',
+    borderRadius: 50,
+    marginBottom: 16,
+  },
   permissionDeniedText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
     marginTop: 16,
-    color: '#1A1A1A',
+    color: '#1E293B',
   },
   permissionDeniedSubText: {
-    fontSize: 14,
-    color: '#666666',
+    fontSize: 16,
+    color: '#64748B',
     marginTop: 8,
     textAlign: 'center',
+    lineHeight: 22,
     marginBottom: 20,
   },
   loadingContainer: {
@@ -930,43 +1305,143 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666666',
+    color: '#64748B',
   },
   // 英文片段样式
   englishSegment: {
-    fontSize: 14,
-    color: '#333333',
-    lineHeight: 20,
+    fontSize: 16,
+    color: '#1E293B',
+    // lineHeight: 22,
     fontStyle: 'italic',
+    textDecorationLine: 'underline',
+    textDecorationColor: '#7C3AED',
+     // 添加这些属性来改善布局
     includeFontPadding: false,
     textAlignVertical: 'center',
-    textDecorationLine: 'underline',
-    textDecorationColor: '#4A90E2',
-    // 固定字体粗细，通过其他方式表示选中
-    fontWeight: '400', // 统一为正常粗细
+    // 对于包含空格的文本，防止在空格处断开
+    flexShrink: 1,
+    flexWrap: 'nowrap',
   },
-  
   // 中文片段样式
   chineseSegment: {
-    fontSize: 14,
-    color: '#666666', 
-    lineHeight: 18,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+    fontSize: 15,
+    color: '#475569',
+    // lineHeight: 22,
     textDecorationLine: 'underline',
-    textDecorationColor: '#FF6B35',
-    fontWeight: '400', // 统一为正常粗细
+    textDecorationColor: '#DC2626',
   },
   
-  // 点击后的高亮样式 - 只改变颜色，不改变布局
+  // 点击后的高亮样式
   highlightedEnglish: {
-    color: '#4A90E2', // 变为蓝色
-    textDecorationColor: '#4A90E2', // 保持蓝色下划线
+    color: '#7C3AED',
+    textDecorationColor: '#7C3AED',
   },
   
   highlightedChinese: {
-    color: '#FF6B35', // 变为橙色
-    textDecorationColor: '#FF6B35', // 保持橙色下划线
+    color: '#DC2626',
+    textDecorationColor: '#DC2626',
+  },
+
+  // 新增：跟读练习样式
+  followReadCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  followReadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  followReadToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  followReadToggleText: {
+    fontSize: 14,
+    color: '#7C3AED',
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  followReadContent: {
+    gap: 16,
+  },
+  followReadInstruction: {
+    fontSize: 16,
+    color: '#475569',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  recordingSection: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  recordButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#4A90E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4A90E2',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  recordingActive: {
+    backgroundColor: '#FF3B30',
+    shadowColor: '#FF3B30',
+  },
+  resultAndPlayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  statusText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  playButton: {
+    // 样式调整
+  },
+  feedbackContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  correctFeedback: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+    borderWidth: 1,
+  },
+  incorrectFeedback: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#EF4444',
+    borderWidth: 1,
+  },
+  feedbackText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

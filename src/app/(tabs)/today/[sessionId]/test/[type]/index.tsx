@@ -339,6 +339,7 @@ export default function TestScreen() {
   console.log('[TestScreen] Render Main Content ...', CurrentTestComponent);
   return (
     <View style={styles.container}>
+      {currentTestActivityType !== 'learn' && (
       <View style={styles.topBar}>
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
@@ -363,6 +364,7 @@ export default function TestScreen() {
           <Text style={styles.skipButtonText}>跳过</Text>
         </TouchableOpacity>}
       </View>
+      )}
       
       {/* 使用 ScrollView 包裹测试区域以支持下拉刷新 */}
       <ScrollView

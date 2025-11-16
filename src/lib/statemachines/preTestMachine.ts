@@ -4,6 +4,7 @@ import { setup } from 'xstate';
 // 定义上下文类型，将 level 和 historyLevels 的元素类型从 string 改为 number
 interface AssessmentContext {
   historyLevels: number[]; // 历史等级列表，如 [1, 2, 2]
+  enableSpelling: boolean; // 是否启用拼写
   level?: number; // 用于存储最终评估等级 (0, 1, 2, 3, 4)
 }
 
@@ -60,6 +61,8 @@ export const preTestMachine = setup({
     answerWrong: ({ event }) => {
       return event.type === 'ANSWER' && event.answer === 'fail';
     },
+    // 新增：检查是否启用拼写测试
+    spellingEnabled: ({ context }) => context.enableSpelling,
   },
   actions: {
     // 定义一个动作，用于在进入最终状态时设置上下文中的 level
@@ -81,6 +84,7 @@ export const preTestMachine = setup({
   initial: 'determinePath',
   context: ({ input }) => ({
     historyLevels: input?.historyLevels || [],
+    enableSpelling: input?.enableSpelling || false,
     level: undefined, // 初始化时没有等级
   }),
   states: {
@@ -100,7 +104,21 @@ export const preTestMachine = setup({
     flow1_listen: {
       on: {
         ANSWER: [
-          { target: 'flow1_spelling', guard: 'answerCorrect' },
+          // 修改：只有当启用拼写测试时才进入拼写测试，否则直接返回L3
+          { 
+            target: 'flow1_spelling', 
+            guard: ({ context, event }) => 
+              context.enableSpelling && 
+              event.type === 'ANSWER' && 
+              event.answer === 'success'
+          },
+          { 
+            target: 'L3', 
+            guard: ({ context, event }) => 
+              !context.enableSpelling && 
+              event.type === 'ANSWER' && 
+              event.answer === 'success'
+          },
           { target: 'flow1_transEn', guard: 'answerWrong' },
         ],
       },
