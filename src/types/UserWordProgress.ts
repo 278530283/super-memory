@@ -6,7 +6,7 @@ export interface UserWordProgress {
   user_id: string;
   word_id: string;
   is_long_difficult: boolean;
-  Word_difficulty?: number | null;
+  word_difficulty?: number | null;
   proficiency_level: number; // 0=L0, 1=L1, 2=L2, 3=L3, 4=L4
   strategy_id?: string | null;
   start_date?: string | null; // ISO String

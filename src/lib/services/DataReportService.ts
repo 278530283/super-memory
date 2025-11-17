@@ -1,9 +1,9 @@
-// src/lib/services/DataReportService.ts
+// src/lib/services/dataReportService.ts
 import {
-    COLLECTION_USER_WORD_PROGRESS,
-    COLLECTION_USER_WORD_TEST_HISTORY,
-    COLLECTION_WORDS,
-    DATABASE_ID
+  COLLECTION_USER_WORD_PROGRESS,
+  COLLECTION_USER_WORD_TEST_HISTORY,
+  COLLECTION_WORDS,
+  DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
@@ -46,7 +46,7 @@ export interface PaginatedWordReport {
   hasPrevPage: boolean;
 }
 
-class DataReportService {
+class dataReportService {
   /**
    * 获取用户已学习的单词报告数据（分页）
    * @param userId 用户ID
@@ -105,7 +105,7 @@ class DataReportService {
         hasPrevPage: page > 1
       };
     } catch (error) {
-      console.error('DataReportService.getUserWordReport error:', error);
+      console.error('dataReportService.getUserWordReport error:', error);
       throw error;
     }
   }
@@ -149,13 +149,13 @@ class DataReportService {
    * 从 UserWordProgress 获取单词难度等级
    */
   private getDifficultyLevelFromProgress(progress: UserWordProgress): WordDifficultyLevel {
-    // 如果 Word_difficulty 为 null 或 undefined，默认返回 NORMAL
-    if (progress.Word_difficulty === null || progress.Word_difficulty === undefined) {
+    // 如果 word_difficulty 为 null 或 undefined，默认返回 NORMAL
+    if (progress.word_difficulty === null || progress.word_difficulty === undefined) {
       return WordDifficultyLevel.NORMAL;
     }
     
     // 确保数值在有效范围内，否则返回默认值
-    const difficulty = progress.Word_difficulty;
+    const difficulty = progress.word_difficulty;
     if (difficulty >= WordDifficultyLevel.EASY && difficulty <= WordDifficultyLevel.DIFFICULT) {
       return difficulty as WordDifficultyLevel;
     }
@@ -180,7 +180,7 @@ class DataReportService {
         meaning: response.meaning as string
       };
     } catch (error) {
-      console.error(`DataReportService.getWordInfo error for word ${wordId}:`, error);
+      console.error(`dataReportService.getWordInfo error for word ${wordId}:`, error);
       // 如果获取失败，返回默认值
       return {
         spelling: 'Unknown',
@@ -209,7 +209,7 @@ class DataReportService {
 
       return response.rows as unknown as UserWordTestHistory[];
     } catch (error) {
-      console.error(`DataReportService.getWordTestHistory error for word ${wordId}:`, error);
+      console.error(`dataReportService.getWordTestHistory error for word ${wordId}:`, error);
       return [];
     }
   }
@@ -254,7 +254,7 @@ class DataReportService {
         hasPrevPage: page > 1
       };
     } catch (error) {
-      console.error('DataReportService.getUserWordReportByDifficulty error:', error);
+      console.error('dataReportService.getUserWordReportByDifficulty error:', error);
       throw error;
     }
   }
@@ -318,7 +318,7 @@ class DataReportService {
         averageProficiency: allProgress.length > 0 ? totalProficiency / allProgress.length : 0
       };
     } catch (error) {
-      console.error('DataReportService.getUserLearningStats error:', error);
+      console.error('dataReportService.getUserLearningStats error:', error);
       throw error;
     }
   }
@@ -356,4 +356,4 @@ class DataReportService {
   }
 }
 
-export default new DataReportService();
+export default new dataReportService();

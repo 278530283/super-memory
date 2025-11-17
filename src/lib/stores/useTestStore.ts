@@ -521,41 +521,41 @@ export const useTestStore = create<TestState>()((set, get) => ({
                   const preTestLevel = userWordProgress?.proficiency_level || 0;
                 
                 // 根据映射关系计算单词难度
-                let difficultyLevel: number;
+                let wordDifficulty: number;
                 
                 if (preTestLevel === 0) {
                   // 学习前等级为 L0
                   if (finalLevel === 3) {
-                    difficultyLevel = 1; // 简单
+                    wordDifficulty = 1; // 简单
                   } else if (finalLevel === 1 || finalLevel === 2) {
-                    difficultyLevel = 2; // 正常
+                    wordDifficulty = 2; // 正常
                   } else {
-                    difficultyLevel = 3; // 困难
+                    wordDifficulty = 3; // 困难
                   }
                 } else if (preTestLevel === 1 || preTestLevel === 2) {
                   // 学习前等级为 L1 或 L2
                   if (finalLevel === 3) {
-                    difficultyLevel = 1; // 简单
+                    wordDifficulty = 1; // 简单
                   } else if (finalLevel === 1 || finalLevel === 2) {
-                    difficultyLevel = 2; // 正常
+                    wordDifficulty = 2; // 正常
                   } else {
-                    difficultyLevel = 3; // 困难
+                    wordDifficulty = 3; // 困难
                   }
                 } else {
                   // 学习前等级为 L3
                   if (finalLevel === 3) {
-                    difficultyLevel = 3; // 困难
+                    wordDifficulty = 3; // 困难
                   } else {
-                    difficultyLevel = 3; // 其他情况也视为困难
+                    wordDifficulty = 3; // 其他情况也视为困难
                   }
                 }
                 
-                console.log(`[TestStore] Difficulty calculation: preTestLevel=${preTestLevel}, testLevel=${finalLevel}, difficultyLevel=${difficultyLevel}`);
+                console.log(`[TestStore] Difficulty calculation: preTestLevel=${preTestLevel}, testLevel=${finalLevel}, wordDifficulty=${wordDifficulty}`);
                 
-                const progressData = { proficiency_level: difficultyLevel };
+                const progressData = { word_difficulty: wordDifficulty };
                 console.log('[TestStore] Saving user word progress with calculated difficulty for word:', wordId);
                 await userWordService.updateUserWordProgress(userWordProgress.$id, progressData);
-                console.log('[TestStore] User word progress with difficulty saved for word:', wordId, 'difficulty level:', difficultyLevel);
+                console.log('[TestStore] User word progress with difficulty saved for word:', wordId, 'difficulty level:', wordDifficulty);
                 }
               }
             } catch (progressError: any) {
