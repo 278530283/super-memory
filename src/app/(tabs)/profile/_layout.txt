@@ -57,18 +57,12 @@ export default function ProfileLayout() {
           };
         }}
       />
-      <Stack.Screen
-        name="reports/index"
+      {/* <Stack.Screen
+        name="reports"
         options={{
           title: '学习报告',
         }}
-      />
-      <Stack.Screen
-        name="reports/word-detail/[wordId]"
-        options={{
-          title: '单词详情',
-        }}
-      />
+      /> */}
       {/* <Stack.Screen
         name="level"
         options={{
