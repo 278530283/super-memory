@@ -45,6 +45,14 @@ const getDifficultyColor = (level: number) => {
   }
 };
 
+const getPhaseText = (phase: number) => {
+  switch(phase) {
+    case 1: return '前置评测';
+    case 2: return '复习评测';
+    default: return `阶段${phase}`;
+  }
+};
+
 // 使用 react-native-chart-kit 的折线图组件
 const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
   if (!history || history.length === 0) {
@@ -118,7 +126,6 @@ const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
         withOuterLines={true}
         fromZero={false}
         yAxisInterval={1}
-        segments={4}
         formatYLabel={(yValue) => {
           const value = parseInt(yValue);
           return value >= 0 && value <= 4 ? yValue : '';
@@ -245,7 +252,7 @@ export default function WordDetailScreen() {
         <View style={styles.statsRow}>
           <View style={styles.stat}>
             <Ionicons name="star" size={16} color="#FF9500" />
-            <Text style={styles.statText}>熟练度: {wordInfo.currentProficiency}/4</Text>
+            <Text style={styles.statText}>熟练度: L{wordInfo.currentProficiency}</Text>
           </View>
           <View style={styles.stat}>
             <Ionicons name="repeat" size={16} color="#4A90E2" />
@@ -288,10 +295,10 @@ export default function WordDetailScreen() {
                   { backgroundColor: getProficiencyColor(record.proficiency) }
                 ]}>
                   <Text style={styles.proficiencyBadgeText}>
-                    评级: {record.proficiency}
+                    评级: L{record.proficiency}
                   </Text>
                 </View>
-                <Text style={styles.phaseText}>阶段: {record.phase}</Text>
+                <Text style={styles.phaseText}>{getPhaseText(record.phase)}</Text>
               </View>
             </View>
           ))

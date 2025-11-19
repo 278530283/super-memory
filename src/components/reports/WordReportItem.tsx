@@ -8,12 +8,12 @@ interface WordReportItemProps {
 }
 
 export default function WordReportItem({ word }: WordReportItemProps) {
-  const getDifficultyIcon = (level: number) => {
+  const getDifficultyText = (level: number) => {
     switch (level) {
-      case 1: return 'happy-outline';
-      case 2: return 'help-outline'; 
-      case 3: return 'sad-outline';
-      default: return 'help-outline';
+      case 1: return '容易';
+      case 2: return '中等'; 
+      case 3: return '困难';
+      default: return '未知';
     }
   };
 
@@ -27,7 +27,6 @@ export default function WordReportItem({ word }: WordReportItemProps) {
   };
 
   const handlePress = () => {
-    // 跳转到单词详情页面
     router.push(`/profile/reports/word-detail/${word.wordId}`);
   };
 
@@ -36,11 +35,11 @@ export default function WordReportItem({ word }: WordReportItemProps) {
       <View style={styles.mainContent}>
         <View style={styles.header}>
           <Text style={styles.spelling}>{word.spelling}</Text>
-          <Ionicons 
-            name={getDifficultyIcon(word.difficultyLevel)} 
-            size={20} 
-            color={getDifficultyColor(word.difficultyLevel)} 
-          />
+          <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(word.difficultyLevel) }]}>
+            <Text style={styles.difficultyText}>
+              {getDifficultyText(word.difficultyLevel)}
+            </Text>
+          </View>
         </View>
         
         <Text style={styles.meaning}>{word.meaning}</Text>
@@ -110,5 +109,17 @@ const styles = StyleSheet.create({
   reviewCount: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  difficultyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  difficultyText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

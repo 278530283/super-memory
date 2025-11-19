@@ -331,7 +331,7 @@ class dataReportService {
       case WordDifficultyLevel.EASY:
         return '简单';
       case WordDifficultyLevel.NORMAL:
-        return '正常';
+        return '中等';
       case WordDifficultyLevel.DIFFICULT:
         return '困难';
       default:
