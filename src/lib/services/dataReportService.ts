@@ -371,10 +371,15 @@ class dataReportService {
     }[];
   }> {
     try {
+
+      const userWordProgress = await this.getUserWordProgress(userId, wordId);
+      if (!userWordProgress) {
+        throw new Error('用户没有该单词的进度信息');
+      }
       // 获取单词基本信息
       const wordInfo = await this.buildWordReportItem(
         userId, 
-        { word_id: wordId } as UserWordProgress // 这里需要根据实际数据结构调整
+        userWordProgress
       );
 
       // 获取测试历史并按日期排序
@@ -394,6 +399,29 @@ class dataReportService {
       };
     } catch (error) {
       console.error('dataReportService.getWordHistoryDetails error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取单词的详细历史数据
+   */
+  async getUserWordProgress(userId: string, wordId: string): Promise<UserWordProgress | null> {
+    try {
+      const progressResponse = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_PROGRESS,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.equal('word_id', wordId)
+        ]
+      });
+
+      const progressList = progressResponse.rows as unknown as UserWordProgress[];
+      return progressList.length > 0 ? progressList[0] : null;
+    }
+    catch (error) {
+      console.error('dataReportService.getUserWordProgress error:', error);
       throw error;
     }
   }

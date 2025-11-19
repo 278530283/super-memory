@@ -48,7 +48,7 @@ export default function WordReportItem({ word }: WordReportItemProps) {
         <View style={styles.footer}>
           <View style={styles.proficiency}>
             <Ionicons name="star" size={14} color="#FF9500" />
-            <Text style={styles.proficiencyText}>{word.currentProficiency}/4</Text>
+            <Text style={styles.proficiencyText}>L{word.currentProficiency}</Text>
           </View>
           
           <Text style={styles.reviewCount}>
