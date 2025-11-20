@@ -45,10 +45,11 @@ const getDifficultyColor = (level: number) => {
   }
 };
 
-const getPhaseText = (phase: number) => {
+const getPhaseText = (index:number, phase: number) => {
+  if (index === 0) return '首次评测';
   switch(phase) {
-    case 1: return '前置评测';
-    case 2: return '复习评测';
+    case 1: return '复习评测';
+    case 2: return '当日测试';
     default: return `阶段${phase}`;
   }
 };
@@ -124,8 +125,10 @@ const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
         withHorizontalLines={true}
         withInnerLines={true}
         withOuterLines={true}
-        fromZero={false}
+        fromZero={true}
         yAxisInterval={1}
+        withVerticalLabels ={true}
+        withHorizontalLabels = {false}
         formatYLabel={(yValue) => {
           const value = parseInt(yValue);
           return value >= 0 && value <= 4 ? yValue : '';
@@ -258,11 +261,11 @@ export default function WordDetailScreen() {
             <Ionicons name="repeat" size={16} color="#4A90E2" />
             <Text style={styles.statText}>复习: {wordInfo.reviewedTimes || 0}次</Text>
           </View>
-          {wordInfo.startDate && (
+          {wordInfo.nextReviewDate && (
             <View style={styles.stat}>
               <Ionicons name="calendar" size={16} color="#34C759" />
               <Text style={styles.statText}>
-                开始: {new Date(wordInfo.startDate).toLocaleDateString('zh-CN')}
+                下一次复习 : {new Date(wordInfo.nextReviewDate).toLocaleDateString('zh-CN')}
               </Text>
             </View>
           )}
@@ -298,7 +301,7 @@ export default function WordDetailScreen() {
                     评级: L{record.proficiency}
                   </Text>
                 </View>
-                <Text style={styles.phaseText}>{getPhaseText(record.phase)}</Text>
+                <Text style={styles.phaseText}>{getPhaseText(index, record.phase)}</Text>
               </View>
             </View>
           ))

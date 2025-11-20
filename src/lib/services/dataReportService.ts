@@ -46,7 +46,116 @@ export interface PaginatedWordReport {
   hasPrevPage: boolean;
 }
 
+// 本周成就接口
+export interface WeeklyAchievements {
+  learningDays: number; // 本周学习天数
+  learnedWords: number; // 本周学习单词数
+}
+
 class dataReportService {
+  /**
+   * 获取用户本周成就数据
+   * @param userId 用户ID
+   * @returns 本周成就数据
+   */
+  async getWeeklyAchievements(userId: string): Promise<WeeklyAchievements> {
+    try {
+      // 获取本周的日期范围（周一到周日）
+      const { startOfWeek, endOfWeek } = this.getCurrentWeekRange();
+      
+      // 合并查询：一次性获取本周的学习记录，然后计算学习天数和单词数
+      const { learningDays, learnedWords } = await this.getWeeklyLearningStats(userId, startOfWeek, endOfWeek);
+
+      return {
+        learningDays,
+        learnedWords,
+      };
+    } catch (error) {
+      console.error('dataReportService.getWeeklyAchievements error:', error);
+      // 返回默认值，避免界面显示错误
+      return {
+        learningDays: 0,
+        learnedWords: 0,
+      };
+    }
+  }
+
+  /**
+   * 获取本周的日期范围（周一到周日）
+   */
+  private getCurrentWeekRange(): { startOfWeek: string; endOfWeek: string } {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = 周日, 1 = 周一, ..., 6 = 周六
+
+    console.log('getCurrentWeekRange:', dayOfWeek);
+    
+    // 计算本周周一的日期
+    const monday = new Date(now);
+    console.log('getCurrentWeekRange:', monday);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    
+    // 计算本周周日的日期
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    
+    return {
+      startOfWeek: monday.toISOString().split('T')[0], // YYYY-MM-DD
+      endOfWeek: sunday.toISOString().split('T')[0]    // YYYY-MM-DD
+    };
+  }
+
+  /**
+   * 获取本周学习统计数据（合并查询）
+   */
+  private async getWeeklyLearningStats(
+    userId: string, 
+    startOfWeek: string, 
+    endOfWeek: string
+  ): Promise<{ learningDays: number; learnedWords: number }> {
+    try {
+      console.log('getWeeklyLearningStats:', userId, startOfWeek, endOfWeek);
+      // 查询本周内的测试记录，一次性获取所有需要的数据
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_TEST_HISTORY,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.greaterThanEqual('test_date', startOfWeek),
+          Query.lessThanEqual('test_date', endOfWeek),
+          Query.select(['test_date', 'word_id']), // 只选择需要的字段
+          Query.orderAsc('test_date'),
+          Query.limit(10000)
+        ]
+      });
+
+      // 提取不重复的日期和单词ID
+      const uniqueDates = new Set<string>();
+      const uniqueWordIds = new Set<string>();
+
+      console.log('getWeeklyLearningStats length:', response.rows.length);
+      response.rows.forEach((row: any) => {
+        const testDate = row.test_date as string;
+        const wordId = row.word_id as string;
+        
+        if (testDate) uniqueDates.add(testDate);
+        if (wordId) uniqueWordIds.add(wordId);
+      });
+
+      console.log('getWeeklyLearningStats:', uniqueDates.size, uniqueWordIds.size);
+
+      return {
+        learningDays: uniqueDates.size,
+        learnedWords: uniqueWordIds.size
+      };
+    } catch (error) {
+      console.error('dataReportService.getWeeklyLearningStats error:', error);
+      return {
+        learningDays: 0,
+        learnedWords: 0
+      };
+    }
+  }
+
   /**
    * 获取用户已学习的单词报告数据（分页）
    * @param userId 用户ID
@@ -203,6 +312,7 @@ class dataReportService {
         queries: [
           Query.equal('user_id', userId),
           Query.equal('word_id', wordId),
+          Query.equal('phase', 1),
           Query.orderDesc('test_date') // 按测试日期降序排列
         ]
       });

@@ -224,7 +224,8 @@ class DailyLearningService {
       console.log("User all reviewed word count:", reviewedWordIds.length);
 
       // 3. Fetch all Word IDs for Review
-      const queryTime = new Date().toISOString().split('T')[0];
+      const queryTime = new Date().toISOString().split('T')[0]+"T23:59:59.999Z";
+      console.log("Query time:", queryTime);
       const wordIdsForReview = await userWordService.getWordIdsForReview(userId, queryTime);
 
       console.log("User need review word count:", wordIdsForReview.length);

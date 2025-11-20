@@ -1,8 +1,9 @@
 // src/app/(tabs)/profile/index.tsx
+import dataReportService, { WeeklyAchievements } from '@/src/lib/services/dataReportService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -22,6 +23,34 @@ export default function ProfileScreen() {
   const [tempNickname, setTempNickname] = useState(user?.name || '');
   const [tempEnglishLevel, setTempEnglishLevel] = useState(user?.prefs?.englishLevel?.toString() || '2');
   const [tempGrade, setTempGrade] = useState<string | null>(user?.prefs?.grade?.toString() || null);
+  const [weeklyAchievements, setWeeklyAchievements] = useState<WeeklyAchievements | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 使用 useFocusEffect 在每次进入页面时获取本周成就数据
+  useFocusEffect(
+    useCallback(() => {
+      const fetchWeeklyAchievements = async () => {
+        if (!user?.$id) return;
+        
+        try {
+          setLoading(true);
+          const achievements = await dataReportService.getWeeklyAchievements(user.$id);
+          setWeeklyAchievements(achievements);
+        } catch (error) {
+          console.error('获取本周成就数据失败:', error);
+          // 如果获取失败，使用默认值
+          setWeeklyAchievements({
+            learningDays: 0,
+            learnedWords: 0,
+          });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchWeeklyAchievements();
+    }, [user?.$id])
+  );
 
   const handleLogout = async () => {
     try {
@@ -135,16 +164,40 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* 本周成就与学习报告整合 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>本周成就</Text>
-        <View style={styles.achievementRow}>
-          <Text>学习天数：</Text>
-          <Text style={styles.bold}>7天</Text>
-        </View>
-        <View style={styles.achievementRow}>
-          <Text>学习单词：</Text>
-          <Text style={styles.bold}>120个</Text>
-        </View>
+        
+        {loading ? (
+          <Text style={styles.loadingText}>加载中...</Text>
+        ) : (
+          <>
+            <View style={styles.achievementRow}>
+              <Text>学习天数：</Text>
+              <Text style={styles.bold}>
+                {weeklyAchievements?.learningDays || 0}天
+              </Text>
+            </View>
+            <View style={styles.achievementRow}>
+              <Text>学习单词：</Text>
+              <Text style={styles.bold}>
+                {weeklyAchievements?.learnedWords || 0}个
+              </Text>
+            </View>
+          </>
+        )}
+        
+        {/* 学习报告按钮 */}
+        <TouchableOpacity 
+          style={styles.reportButton}
+          onPress={() => router.push('/profile/reports')}
+        >
+          <View style={styles.reportButtonContent}>
+            <Ionicons name="stats-chart-outline" size={20} color="#4A90E2" />
+            <Text style={styles.reportButtonText}>学习报告</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#999" />
+        </TouchableOpacity>
       </View>
 
       {/* 学习设置 */}
@@ -185,14 +238,6 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.section}>
-        <TouchableOpacity style={styles.listItem}
-        onPress={() => router.push('/profile/reports')}>
-        <View style={styles.listItemContent}>
-          <Ionicons name="stats-chart-outline" size={20} color="#333" />
-          <Text style={styles.listItemText}>学习报告</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color="#999" />
-      </TouchableOpacity>
         <TouchableOpacity style={styles.listItem}>
           <View style={styles.listItemContent}>
             <Ionicons name="help-circle-outline" size={20} color="#333" />
@@ -400,6 +445,31 @@ const styles = StyleSheet.create({
   },
   bold: {
     fontWeight: 'bold',
+  },
+  loadingText: {
+    textAlign: 'center',
+    color: '#666',
+    marginVertical: 8,
+  },
+  // 新增的学习报告按钮样式
+  reportButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  reportButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reportButtonText: {
+    fontSize: 16,
+    color: '#4A90E2',
+    marginLeft: 8,
+    fontWeight: '500',
   },
   settingItem: {
     flexDirection: 'row',
