@@ -1,3 +1,18 @@
 eas build:configure
 
-$env:EXPO_UPLOAD_TIMEOUT=300000; $env:EAS_BUILD_TIMEOUT=1800; eas build --platform android --profile preview
+$env:EXPO_UPLOAD_TIMEOUT=3000000; $env:EAS_BUILD_TIMEOUT=180000; eas build --platform android --profile preview
+
+# 永久设置：
+[Environment]::SetEnvironmentVariable("EXPO_UPLOAD_TIMEOUT", "3000000", "User")
+[Environment]::SetEnvironmentVariable("EAS_BUILD_TIMEOUT", "180000", "User")
+
+# 确认是否设置成功
+echo $env:EXPO_UPLOAD_TIMEOUT
+echo $env:EAS_BUILD_TIMEOUT
+
+
+$env:EXPO_DEBUG = "true"
+
+#关闭Windows自带的防火墙
+
+eas build --platform android --profile preview --clear-cache
