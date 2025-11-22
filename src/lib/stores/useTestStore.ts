@@ -374,7 +374,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     const userId = appwriteUser.$id;
     const wordId = currentWord.$id;
     const phase = testType === 'pre_test' ? 1 : 2;
-    const testDate = new Date().toISOString().split('T')[0];
+    const testDate = new Date().toLocaleDateString();
     const strategyType = appwriteUser.prefs.reviewStrategy || 2;
     const enableSpelling = appwriteUser.prefs.enableSpelling || false;
 

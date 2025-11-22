@@ -137,16 +137,17 @@ class ReviewStrategyService {
   async calculateReviewProgress(
   userWordProgress: CreateUserWordProgress,
   proficiencyLevel: number,
-  reviewDate: string,
+  reviewTime: Date,
   strategyType: number,
   spelling: string
 ): Promise<CreateUserWordProgress | null> {
-  
+  const reviewDate = reviewTime.toLocaleDateString();
+  const reviewTimeISO = reviewTime.toISOString();
   console.log("[ReviewStrategyService] calculateReviewProgress:", userWordProgress, proficiencyLevel, reviewDate);
   
   // 检查是否已经复习过
   if (userWordProgress.last_review_date && 
-      userWordProgress.last_review_date.slice(0, 10) === reviewDate.slice(0, 10)) {
+      userWordProgress.last_review_date === reviewDate) {
     console.log("[ReviewStrategyService] Already reviewed today, no need to update.");
     return null;
   }
@@ -173,7 +174,7 @@ class ReviewStrategyService {
     // 计算下次复习日期
     const nextReviewResult = await this.calculateNextReviewDate(
       updatedProgress.strategy_id!,
-      reviewDate,
+      reviewTimeISO,
       0,
       updatedProgress,
       proficiencyLevel,
@@ -220,7 +221,7 @@ class ReviewStrategyService {
     // 计算下次复习日期
     const nextReviewResult = await this.calculateNextReviewDate(
       updatedProgress.strategy_id!,
-      reviewDate,
+      reviewTimeISO,
       updatedProgress.reviewed_times!,
       updatedProgress,
       proficiencyLevel,
@@ -254,7 +255,7 @@ class ReviewStrategyService {
    */
   async calculateNextReviewDate(
   strategyId: string, 
-  reviewDate: string, 
+  reviewTime: string, 
   reviewedTimes: number,
   userWordProgress: CreateUserWordProgress,
   proficiencyLevel: number,
@@ -263,7 +264,7 @@ class ReviewStrategyService {
   
   if (strategyId === STRATEGY_IDS.FSRS_DEFAULT) {
     // FSRS策略
-    const result = await this.calculateNextReviewDateFSRS(reviewDate, userWordProgress, proficiencyLevel, spelling);
+    const result = await this.calculateNextReviewDateFSRS(reviewTime, userWordProgress, proficiencyLevel, spelling);
     return {
       nextReviewDate: result.nextReviewDate,
       fsrsCard: result.fsrsCard,
@@ -271,7 +272,7 @@ class ReviewStrategyService {
     };
   } else {
     // 传统策略
-    const result = await this.calculateNextReviewDateTraditional(strategyId, reviewDate, reviewedTimes, userWordProgress);
+    const result = await this.calculateNextReviewDateTraditional(strategyId, reviewTime, reviewedTimes, userWordProgress);
     return {
       nextReviewDate: result.nextReviewDate,
       reviewLog: result.reviewLog
@@ -366,14 +367,17 @@ private createTraditionalReviewLog(
    * 使用FSRS算法计算下次复习日期
    */
   async calculateNextReviewDateFSRS(
-    reviewDate: string,
+    reviewTime: string,
     userWordProgress: CreateUserWordProgress,
     proficiencyLevel: number,
     spelling: string
   ): Promise<{ nextReviewDate: string; fsrsCard: string; reviewLog: ReviewScheduleLog }> {
+      const now = new Date(reviewTime);
     try {
+      console.log("reviewTime:", reviewTime);
       const rating = this.proficiencyLevelToFSRSRating(proficiencyLevel);
-      const now = new Date(reviewDate);
+      console.log("date reviewDate ok");
+
 
       // 获取或创建FSRS卡片
       let card: Card;
@@ -390,6 +394,7 @@ private createTraditionalReviewLog(
       // 使用类型断言解决TypeScript索引问题
       const scheduledCard: RecordLogItem = (schedulingCards as any)[rating];
 
+      console.log("scheduledCard:", scheduledCard);
       // 计算调度天数
       const scheduleDays = Math.ceil(
         (scheduledCard.card.due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
@@ -400,16 +405,16 @@ private createTraditionalReviewLog(
         $id: '', // 将在保存时生成
         user_id: userWordProgress.user_id,
         word_id: userWordProgress.word_id,
-        review_time: reviewDate,
+        review_time: now.toLocaleString(),
         schedule_days: scheduleDays,
-        next_review_time: scheduledCard.card.due.toISOString(),
+        next_review_time: scheduledCard.card.due.toLocaleDateString(),
         strategy_id: STRATEGY_IDS.FSRS_DEFAULT,
         review_config: this.serializeCardToJSON(scheduledCard.card),
         review_log: JSON.stringify(scheduledCard.log)
       };
 
       return {
-        nextReviewDate: scheduledCard.card.due.toISOString(),
+        nextReviewDate: scheduledCard.card.due.toLocaleDateString(),
         fsrsCard: this.serializeCardToJSON(scheduledCard.card),
         reviewLog
       };
@@ -418,7 +423,7 @@ private createTraditionalReviewLog(
       console.error("ReviewStrategyService.calculateNextReviewDateFSRS error:", error);
       
       // FSRS计算失败时使用默认间隔
-      const defaultDate = this.getDefaultNextReviewDate(reviewDate);
+      const defaultDate = this.getDefaultNextReviewDate(reviewTime);
       const emptyCard = createEmptyCard();
       
       return {
@@ -428,7 +433,7 @@ private createTraditionalReviewLog(
           $id: '',
           user_id: userWordProgress.user_id,
           word_id: userWordProgress.word_id,
-          review_time: reviewDate,
+          review_time: now.toLocaleString(),
           schedule_days: 1,
           next_review_time: defaultDate,
           strategy_id: STRATEGY_IDS.FSRS_DEFAULT,
@@ -448,7 +453,7 @@ private createTraditionalReviewLog(
    */
     getFSRSPreviewOptions(
     userWordProgress: CreateUserWordProgress, 
-    reviewDate: string = new Date().toISOString(),
+    reviewDate: string = new Date().toLocaleString(),
     spelling: string
   ): {
     rating: Rating;
@@ -546,7 +551,7 @@ private createTraditionalReviewLog(
   getDefaultNextReviewDate(reviewDate: string): string {
     const currentDate = new Date(reviewDate);
     const nextReviewDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
-    return nextReviewDate.toISOString();
+    return nextReviewDate.toLocaleDateString();
   }
 }
 

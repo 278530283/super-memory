@@ -67,10 +67,7 @@ const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
   // 准备图表数据
   const chartData = {
     labels: history.map(item => 
-      new Date(item.date).toLocaleDateString('zh-CN', {
-        month: 'short',
-        day: 'numeric'
-      })
+      item.date
     ),
     datasets: [
       {
@@ -265,7 +262,7 @@ export default function WordDetailScreen() {
             <View style={styles.stat}>
               <Ionicons name="calendar" size={16} color="#34C759" />
               <Text style={styles.statText}>
-                下一次复习 : {new Date(wordInfo.nextReviewDate).toLocaleDateString('zh-CN')}
+                下一次复习 : {wordInfo.nextReviewDate}
               </Text>
             </View>
           )}
@@ -286,11 +283,7 @@ export default function WordDetailScreen() {
           history.map((record: HistoryItem, index: number) => (
             <View key={index} style={styles.historyItem}>
               <Text style={styles.historyDate}>
-                {new Date(record.date).toLocaleDateString('zh-CN', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                {record.date}
               </Text>
               <View style={styles.historyDetails}>
                 <View style={[

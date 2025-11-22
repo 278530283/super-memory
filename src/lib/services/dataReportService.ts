@@ -93,14 +93,15 @@ class dataReportService {
     const monday = new Date(now);
     console.log('getCurrentWeekRange:', monday);
     monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    monday.setHours(0, 0, 0, 0); // 将时间设为当天零点，确保日期准确性
     
     // 计算本周周日的日期
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
     
     return {
-      startOfWeek: monday.toISOString().split('T')[0], // YYYY-MM-DD
-      endOfWeek: sunday.toISOString().split('T')[0]    // YYYY-MM-DD
+      startOfWeek: monday.toLocaleDateString(),
+      endOfWeek: sunday.toLocaleDateString()
     };
   }
 

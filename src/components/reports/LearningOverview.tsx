@@ -53,7 +53,7 @@ export default function LearningOverview({ stats }: LearningOverviewProps) {
         </View>
         <View style={styles.difficultyLabels}>
           <Text style={styles.difficultyLabel}>简单: {stats.easyCount}</Text>
-          <Text style={styles.difficultyLabel}>正常: {stats.normalCount}</Text>
+          <Text style={styles.difficultyLabel}>中等: {stats.normalCount}</Text>
           <Text style={styles.difficultyLabel}>困难: {stats.difficultCount}</Text>
         </View>
       </View>

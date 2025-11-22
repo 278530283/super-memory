@@ -65,7 +65,7 @@ class DailyLearningService {
     try {
       const sessionData: any = {
         user_id: userId,
-        session_date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        session_date: new Date().toLocaleDateString(),
         mode_id: modeId,
         status: 0, // Start at '待开始'
         // 将数组序列化为 JSON 字符串
@@ -224,9 +224,8 @@ class DailyLearningService {
       console.log("User all reviewed word count:", reviewedWordIds.length);
 
       // 3. Fetch all Word IDs for Review
-      const queryTime = new Date().toISOString().split('T')[0]+"T23:59:59.999Z";
-      console.log("Query time:", queryTime);
-      const wordIdsForReview = await userWordService.getWordIdsForReview(userId, queryTime);
+      const queryDate = new Date().toLocaleDateString();
+      const wordIdsForReview = await userWordService.getWordIdsForReview(userId, queryDate);
 
       console.log("User need review word count:", wordIdsForReview.length);
 

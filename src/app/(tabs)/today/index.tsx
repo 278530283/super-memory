@@ -45,7 +45,7 @@ export default function TodayScreen() {
     setRefreshing(true);
     try {
       console.log('[TodayScreen] 下拉刷新，重新加载会话...');
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString();
       await getSession(user.$id, today);
     } catch (error) {
       console.error('[TodayScreen] 下拉刷新失败:', error);
@@ -59,7 +59,7 @@ export default function TodayScreen() {
     const loadSession = async () => {
       if (user?.$id) {
         console.log('[TodayScreen] 加载会话...');
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date().toLocaleDateString();
         await getSession(user.$id, today);
         setIsLoading(false);
       }

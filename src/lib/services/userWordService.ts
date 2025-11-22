@@ -261,7 +261,7 @@ class UserWordService {
       console.log("[UserWordService] Upserting user word progress...", data);
       // 1. 尝试查找现有记录 (基于 user_id 和 word_id)
       const existingRecord = await this.getUserWordProgressByUserAndWord(data.user_id!, data.word_id!);
-      const reviewDate = new Date().toISOString();
+      const reviewDate = new Date();
 
       if (existingRecord) {
         const dataWithReviewInfo = await ReviewStrategyService.calculateReviewProgress(existingRecord, data.proficiency_level!, reviewDate, strategyType, spelling);
@@ -293,13 +293,13 @@ class UserWordService {
    * 根据用户ID和查询时间，获取需要复习的单词ID
    * 查询条件：next_review_date <= queryTime 的记录
    * @param userId 用户ID
-   * @param queryTime 查询时间（ISO字符串）
+   * @param queryDate 查询日期
    * @param limit 限制返回数量，默认100
    * @returns Promise<string[]> 单词ID数组
    */
   async getWordIdsForReview(
     userId: string, 
-    queryTime: string, 
+    queryDate: string, 
     limit: number = 100
   ): Promise<string[]> {
     try {
@@ -308,7 +308,7 @@ class UserWordService {
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
           Query.equal('user_id', userId),
-          Query.lessThanEqual('next_review_date', queryTime),
+          Query.equal('next_review_date', queryDate),
           Query.orderAsc('next_review_date'), // 按下次复习时间升序排序（最早的需要先复习）
           Query.select(['word_id']), // 只选择 word_id 字段，提高查询性能
           Query.limit(limit)
