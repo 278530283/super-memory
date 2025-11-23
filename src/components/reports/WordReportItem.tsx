@@ -5,9 +5,10 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface WordReportItemProps {
   word: any;
+  index?: number; // 新增序号属性
 }
 
-export default function WordReportItem({ word }: WordReportItemProps) {
+export default function WordReportItem({ word, index }: WordReportItemProps) {
   const getDifficultyText = (level: number) => {
     switch (level) {
       case 1: return '容易';
@@ -19,9 +20,9 @@ export default function WordReportItem({ word }: WordReportItemProps) {
 
   const getDifficultyColor = (level: number) => {
     switch (level) {
-      case 1: return '#34C759';
-      case 2: return '#4A90E2';
-      case 3: return '#FF3B30';
+      case 1: return '#34C759'; // 绿色保持不变
+      case 2: return '#8E8E93'; // 中等改为灰色，更加低调
+      case 3: return '#A2845E'; // 困难改为棕色/米色，更加柔和
       default: return '#8E8E93';
     }
   };
@@ -32,6 +33,13 @@ export default function WordReportItem({ word }: WordReportItemProps) {
 
   return (
     <TouchableOpacity style={styles.container} onPress={handlePress}>
+      {/* 新增序号显示 */}
+      {index !== undefined && (
+        <View style={styles.indexContainer}>
+          <Text style={styles.indexText}>{index}</Text>
+        </View>
+      )}
+      
       <View style={styles.mainContent}>
         <View style={styles.header}>
           <Text style={styles.spelling}>{word.spelling}</Text>
@@ -45,9 +53,19 @@ export default function WordReportItem({ word }: WordReportItemProps) {
         <Text style={styles.meaning}>{word.meaning}</Text>
         
         <View style={styles.footer}>
-          <View style={styles.proficiency}>
-            <Ionicons name="star" size={14} color="#FF9500" />
-            <Text style={styles.proficiencyText}>L{word.currentProficiency}</Text>
+          <View style={styles.leftFooter}>
+            <View style={styles.proficiency}>
+              <Ionicons name="star" size={14} color="#FF9500" />
+              <Text style={styles.proficiencyText}>L{word.currentProficiency}</Text>
+            </View>
+            
+            {/* 将评级时间移到熟练度后面 */}
+            <View style={styles.timeContainer}>
+              <Ionicons name="time-outline" size={12} color="#8E8E93" />
+              <Text style={styles.timeText}>
+                {word.reviewTimeAgo}
+              </Text>
+            </View>
           </View>
           
           <Text style={styles.reviewCount}>
@@ -71,6 +89,21 @@ const styles = StyleSheet.create({
     borderLeftColor: '#4A90E2',
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  // 新增序号样式
+  indexContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  indexText: {
+    color: '#8E8E93',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   mainContent: {
     flex: 1,
@@ -97,6 +130,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  leftFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   proficiency: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -104,6 +141,17 @@ const styles = StyleSheet.create({
   proficiencyText: {
     fontSize: 12,
     color: '#666',
+    marginLeft: 4,
+    marginRight: 12, // 为时间容器添加右边距
+  },
+  // 新增时间容器样式
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#8E8E93',
     marginLeft: 4,
   },
   reviewCount: {

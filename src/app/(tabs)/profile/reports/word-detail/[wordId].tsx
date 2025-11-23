@@ -39,8 +39,8 @@ const getProficiencyColor = (proficiency: number) => {
 const getDifficultyColor = (level: number) => {
   switch (level) {
     case 1: return '#34C759';
-    case 2: return '#4A90E2';
-    case 3: return '#FF3B30';
+    case 2: return '#8E8E93';
+    case 3: return '#A2845E';
     default: return '#8E8E93';
   }
 };
@@ -65,10 +65,16 @@ const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
   }
 
   // 准备图表数据
+  // 准备图表数据
   const chartData = {
-    labels: history.map(item => 
-      item.date
-    ),
+    labels: history.map(item => {
+      // 将日期从 "2025/11/23" 格式转换为 "11/23"
+      const dateParts = item.date.split('/');
+      if (dateParts.length === 3) {
+        return `${dateParts[1]}/${dateParts[2]}`; // 月/日
+      }
+      return item.date; // 如果格式不符合预期，返回原日期
+    }),
     datasets: [
       {
         data: history.map(item => item.proficiency),
@@ -128,7 +134,7 @@ const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
         withHorizontalLabels = {false}
         formatYLabel={(yValue) => {
           const value = parseInt(yValue);
-          return value >= 0 && value <= 4 ? yValue : '';
+          return value >= 0 && value <= 4 ? `L${value}` : '';
         }}
         // 自定义数据点颜色
         renderDotContent={({ x, y, index }) => {
@@ -162,7 +168,7 @@ const ProficiencyChart = ({ history }: ProficiencyChartProps) => {
                 fontSize: 10,
                 fontWeight: 'bold',
               }}>
-                {proficiency}
+                L{proficiency}
               </Text>
             </View>
           );
@@ -253,6 +259,13 @@ export default function WordDetailScreen() {
           <View style={styles.stat}>
             <Ionicons name="star" size={16} color="#FF9500" />
             <Text style={styles.statText}>熟练度: L{wordInfo.currentProficiency}</Text>
+            {/* 新增评级时间显示 */}
+            {wordInfo.reviewTimeAgo && (
+              <View style={styles.timeContainer}>
+                <Ionicons name="time-outline" size={12} color="#8E8E93" />
+                <Text style={styles.timeText}>{wordInfo.reviewTimeAgo}</Text>
+              </View>
+            )}
           </View>
           <View style={styles.stat}>
             <Ionicons name="repeat" size={16} color="#4A90E2" />
@@ -371,6 +384,17 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 14,
     color: '#666',
+    marginLeft: 4,
+  },
+  // 新增时间容器样式
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#8E8E93',
     marginLeft: 4,
   },
   chartSection: {

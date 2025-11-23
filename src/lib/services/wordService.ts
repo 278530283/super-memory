@@ -5,12 +5,20 @@ import { parseExampleSentences, Word, WordMeaning, WordOption } from '@/src/type
 import { Query } from 'appwrite';
 
 class WordService {
-  async getWordById(wordId: string): Promise<Word | null> {
+  async getWordById(wordId: string, isIncludeExample?: boolean, isIncludeOptions?: boolean): Promise<Word | null> {
     try {
       const response = await tablesDB.getRow({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, rowId:wordId});
       let word = response as unknown as Word;
-      this.processWordData(word);
-      await this.generateRandomOptions(word, 6);
+      this.processWordMeaning(word);
+      // 处理例句数据
+      if(isIncludeOptions == null || isIncludeOptions){
+        this.processWordExampleSentence(word);
+      }
+
+      // 为单词生成选项
+      if(isIncludeOptions == null || isIncludeOptions){
+        await this.generateRandomOptions(word, 6);
+      }
       return word;
     } catch (error: any) {
       if (error.code === 404) {
@@ -21,7 +29,7 @@ class WordService {
     }
   }
 
-  async getWordsByIds(wordIds: string[]): Promise<Word[]> {
+  async getWordsByIds(wordIds: string[], isIncludeExample?: boolean, isIncludeOptions?: boolean): Promise<Word[]> {
     if (wordIds.length === 0) return [];
     try {
       // Appwrite Query.equal with array checks if the field value is IN the array
@@ -29,20 +37,27 @@ class WordService {
         Query.equal('$id', wordIds)
       ]});
       let words = response.rows as unknown as Word[];
-      words = words.map(word => this.processWordData(word));
+
+      words.map(word => {
+        this.processWordMeaning(word);
+        if(isIncludeExample==null || isIncludeExample){
+          this.processWordExampleSentence(word);
+        }
+      });
       
       // 按顺序获取单词
       const wordMap = new Map(words.map(word => [word.$id, word]));
-      const orderedWords = wordIds
+      words = wordIds
         .map(id => wordMap.get(id))
         .filter(word => word !== undefined) as Word[];
-      
+
+      if(isIncludeOptions == null || isIncludeOptions){
       // 为每个单词生成选项
-      const wordsWithOptions = await Promise.all(
-        orderedWords.map(word => this.generateRandomOptions(word, 6))
-      );
-      
-      return wordsWithOptions;
+        words = await Promise.all(
+          words.map(word => this.generateRandomOptions(word, 6))
+        );
+      }
+      return words;
     } catch (error) {
       console.error("WordService.getWordsByIds error:", error);
       throw error;
@@ -52,7 +67,7 @@ class WordService {
   /**
    * 处理单词数据，包括解析例句等
    */
-  private processWordData(word: Word): Word {
+  private processWordExampleSentence(word: Word): Word {
     // 解析例句数据
     if (word.example_sentence && !word.example_sentences) {
       word.example_sentences = parseExampleSentences(word.example_sentence);
@@ -194,7 +209,28 @@ class WordService {
     return flatMeanings;
   };
 
-// --- 修改后的 generateRandomOptions 方法 ---
+  /**
+ * 处理单词的释义
+ * @param correctWord 正确的 Word 对象
+ * @returns Promise<Word> 单词对象
+ */
+async processWordMeaning(correctWord: Word): Promise<Word> {
+  try {
+    const definitions = this.getAllMeanings(correctWord.definition || '');
+    correctWord.definitions = definitions;
+    correctWord.chinese_meanings = this.getAllMeanings(correctWord.chinese_meaning || '');
+    const parsed = this.getFirstMeaning(correctWord.chinese_meanings);
+    correctWord.partOfSpeech = parsed.partOfSpeech;
+    correctWord.meaning = parsed.meaning;
+    // --- 简化逻辑结束 ---
+    return correctWord;
+
+  } catch (error: any) {
+    console.error(`[WordService] processWordMeaning error for word ${correctWord?.$id}`, error);
+    return correctWord;
+  }
+}
+
 /**
  * 生成指定单词的随机选项（包括正确选项和错误选项）
  * @param correctWord 正确的 Word 对象
@@ -208,12 +244,6 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
       console.warn('[WordService] Requested option count is <= 0, returning empty array.');
       return correctWord;
     }
-    const definitions = this.getAllMeanings(correctWord.definition || '');
-    correctWord.definitions = definitions;
-    correctWord.chinese_meanings = this.getAllMeanings(correctWord.chinese_meaning || '');
-    const parsed = this.getFirstMeaning(correctWord.chinese_meanings);
-    correctWord.partOfSpeech = parsed.partOfSpeech;
-    correctWord.meaning = parsed.meaning;
 
     const totalOptionsNeeded = count;
     const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);

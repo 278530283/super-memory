@@ -1,10 +1,11 @@
 import dataReportService, {
-    WordDifficultyLevel,
-    WordReportItem
+  PaginatedWordReport,
+  WordDifficultyLevel,
+  WordReportItem
 } from '@/src/lib/services/dataReportService';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import WordReportItemComponent from './WordReportItem';
 
 interface WordReportListProps {
@@ -20,42 +21,98 @@ type DifficultyOption = {
 export default function WordReportList({ userId }: WordReportListProps) {
   const [words, setWords] = useState<WordReportItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<WordDifficultyLevel | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalWords, setTotalWords] = useState(0);
 
   // 使用类型安全的难度选项
   const difficulties: DifficultyOption[] = [
     { label: '全部', value: 'all' },
     { label: '简单', value: WordDifficultyLevel.EASY },
-    { label: '正常', value: WordDifficultyLevel.NORMAL },
+    { label: '中等', value: WordDifficultyLevel.NORMAL },
     { label: '困难', value: WordDifficultyLevel.DIFFICULT },
   ];
 
   useEffect(() => {
-    loadWords();
+    // 重置状态并重新加载
+    setWords([]);
+    setCurrentPage(1);
+    loadWords(1, true);
   }, [selectedDifficulty, userId]);
 
-  const loadWords = async () => {
-    setLoading(true);
+  const loadWords = async (page: number = 1, isRefresh: boolean = false) => {
+    if (isRefresh) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
-      let response;
-      if (selectedDifficulty === 'all') {
-        response = await dataReportService.getUserWordReport(userId, 1, 50);
+      let response: PaginatedWordReport;
+      
+      response = await dataReportService.getUserWordReport(userId, selectedDifficulty, page, 4);
+
+      if (isRefresh) {
+        setWords(response.items);
       } else {
-        response = await dataReportService.getUserWordReportByDifficulty(
-          userId, selectedDifficulty, 1, 50
-        );
+        setWords(prevWords => [...prevWords, ...response.items]);
       }
-      setWords(response.items);
+
+      setHasNextPage(response.hasNextPage);
+      setTotalWords(response.total);
+      
+      if (isRefresh) {
+        setCurrentPage(1);
+      } else {
+        setCurrentPage(page);
+      }
     } catch (error) {
       console.error('加载单词报告失败:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasNextPage) {
+      loadWords(currentPage + 1, false);
     }
   };
 
   // 类型安全的处理函数
   const handleDifficultyChange = (value: WordDifficultyLevel | 'all') => {
     setSelectedDifficulty(value);
+  };
+
+  const handleRefresh = () => {
+    loadWords(1, true);
+  };
+
+  // 渲染底部加载指示器
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#4A90E2" />
+        <Text style={styles.footerText}>加载更多...</Text>
+      </View>
+    );
+  };
+
+  // 渲染空状态
+  const renderEmptyState = () => {
+    if (loading) return null;
+    
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="document-text-outline" size={48} color="#ccc" />
+        <Text style={styles.emptyText}>暂无单词数据</Text>
+      </View>
+    );
   };
 
   return (
@@ -83,19 +140,23 @@ export default function WordReportList({ userId }: WordReportListProps) {
         ))}
       </View>
 
-      {/* 单词列表 */}
+      {/* 单词列表 - 修改了renderItem以传递序号 */}
       <FlatList
         data={words}
         keyExtractor={(item) => item.wordId}
-        renderItem={({ item }) => <WordReportItemComponent word={item} />}
+        renderItem={({ item, index }) => (
+          <WordReportItemComponent 
+            word={item} 
+            index={index + 1} // 传递序号，从1开始
+          />
+        )}
         refreshing={loading}
-        onRefresh={loadWords}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="document-text-outline" size={48} color="#ccc" />
-            <Text style={styles.emptyText}>暂无单词数据</Text>
-          </View>
-        }
+        onRefresh={handleRefresh}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={renderEmptyState}
+        contentContainerStyle={words.length === 0 ? styles.emptyContainer : null}
       />
     </View>
   );
@@ -131,6 +192,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
+  emptyContainer: {
+    flexGrow: 1,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -139,6 +203,17 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 8,
     color: '#999',
+    fontSize: 14,
+  },
+  footerLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  footerText: {
+    marginLeft: 8,
+    color: '#666',
     fontSize: 14,
   },
 });

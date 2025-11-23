@@ -1,8 +1,8 @@
+import wordService from '@/src/lib/services/wordService';
 // src/lib/services/dataReportService.ts
 import {
   COLLECTION_USER_WORD_PROGRESS,
   COLLECTION_USER_WORD_TEST_HISTORY,
-  COLLECTION_WORDS,
   DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
@@ -27,6 +27,7 @@ export interface WordReportItem {
   isLongDifficult: boolean; // 是否为长期困难词
   startDate?: string; // 开始学习日期
   lastReviewDate?: string; // 最后复习日期
+  reviewTimeAgo?: string; //
   reviewedTimes?: number; // 复习次数
   nextReviewDate?: string; // 下次复习日期
   testHistory: {
@@ -53,6 +54,67 @@ export interface WeeklyAchievements {
 }
 
 class dataReportService {
+   /**
+   * 获取复习时间间隔描述（相对于当前时间）
+   * @param dateString 日期字符串，格式为 "2025/11/23"
+   * @returns 时间间隔描述，如 "今天", "昨天", "3天前", "1周前", "11/23"
+   */
+  getReviewTimeAgo(dateString?: string): string {
+    if (!dateString) return '未评级';
+    
+    const reviewDate = this.parseReviewDate(dateString);
+    if (!reviewDate) return '日期错误';
+    
+    try {
+      const now = new Date();
+      
+      // 重置时间为0，只比较日期部分
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const reviewDay = new Date(reviewDate.getFullYear(), reviewDate.getMonth(), reviewDate.getDate());
+      
+      const diffTime = today.getTime() - reviewDay.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return '今天';
+      } else if (diffDays === 1) {
+        return '昨天';
+      } else if (diffDays <= 7) {
+        return `${diffDays}天前`;
+      } else if (diffDays <= 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return `${weeks}周前`;
+      } else {
+        // 超过一个月显示具体日期（月/日）
+        return `${reviewDate.getMonth() + 1}/${reviewDate.getDate()}`;
+      }
+    } catch (error) {
+      console.error('时间计算错误:', error);
+      return '日期错误';
+    }
+  }
+
+  /**
+   * 解析 "2025/11/23" 格式的日期
+   * @param dateString 日期字符串
+   * @returns Date对象或null
+   */
+  private parseReviewDate(dateString: string): Date | null {
+    if (!dateString) return null;
+    
+    try {
+      // 处理 "2025/11/23" 格式
+      const [year, month, day] = dateString.split('/').map(Number);
+      if (year && month && day) {
+        // 月份从0开始，所以减1
+        return new Date(year, month - 1, day);
+      }
+    } catch (error) {
+      console.error('日期解析错误:', error);
+    }
+    return null;
+  }
+
   /**
    * 获取用户本周成就数据
    * @param userId 用户ID
@@ -166,6 +228,7 @@ class dataReportService {
    */
   async getUserWordReport(
     userId: string,
+    difficultyLevel: WordDifficultyLevel | 'all',
     page: number = 1,
     limit: number = 20
   ): Promise<PaginatedWordReport> {
@@ -173,16 +236,30 @@ class dataReportService {
       // 计算偏移量
       const offset = (page - 1) * limit;
 
+      const queries = [
+        Query.equal('user_id', userId),
+        Query.orderDesc('last_review_date'), // 按最后复习日期降序排列
+        Query.offset(offset),
+        Query.limit(limit)
+      ];
+      if(difficultyLevel !== 'all'){
+          if(difficultyLevel === WordDifficultyLevel.NORMAL){
+          // 若难度为中等时，需要包括未知数据
+          queries.push(Query.or([
+            Query.equal('word_difficulty', difficultyLevel),
+            Query.isNull('word_difficulty')
+          ]));
+        }
+        else{
+          queries.push(Query.equal('word_difficulty', difficultyLevel));
+        }
+      }
+
       // 1. 获取用户的所有单词进度记录（分页）
       const progressResponse = await tablesDB.listRows({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
-        queries: [
-          Query.equal('user_id', userId),
-          Query.orderDesc('last_review_date'), // 按最后复习日期降序排列
-          Query.offset(offset),
-          Query.limit(limit)
-        ]
+        queries: queries
       });
 
       const progressList = progressResponse.rows as unknown as UserWordProgress[];
@@ -200,10 +277,28 @@ class dataReportService {
         };
       }
 
-      // 3. 批量获取单词信息和测试历史
-      const reportItems = await Promise.all(
-        progressList.map(progress => this.buildWordReportItem(userId, progress))
-      );
+      const wordIds = progressList.map(progress => progress.word_id);
+      const wordInfoList = await wordService.getWordsByIds(wordIds, false, false);
+
+      // 3. 使用 progressList 构造报告项，并通过索引直接获取单词信息
+      const reportItems = progressList.map((progress, index) => {
+        const wordInfo = wordInfoList[index];
+
+        return {
+          wordId: progress.word_id,
+          spelling: wordInfo?.spelling || '',
+          meaning: wordInfo?.meaning || '',
+          difficultyLevel: this.getDifficultyLevelFromProgress(progress),
+          currentProficiency: progress.proficiency_level,
+          isLongDifficult: progress.is_long_difficult,
+          startDate: progress.start_date || undefined,
+          lastReviewDate: progress.last_review_date || undefined,
+          reviewTimeAgo: progress.last_review_date ? this.getReviewTimeAgo(progress.last_review_date) : undefined,
+          reviewedTimes: progress.reviewed_times || 0,
+          nextReviewDate: progress.next_review_date || undefined,
+          testHistory: []
+        };
+      });
 
       // 4. 返回分页结果
       return {
@@ -228,7 +323,7 @@ class dataReportService {
     progress: UserWordProgress
   ): Promise<WordReportItem> {
     // 1. 获取单词基本信息
-    const wordInfo = await this.getWordInfo(progress.word_id);
+    const wordInfo = await wordService.getWordById(progress.word_id, false, false);
     
     // 2. 获取单词的测试历史
     const testHistory = await this.getWordTestHistory(userId, progress.word_id);
@@ -238,13 +333,14 @@ class dataReportService {
 
     return {
       wordId: progress.word_id,
-      spelling: wordInfo.spelling,
-      meaning: wordInfo.meaning,
+      spelling: wordInfo?.spelling || '',
+      meaning: wordInfo?.meaning || '',
       difficultyLevel,
       currentProficiency: progress.proficiency_level,
       isLongDifficult: progress.is_long_difficult,
       startDate: progress.start_date || undefined,
       lastReviewDate: progress.last_review_date || undefined,
+      reviewTimeAgo: progress.last_review_date ? this.getReviewTimeAgo(progress.last_review_date) : undefined,
       reviewedTimes: progress.reviewed_times || 0,
       nextReviewDate: progress.next_review_date || undefined,
       testHistory: testHistory.map(history => ({
@@ -274,32 +370,6 @@ class dataReportService {
   }
 
   /**
-   * 获取单词基本信息
-   */
-  private async getWordInfo(wordId: string): Promise<{ spelling: string; meaning: string }> {
-    try {
-      const response = await tablesDB.getRow({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_WORDS,
-        rowId: wordId
-      });
-
-      // 假设单词表有 spelling 和 meaning 字段
-      return {
-        spelling: response.spelling as string,
-        meaning: response.meaning as string
-      };
-    } catch (error) {
-      console.error(`dataReportService.getWordInfo error for word ${wordId}:`, error);
-      // 如果获取失败，返回默认值
-      return {
-        spelling: 'Unknown',
-        meaning: '未知'
-      };
-    }
-  }
-
-  /**
    * 获取单词的测试历史
    */
   private async getWordTestHistory(
@@ -314,7 +384,7 @@ class dataReportService {
           Query.equal('user_id', userId),
           Query.equal('word_id', wordId),
           Query.equal('phase', 1),
-          Query.orderDesc('test_date') // 按测试日期降序排列
+          Query.orderAsc('test_date') // 按测试日期降序排列
         ]
       });
 
@@ -322,51 +392,6 @@ class dataReportService {
     } catch (error) {
       console.error(`dataReportService.getWordTestHistory error for word ${wordId}:`, error);
       return [];
-    }
-  }
-
-  /**
-   * 根据难度等级筛选单词报告
-   */
-  async getUserWordReportByDifficulty(
-    userId: string,
-    difficultyLevel: WordDifficultyLevel,
-    page: number = 1,
-    limit: number = 20
-  ): Promise<PaginatedWordReport> {
-    try {
-      // 直接查询指定难度等级的记录
-      const progressResponse = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_USER_WORD_PROGRESS,
-        queries: [
-          Query.equal('user_id', userId),
-          Query.equal('word_difficulty', difficultyLevel),
-          Query.orderDesc('last_review_date'),
-          Query.offset((page - 1) * limit),
-          Query.limit(limit)
-        ]
-      });
-
-      const progressList = progressResponse.rows as unknown as UserWordProgress[];
-      const total = progressResponse.total;
-
-      // 构建报告项
-      const reportItems = await Promise.all(
-        progressList.map(progress => this.buildWordReportItem(userId, progress))
-      );
-
-      return {
-        items: reportItems,
-        total,
-        page,
-        limit,
-        hasNextPage: (page * limit) < total,
-        hasPrevPage: page > 1
-      };
-    } catch (error) {
-      console.error('dataReportService.getUserWordReportByDifficulty error:', error);
-      throw error;
     }
   }
 
@@ -496,7 +521,6 @@ class dataReportService {
       // 获取测试历史并按日期排序
       const testHistory = await this.getWordTestHistory(userId, wordId);
       const sortedHistory = testHistory
-        .sort((a, b) => new Date(a.test_date).getTime() - new Date(b.test_date).getTime())
         .map(history => ({
           date: history.test_date,
           proficiency: history.test_level, // 或者根据你的数据结构调整

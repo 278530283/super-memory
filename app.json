@@ -1,5 +1,6 @@
 {
 	"name": "Super Memory",
+	"icon": "./assets/icon.png",
 	"slug": "super-memory",
 	"version": "1.0.0",
 	"orientation": "portrait",
@@ -14,6 +15,7 @@
 		"expo-audio"
 	],
 	"android": {
+		"icon": "./assets/icon.png",
 		"package": "com.mr.tang.supermemory",
 		"permissions": ["RECORD_AUDIO"]
 	},
