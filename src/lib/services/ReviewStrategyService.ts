@@ -1,6 +1,7 @@
 // src/lib/services/ReviewStrategyService.ts
 import { COLLECTION_REVIEW_STRATEGY, DATABASE_ID } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
+import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { ReviewScheduleLog } from '@/src/types/ReviewScheduleLog';
 import { ReviewStrategy, STRATEGY_IDS, STRATEGY_TYPES } from '@/src/types/ReviewStrategy';
 import { CreateUserWordProgress } from '@/src/types/UserWordProgress';
@@ -141,7 +142,7 @@ class ReviewStrategyService {
   strategyType: number,
   spelling: string
 ): Promise<CreateUserWordProgress | null> {
-  const reviewDate = reviewTime.toLocaleDateString();
+  const reviewDate = DateUtils.formatDate(reviewTime.toLocaleDateString());
   const reviewTimeISO = reviewTime.toISOString();
   console.log("[ReviewStrategyService] calculateReviewProgress:", userWordProgress, proficiencyLevel, reviewDate);
   
@@ -407,14 +408,14 @@ private createTraditionalReviewLog(
         word_id: userWordProgress.word_id,
         review_time: now.toLocaleString(),
         schedule_days: scheduleDays,
-        next_review_time: scheduledCard.card.due.toLocaleDateString(),
+        next_review_time: DateUtils.formatDate(scheduledCard.card.due.toLocaleDateString()),
         strategy_id: STRATEGY_IDS.FSRS_DEFAULT,
         review_config: this.serializeCardToJSON(scheduledCard.card),
         review_log: JSON.stringify(scheduledCard.log)
       };
 
       return {
-        nextReviewDate: scheduledCard.card.due.toLocaleDateString(),
+        nextReviewDate: DateUtils.formatDate(scheduledCard.card.due.toLocaleDateString()),
         fsrsCard: this.serializeCardToJSON(scheduledCard.card),
         reviewLog
       };
@@ -551,7 +552,7 @@ private createTraditionalReviewLog(
   getDefaultNextReviewDate(reviewDate: string): string {
     const currentDate = new Date(reviewDate);
     const nextReviewDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
-    return nextReviewDate.toLocaleDateString();
+    return DateUtils.formatDate(nextReviewDate.toLocaleDateString());
   }
 }
 

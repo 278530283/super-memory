@@ -6,6 +6,7 @@ import {
   DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
+import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { UserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Query } from 'appwrite';
@@ -162,8 +163,8 @@ class dataReportService {
     sunday.setDate(monday.getDate() + 6);
     
     return {
-      startOfWeek: monday.toLocaleDateString(),
-      endOfWeek: sunday.toLocaleDateString()
+      startOfWeek: DateUtils.formatDate(monday.toLocaleDateString()),
+      endOfWeek: DateUtils.formatDate(sunday.toLocaleDateString())
     };
   }
 

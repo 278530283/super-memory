@@ -300,15 +300,16 @@ class UserWordService {
   async getWordIdsForReview(
     userId: string, 
     queryDate: string, 
-    limit: number = 100
+    limit: number = 1000
   ): Promise<string[]> {
     try {
+      console.log("[UserWordService] Querying user word progress for review...", userId, queryDate);
       const response = await tablesDB.listRows({
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
           Query.equal('user_id', userId),
-          Query.equal('next_review_date', queryDate),
+          Query.lessThanEqual('next_review_date', queryDate),
           Query.orderAsc('next_review_date'), // 按下次复习时间升序排序（最早的需要先复习）
           Query.select(['word_id']), // 只选择 word_id 字段，提高查询性能
           Query.limit(limit)

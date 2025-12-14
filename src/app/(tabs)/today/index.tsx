@@ -4,6 +4,7 @@ import SummaryCard from '@/src/components/features/today/SummaryCard';
 import dailyLearningService from '@/src/lib/services/dailyLearningService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
+import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -45,7 +46,7 @@ export default function TodayScreen() {
     setRefreshing(true);
     try {
       console.log('[TodayScreen] 下拉刷新，重新加载会话...');
-      const today = new Date().toLocaleDateString();
+      const today = DateUtils.getLocalDate();
       await getSession(user.$id, today);
     } catch (error) {
       console.error('[TodayScreen] 下拉刷新失败:', error);
@@ -59,7 +60,7 @@ export default function TodayScreen() {
     const loadSession = async () => {
       if (user?.$id) {
         console.log('[TodayScreen] 加载会话...');
-        const today = new Date().toLocaleDateString();
+        const today = DateUtils.getLocalDate();
         await getSession(user.$id, today);
         setIsLoading(false);
       }

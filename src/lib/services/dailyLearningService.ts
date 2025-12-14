@@ -5,6 +5,7 @@ import {
   DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
+import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { DailyLearningSession } from '@/src/types/DailyLearningSession';
 import { LearningMode } from '@/src/types/LearningMode';
 import { ID, Query } from 'appwrite';
@@ -65,7 +66,7 @@ class DailyLearningService {
     try {
       const sessionData: any = {
         user_id: userId,
-        session_date: new Date().toLocaleDateString(),
+        session_date: DateUtils.getLocalDate(),
         mode_id: modeId,
         status: 0, // Start at '待开始'
         // 将数组序列化为 JSON 字符串
@@ -224,7 +225,7 @@ class DailyLearningService {
       console.log("User all reviewed word count:", reviewedWordIds.length);
 
       // 3. Fetch all Word IDs for Review
-      const queryDate = new Date().toLocaleDateString();
+      const queryDate = DateUtils.getLocalDate();
       const wordIdsForReview = await userWordService.getWordIdsForReview(userId, queryDate);
 
       console.log("User need review word count:", wordIdsForReview.length);

@@ -5,6 +5,7 @@ import { postTestMachine } from '@/src/lib/statemachines/postTestMachine';
 import { preTestMachine } from '@/src/lib/statemachines/preTestMachine';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
+import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { ACTION_TYPES } from '@/src/types/actionTypes';
 import { CreateUserWordProgress } from '@/src/types/UserWordProgress';
 import { CreateUserWordTestHistory } from '@/src/types/UserWordTestHistory';
@@ -374,7 +375,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
     const userId = appwriteUser.$id;
     const wordId = currentWord.$id;
     const phase = testType === 'pre_test' ? 1 : 2;
-    const testDate = new Date().toLocaleDateString();
+    const testDate = DateUtils.getLocalDate();
     const strategyType = appwriteUser.prefs.reviewStrategy || 2;
     const enableSpelling = appwriteUser.prefs.enableSpelling || false;
 
