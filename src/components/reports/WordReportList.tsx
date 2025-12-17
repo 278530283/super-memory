@@ -52,7 +52,7 @@ export default function WordReportList({ userId }: WordReportListProps) {
     try {
       let response: PaginatedWordReport;
       
-      response = await dataReportService.getUserWordReport(userId, selectedDifficulty, page, 4);
+      response = await dataReportService.getUserWordReport(userId, selectedDifficulty, page, 10);
 
       if (isRefresh) {
         setWords(response.items);

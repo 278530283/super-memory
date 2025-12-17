@@ -22,7 +22,8 @@ class UserWordService {
           Query.equal('user_id', userId),
           Query.equal('word_id', wordId),
           Query.equal('phase', 1), // 仅查询 phase 1 的记录
-          Query.orderAsc('test_date') // 按测评时间排序
+          Query.orderAsc('test_date'), // 按测评时间排序
+          Query.limit(20000)
         ]
       });
       
@@ -52,7 +53,8 @@ class UserWordService {
           Query.equal('user_id', userId),
           Query.equal('word_id', wordId),
           Query.equal('phase', phase),
-          Query.equal('test_date', testDate)
+          Query.equal('test_date', testDate),
+          Query.limit(20000)
         ]
       });
 
@@ -145,7 +147,8 @@ class UserWordService {
         queries: [
           Query.equal('user_id', userId),
           Query.equal('test_date', testDate),
-          Query.orderAsc('word_id')
+          Query.orderAsc('word_id'),
+          Query.limit(20000)
         ]
       });
 
@@ -170,7 +173,8 @@ class UserWordService {
           Query.equal('user_id', userId),
           Query.equal('test_date', testDate),
           Query.equal('phase', phase),
-          Query.orderAsc('word_id')
+          Query.orderAsc('word_id'),
+          Query.limit(20000)
         ]
       });
 
@@ -336,7 +340,8 @@ class UserWordService {
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
           Query.equal('user_id', userId),
-          Query.select(['word_id']) // 只选择 word_id 字段，提高查询性能
+          Query.select(['word_id']), // 只选择 word_id 字段，提高查询性能
+          Query.limit(20000)
         ]
       });
 

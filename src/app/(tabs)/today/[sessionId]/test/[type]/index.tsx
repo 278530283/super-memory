@@ -93,11 +93,11 @@ export default function TestScreen() {
 
   // --- 下拉刷新处理函数 ---
   const onRefresh = useCallback(async () => {
-    if (!sessionId || !type) return;
+    if (!sessionId || !type || currentTestActivityType === 'learn') return;
     
     setRefreshing(true);
     try {
-      console.log('[TestScreen] 下拉刷新，重新初始化测试...');
+      console.log('[TestScreen] 下拉刷新，重新初始化测试...', currentTestActivityType);
       await initializeTest(sessionId, type);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -106,7 +106,7 @@ export default function TestScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [sessionId, type, initializeTest]);
+  }, [sessionId, type, initializeTest, currentTestActivityType]);
 
   useEffect(() => {
     console.log('[TestScreen] currentActorSnapshot effect triggered.');

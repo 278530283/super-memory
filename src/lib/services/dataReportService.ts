@@ -188,7 +188,7 @@ class dataReportService {
           Query.lessThanEqual('test_date', endOfWeek),
           Query.select(['test_date', 'word_id']), // 只选择需要的字段
           Query.orderAsc('test_date'),
-          Query.limit(10000)
+          Query.limit(20000)
         ]
       });
 
@@ -239,7 +239,7 @@ class dataReportService {
 
       const queries = [
         Query.equal('user_id', userId),
-        Query.orderDesc('last_review_date'), // 按最后复习日期降序排列
+        Query.orderDesc('$updatedAt'), // 按最后复习日期降序排列
         Query.offset(offset),
         Query.limit(limit)
       ];
@@ -385,7 +385,8 @@ class dataReportService {
           Query.equal('user_id', userId),
           Query.equal('word_id', wordId),
           Query.equal('phase', 1),
-          Query.orderAsc('test_date') // 按测试日期降序排列
+          Query.orderAsc('test_date'), // 按测试日期降序排列
+          Query.limit(20000)
         ]
       });
 
@@ -412,7 +413,9 @@ class dataReportService {
         databaseId: DATABASE_ID,
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
-          Query.equal('user_id', userId)
+          Query.equal('user_id', userId),
+          Query.limit(20000),
+          Query.select(['proficiency_level', 'is_long_difficult', 'word_difficulty'])
         ]
       });
 
@@ -549,7 +552,8 @@ class dataReportService {
         tableId: COLLECTION_USER_WORD_PROGRESS,
         queries: [
           Query.equal('user_id', userId),
-          Query.equal('word_id', wordId)
+          Query.equal('word_id', wordId),
+          Query.limit(20000)
         ]
       });
 

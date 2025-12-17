@@ -601,7 +601,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
           ) : (
             <View style={styles.nextButtonContent}>
               <Text style={styles.nextButtonText}>完成学习</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+              <Ionicons name="arrow-forward" size={20} color="#7C3AED" />
             </View>
           )}
         </TouchableOpacity>
@@ -627,6 +627,14 @@ const LearnFC: React.FC<TestTypeProps> = ({
             <View style={styles.wordHeader}>
               <View style={styles.wordMain}>
                 <Text style={styles.wordText}>{word.spelling || 'upbringing'}</Text>
+              </View>
+              
+              {/* 音标区域 */}
+              <View style={styles.phoneticContainer}>
+                <Text style={styles.phoneticText}>
+                  {word.american_phonetic ? `美 /${word.american_phonetic}/` : 
+                  word.british_phonetic ? `英 /${word.british_phonetic}/` : ''}
+                </Text>
                 <TouchableOpacity 
                   style={[
                     styles.soundButton,
@@ -637,18 +645,10 @@ const LearnFC: React.FC<TestTypeProps> = ({
                 >
                   <Ionicons 
                     name={isPlaying ? "volume-medium" : "volume-medium-outline"} 
-                    size={28} 
+                    size={20} 
                     color={isPlaying ? "#7C3AED" : "#6B7280"} 
                   />
                 </TouchableOpacity>
-              </View>
-              
-              {/* 音标区域 */}
-              <View style={styles.phoneticContainer}>
-                <Text style={styles.phoneticText}>
-                  {word.american_phonetic ? `美 /${word.american_phonetic}/` : 
-                  word.british_phonetic ? `英 /${word.british_phonetic}/` : ''}
-                </Text>
               </View>
             </View>
           </View>
@@ -868,13 +868,14 @@ const LearnFC: React.FC<TestTypeProps> = ({
             )}
           </View>
 
-          {/* 学习提示区域 */}
+          {/* 学习提示区域 
           <View style={styles.learningTip}>
             <View style={styles.tipIcon}>
               <Ionicons name="school-outline" size={20} color="#7C3AED" />
             </View>
             <Text style={styles.learningTipText}>点击例句中的单词可查看对应翻译</Text>
           </View>
+          */}
         </ScrollView>
       </Animated.View>
     </View>
@@ -903,7 +904,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 100, // 为底部按钮留出更多空间
+    paddingBottom: 80, // 为底部按钮留出更多空间
   },
   errorContainer: {
     flex: 1,
@@ -971,14 +972,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   wordText: {
-    fontSize: 40,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#1E293B',
     marginRight: 16,
     textAlign: 'center',
   },
   soundButton: {
-    padding: 12,
+    padding: 4,
     backgroundColor: '#F1F5F9',
     borderRadius: 50,
     shadowColor: '#000',
@@ -997,9 +998,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   phoneticText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#64748B',
     fontStyle: 'italic',
+    paddingRight: 6,
   },
   // 释义卡片
   meaningCard: {
@@ -1242,11 +1244,12 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   nextButton: {
-    backgroundColor: '#7C3AED',
+    borderColor: '#7C3AED',
+    backgroundColor: '#dfcffaff',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#8ca6f4ff',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -1263,7 +1266,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nextButtonText: {
-    color: '#FFFFFF',
+    color: '#7C3AED',
     fontSize: 18,
     fontWeight: 'bold',
     marginRight: 8,

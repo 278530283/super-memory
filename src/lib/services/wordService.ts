@@ -34,7 +34,8 @@ class WordService {
     try {
       // Appwrite Query.equal with array checks if the field value is IN the array
       const response = await tablesDB.listRows({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, queries:[
-        Query.equal('$id', wordIds)
+        Query.equal('$id', wordIds),
+        Query.limit(20000)
       ]});
       let words = response.rows as unknown as Word[];
 
@@ -96,7 +97,7 @@ class WordService {
     const meaningBlocks = meaningText.split('\n').filter(block => block.trim());
     
     // 定义支持的词性模式
-    const pattern = /^(n|a|v|r|s|vi|vt|pl|num|adv|pron|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
+    const pattern = /^(n|a|v|r|s|vi|vt|pl|num|adv|pron|conj|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
 
     for (const block of meaningBlocks) {
       const trimmedBlock = block.trim();
@@ -114,6 +115,16 @@ class WordService {
       // 提取含义部分并清理
       meaningPart = meaningPart.trim();
       meaningPart = meaningPart.replace(/^[.:：\s\r]+/, '');
+      meaningPart = meaningPart.replace('；', ';');
+      meaningPart = meaningPart.replace('（', '(');
+      meaningPart = meaningPart.replace('）', ')');
+      if(meaningPart.includes('(')){
+        meaningPart = meaningPart.replace(/\([^)]*\)/g, '');
+      }
+      if(meaningPart.includes('[')){
+        meaningPart = meaningPart.replace(/\[[^)]*\]/g, '');
+      }
+      
 
       // 按分号分割多个含义
       const subMeanings = meaningPart.split(';')
@@ -248,7 +259,8 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
     const totalOptionsNeeded = count;
     const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);
 
-    // 2. 查询候选单词 (排除正确单词)
+    // 2. 查询候选
+    // f单词 (排除正确单词)
     let candidateWords: Word[] = [];
     if (falseOptionsCount > 0) {
       const response = await tablesDB.listRows({
@@ -256,7 +268,8 @@ async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
         tableId: COLLECTION_WORDS,
         queries: [
           Query.notEqual('$id', correctWord.$id),
-          Query.limit(Math.max(falseOptionsCount * 5, 50)) // 获取更多以增加随机性
+          Query.limit(Math.max(falseOptionsCount * 5, 50)), // 获取更多以增加随机性
+          Query.orderRandom()
         ]
       });
       candidateWords = response.rows as unknown as Word[];
@@ -337,7 +350,7 @@ async getNewWordIds(
 
     // 添加限制、排序和字段选择
     queries.push(Query.select(['$id'])); // 只选择ID字段
-    queries.push(Query.orderDesc('frequency')); // 按照frequency降序排列（高频词优先）
+    queries.push(Query.orderRandom());
     queries.push(Query.limit(limit));
 
     const response = await tablesDB.listRows({
