@@ -265,7 +265,7 @@ class ReviewStrategyService {
   
   if (strategyId === STRATEGY_IDS.FSRS_DEFAULT) {
     // FSRS策略
-    const result = await this.calculateNextReviewDateFSRS(reviewTime, userWordProgress, proficiencyLevel, spelling);
+    const result = await this.calculateNextReviewDateFSRS(reviewTime, reviewedTimes, userWordProgress, proficiencyLevel, spelling);
     return {
       nextReviewDate: result.nextReviewDate,
       fsrsCard: result.fsrsCard,
@@ -369,6 +369,7 @@ private createTraditionalReviewLog(
    */
   async calculateNextReviewDateFSRS(
     reviewTime: string,
+    reviewedTimes: number,
     userWordProgress: CreateUserWordProgress,
     proficiencyLevel: number,
     spelling: string
@@ -394,6 +395,10 @@ private createTraditionalReviewLog(
       
       // 使用类型断言解决TypeScript索引问题
       const scheduledCard: RecordLogItem = (schedulingCards as any)[rating];
+
+      // 若首次评测是L3，则将复习日期设为第二天
+      if(reviewedTimes == 0 && proficiencyLevel == 3)
+        scheduledCard.card.due.setDate(now.getDate() + 1);
 
       console.log("scheduledCard:", scheduledCard);
       // 计算调度天数

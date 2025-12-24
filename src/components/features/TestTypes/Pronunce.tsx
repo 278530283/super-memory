@@ -205,12 +205,34 @@ const PronunceFC: React.FC<TestTypeProps> = ({
       }, 0);
     }, [recognizedText, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctSpelling]);
 
+  // 新增：模拟成功
+  const handleSimulateSuccess = useCallback(() => {
+    if (showFeedback || isSubmitting) {
+      return;
+    }
+    
+    // 直接将识别的文本设置为正确拼写
+    setRecognizedText(correctSpelling);
+    // 清空音频源，因为这是模拟的，没有实际录音
+    setAudioSource('');
+  }, [showFeedback, isSubmitting, correctSpelling]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
         {/* 单词信息卡片 */}
         <View style={styles.wordCard}>
-          <Text style={styles.wordText}>{word.spelling || ''}</Text>
+          <View style={styles.wordCardHeader}>
+            <Text style={styles.wordText}>{word.spelling || ''}</Text>
+            {/* 新增：模拟成功按钮 */}
+            <TouchableOpacity
+              style={styles.simulateButton}
+              onPress={handleSimulateSuccess}
+            >
+              <Ionicons name="checkmark-circle-outline" size={24} color="#4A90E2" />
+              <Text style={styles.simulateButtonText}>直接通过</Text>
+            </TouchableOpacity>
+          </View>
           {/* --- 修改：条件渲染音标 --- */}
           {(word.american_phonetic || word.british_phonetic) && (
             <Text style={styles.phoneticText}>
@@ -233,6 +255,7 @@ const PronunceFC: React.FC<TestTypeProps> = ({
             style={[styles.recordButton, recorderState.isRecording && styles.recordingActive]}
             onPress={recorderState.isRecording ? handleStopRecording : handleStartRecording}
             accessibilityLabel={recorderState.isRecording ? "停止录音" : "开始录音"}
+            disabled={!!showFeedback || isSubmitting}
           >
             <Ionicons
               name={recorderState.isRecording ? "mic" : "mic-outline"}
@@ -337,12 +360,34 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  wordCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
   wordText: {
     fontSize: 32,
     fontWeight: '700',
     color: '#1a1a1a',
     textAlign: 'center',
-    marginBottom: 8,
+    flex: 1,
+  },
+  // 新增：模拟成功按钮样式
+  simulateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#E8F4FD',
+    borderRadius: 20,
+    marginLeft: 12,
+  },
+  simulateButtonText: {
+    fontSize: 12,
+    color: '#4A90E2',
+    fontWeight: '600',
+    marginLeft: 4,
   },
   phoneticText: {
     fontSize: 16,

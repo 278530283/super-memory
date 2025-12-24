@@ -180,6 +180,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
       if (!currentWord) {
         throw new Error(`无法加载单词: ${currentWordId}`);
       }
+      console.log(`[TestStore] word spelling: ${currentWord.spelling}, meaning: ${currentWord.meaning}`);
 
       // 预加载下一个单词（如果存在）
       let nextWord = null;

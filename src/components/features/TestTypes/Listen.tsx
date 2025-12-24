@@ -178,7 +178,7 @@ const ListenFC: React.FC<TestTypeProps> = ({
 
   // 正确答案的单词 ID
   const correctWordId = word.$id;
-  console.log('Correct word:', correctWordId, word.spelling);
+  console.log('Correct word:', correctWordId, word.spelling, word.meaning);
 
   const handleSelect = useCallback((optionId: string) => {
     if (showFeedback) return;
