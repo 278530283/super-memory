@@ -47,7 +47,6 @@ const OptionCard: React.FC<OptionCardProps> = React.memo(({
   onSelect,
   testID
 }) => {
-  // const optionKey = `${option.partOfSpeech} ${option.meaning}`; // 旧方式
   const optionId = option.id; // 使用选项的 id 作为唯一标识
 
   const handlePress = useCallback(() => {
@@ -221,6 +220,33 @@ const ListenFC: React.FC<TestTypeProps> = ({
     }, 100);
   }, [selectedOptionId, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctWordId]);
 
+  // 处理"听不懂"按钮点击
+  const handleNotUnderstand = useCallback(() => {
+    if (showFeedback || isSubmitting) return;
+
+    setIsSubmitting(true); // 开始提交
+
+    const responseTimeMs = Date.now() - startTime;
+    const result = {
+      type: testType, // 使用传入的 testType
+      correct: false,
+      userAnswer: 'not-understand', // 特殊标识
+      wordId: word.$id, // 保存当前测试的单词 ID
+      responseTimeMs,
+      speedUsed: 50,
+      isNotUnderstand: true // 标记为"听不懂"
+    };
+
+    setShowFeedback({
+      correct: false,
+      message: '选择"听不懂"，我们会标记为错误并加强后续训练',
+    });
+
+    setTimeout(() => {
+      onAnswer(result);
+    }, 100);
+  }, [showFeedback, isSubmitting, startTime, word, onAnswer, testType]);
+
   // 权限未获取时显示的提示
   if (hasRecordingPermission === false) {
     return (
@@ -267,7 +293,6 @@ const ListenFC: React.FC<TestTypeProps> = ({
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options?.map((option, index) => {
-          // const optionKey = `${option.partOfSpeech} ${option.meaning}`; // 旧方式
           const optionId = option.id; // 使用选项 ID
           const isSelected = selectedOptionId === optionId;
           // 判断选项是否正确：选项的 wordId 是否等于当前单词的 $id
@@ -286,33 +311,48 @@ const ListenFC: React.FC<TestTypeProps> = ({
           );
         })}
       </View>
-      {/* 提交按钮 */}
-      <TouchableOpacity
-        testID="submit-button"
-        style={[styles.submitButton, (!selectedOptionId || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
-        onPress={handleSubmit}
-        disabled={!selectedOptionId || !!showFeedback || isSubmitting}
-        accessibilityLabel="提交答案"
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !selectedOptionId || !!showFeedback || isSubmitting }}
-      >
-        {isSubmitting ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <Text style={styles.submitButtonText}>提交</Text>
-        )}
-      </TouchableOpacity>
-      {/* 答题反馈 */}
-      {/* {showFeedback && (
-        <View style={styles.feedbackContainer}>
-          <Text style={[
-            styles.feedbackText,
-            showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
-          ]}>
-            {showFeedback.message}
-          </Text>
-        </View>
-      )} */}
+      
+      {/* 底部按钮区域 */}
+      <View style={styles.buttonContainer}>
+        {/* 提交按钮 - 占2/3 */}
+        <TouchableOpacity
+          testID="submit-button"
+          style={[styles.submitButton, (!selectedOptionId || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={!selectedOptionId || !!showFeedback || isSubmitting}
+          accessibilityLabel="提交答案"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !selectedOptionId || !!showFeedback || isSubmitting }}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>提交</Text>
+          )}
+        </TouchableOpacity>
+        
+        {/* 听不懂按钮 - 占1/3 */}
+        <TouchableOpacity
+          testID="not-understand-button"
+          style={[styles.notUnderstandButton, (showFeedback || isSubmitting) && styles.notUnderstandButtonDisabled]}
+          onPress={handleNotUnderstand}
+          disabled={!!showFeedback || isSubmitting}
+          accessibilityLabel="听不懂"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !!showFeedback || isSubmitting }}
+        >
+          <View style={styles.notUnderstandButtonContent}>
+            <Ionicons 
+              name="volume-mute-outline" 
+              size={16} 
+              color={(showFeedback || isSubmitting) ? '#AEAEB2' : '#8E8E93'} 
+            />
+            <Text style={[styles.notUnderstandButtonText, (showFeedback || isSubmitting) && styles.notUnderstandButtonTextDisabled]}>
+              听不懂
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 };
@@ -450,15 +490,24 @@ const styles = StyleSheet.create({
     color: '#333333',
     flexShrink: 1,
   },
-  submitButton: {
+  // 按钮容器 - 水平排列，提交按钮2/3，听不懂按钮1/3
+  buttonContainer: {
     position: 'absolute',
     bottom: 20,
     left: 16,
     right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  // 提交按钮 - 占2/3
+  submitButton: {
+    flex: 2, // 2/3
     backgroundColor: '#4A90E2',
     borderRadius: 24,
     paddingVertical: 14,
     alignItems: 'center',
+    marginRight: 6, // 两个按钮之间的间距
   },
   submitButtonDisabled: {
     backgroundColor: '#C5C5C7',
@@ -467,6 +516,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // 听不懂按钮 - 占1/3
+  notUnderstandButton: {
+    flex: 1, // 1/3
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 24,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginLeft: 6, // 两个按钮之间的间距
+  },
+  notUnderstandButtonDisabled: {
+    borderColor: '#F0F0F0',
+    backgroundColor: '#FAFAFA',
+  },
+  notUnderstandButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notUnderstandButtonText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  notUnderstandButtonTextDisabled: {
+    color: '#C7C7CC',
   },
   feedbackContainer: {
     position: 'absolute',
