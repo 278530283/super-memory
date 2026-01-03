@@ -353,7 +353,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
       setIsPlaying(true);
       await Speech.speak(word.spelling || '', {
         language: 'en-US',
-        rate: 0.9,
+        rate: 0.6,
         onDone: () => {
           setIsPlaying(false);
           setPlayCount(prev => prev + 1);

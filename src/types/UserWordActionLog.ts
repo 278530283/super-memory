@@ -12,4 +12,5 @@ export interface UserWordActionLog {
   response_time_ms?: number | null;
   study_duration_ms?: number | null;
   speed_used?: number; // Percentage
+  session_date?: string | null;
 }

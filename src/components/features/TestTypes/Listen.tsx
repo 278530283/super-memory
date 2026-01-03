@@ -135,7 +135,7 @@ const ListenFC: React.FC<TestTypeProps> = ({
       setIsPlaying(true);
       await Speech.speak(word.spelling || 'property', {
         language: 'en-US',
-        rate: 0.9,
+        rate: 0.6,
         onDone: () => {
           setIsPlaying(false);
           // 在播放完成时增加计数

@@ -239,6 +239,7 @@ export const useTestStore = create<TestState>()((set, get) => ({
         is_correct: result.correct,
         response_time_ms: result.responseTimeMs,
         speed_used: result.speedUsed,
+        session_date: session.session_date,
       });
     } catch (e) {
       console.warn('[TestStore] Failed to log action:', e);
@@ -658,7 +659,8 @@ export const useTestStore = create<TestState>()((set, get) => ({
           action_type: ACTION_TYPES.SKIP, // 使用专门的跳过动作类型
           is_correct: false, // 跳过视为未正确回答
           response_time_ms: 0,
-          speed_used: 0
+          speed_used: 0,
+          session_date: session.session_date,
         });
         
         console.log(`[TestStore] Skip action logged for word ${wordId}`);

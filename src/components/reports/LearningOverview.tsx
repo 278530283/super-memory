@@ -1,6 +1,12 @@
+// LearningOverview.tsx
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
 interface LearningOverviewProps {
   stats: {
@@ -9,32 +15,66 @@ interface LearningOverviewProps {
     normalCount: number;
     difficultCount: number;
     averageProficiency: number;
+    todayLearnTime: number;
   };
+  onTotalLearnedPress?: () => void;
 }
 
-export default function LearningOverview({ stats }: LearningOverviewProps) {
+export default function LearningOverview({ stats, onTotalLearnedPress }: LearningOverviewProps) {
+  const renderStatItem = (icon: string, iconColor: string, value: string | number, label: string, onPress?: () => void) => {
+    const content = (
+      <View style={styles.statContent}>
+        <Ionicons name={icon as any} size={24} color={iconColor} />
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+    );
+
+    if (onPress) {
+      return (
+        <TouchableOpacity 
+          style={styles.statItem}
+          onPress={onPress}
+          activeOpacity={0.7}
+        >
+          {content}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <View style={styles.statItem}>
+        {content}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>学习概览</Text>
       
       <View style={styles.statsGrid}>
-        <View style={styles.statItem}>
-          <Ionicons name="book-outline" size={24} color="#4A90E2" />
-          <Text style={styles.statValue}>{stats.totalLearned}</Text>
-          <Text style={styles.statLabel}>已学单词</Text>
-        </View>
+        {renderStatItem(
+          "time-outline", 
+          "#34C759", 
+          stats.todayLearnTime+"'", 
+          "今日学习>", 
+          onTotalLearnedPress
+        )}
+
+        {renderStatItem(
+          "book-outline", 
+          "#4A90E2", 
+          stats.totalLearned, 
+          "已学单词"
+        )}
         
-        <View style={styles.statItem}>
-          <Ionicons name="trending-up-outline" size={24} color="#34C759" />
-          <Text style={styles.statValue}>{stats.averageProficiency.toFixed(1)}</Text>
-          <Text style={styles.statLabel}>平均熟练度</Text>
-        </View>
-        
-        <View style={styles.statItem}>
-          <Ionicons name="alert-circle-outline" size={24} color="#FF3B30" />
-          <Text style={styles.statValue}>{stats.difficultCount}</Text>
-          <Text style={styles.statLabel}>困难单词</Text>
-        </View>
+        {renderStatItem(
+          "trending-up-outline", 
+          "#FF3B30", 
+          stats.averageProficiency.toFixed(1), 
+          "平均熟练度"
+        )}
       </View>
 
       {/* 简化的难度分布 */}
@@ -81,6 +121,9 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: 'center',
     flex: 1,
+  },
+  statContent: {
+    alignItems: 'center',
   },
   statValue: {
     fontSize: 20,

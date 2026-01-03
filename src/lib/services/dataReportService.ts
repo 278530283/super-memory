@@ -1,12 +1,14 @@
-import wordService from '@/src/lib/services/wordService';
 // src/lib/services/dataReportService.ts
 import {
+  COLLECTION_USER_WORD_ACTION_LOG,
   COLLECTION_USER_WORD_PROGRESS,
-  COLLECTION_USER_WORD_TEST_HISTORY,
+  COLLECTION_USER_WORD_TEST_HISTORY, // 假设这个常量存在
   DATABASE_ID
 } from '@/src/constants/appwrite';
 import { tablesDB } from '@/src/lib/appwrite';
+import wordService from '@/src/lib/services/wordService';
 import { DateUtils } from '@/src/lib/utils/DateUtils';
+import { UserWordActionLog } from '@/src/types/UserWordActionLog';
 import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { UserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Query } from 'appwrite';
@@ -54,8 +56,26 @@ export interface WeeklyAchievements {
   learnedWords: number; // 本周学习单词数
 }
 
+// 学习周报接口
+export interface WeeklyStudyReport {
+  weekStart: string; // 周开始日期 (YYYY/MM/DD)
+  weekEnd: string;   // 周结束日期 (YYYY/MM/DD)
+  weekNumber: number; // 周数
+  year: number;      // 年份
+  dailyStudyTime: DailyStudyTime[]; // 每天学习时间
+  totalStudyTime: number; // 本周总学习时间(分钟)
+  averageDailyStudyTime: number; // 平均每日学习时间(分钟)
+}
+
+// 每日学习时间接口
+export interface DailyStudyTime {
+  date: string; // 日期 (YYYY/MM/DD)
+  dayOfWeek: string; // 星期几
+  studyTimeMinutes: number; // 学习时间(分钟)
+}
+
 class dataReportService {
-   /**
+  /**
    * 获取复习时间间隔描述（相对于当前时间）
    * @param dateString 日期字符串，格式为 "2025/11/23"
    * @returns 时间间隔描述，如 "今天", "昨天", "3天前", "1周前", "11/23"
@@ -166,6 +186,242 @@ class dataReportService {
       startOfWeek: DateUtils.formatDate(monday.toLocaleDateString()),
       endOfWeek: DateUtils.formatDate(sunday.toLocaleDateString())
     };
+  }
+
+  /**
+   * 根据指定日期和偏移量获取周的日期范围
+   * @param baseDate 基准日期，默认为当前日期
+   * @param weekOffset 周偏移量，0=当前周，-1=上一周，1=下一周
+   * @returns 周的日期范围
+   */
+  getWeekRange(baseDate?: Date, weekOffset: number = 0): { startOfWeek: string; endOfWeek: string; weekNumber: number; year: number } {
+    const date = baseDate ? new Date(baseDate) : new Date();
+    
+    // 应用周偏移量
+    date.setDate(date.getDate() + (weekOffset * 7));
+    
+    const dayOfWeek = date.getDay(); // 0 = 周日, 1 = 周一, ..., 6 = 周六
+    
+    // 计算本周周一的日期
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    monday.setHours(0, 0, 0, 0);
+    
+    // 计算本周周日的日期
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    // 计算周数
+    const startOfYear = new Date(monday.getFullYear(), 0, 1);
+    const pastDaysOfYear = Math.floor((monday.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+    const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+    
+    return {
+      startOfWeek: DateUtils.formatDate(monday.toLocaleDateString()),
+      endOfWeek: DateUtils.formatDate(sunday.toLocaleDateString()),
+      weekNumber,
+      year: monday.getFullYear()
+    };
+  }
+
+  /**
+   * 获取指定日期范围内的每日学习时间
+   * @param userId 用户ID
+   * @param startDate 开始日期 (YYYY/MM/DD)
+   * @param endDate 结束日期 (YYYY/MM/DD)
+   * @returns 每日学习时间统计
+   */
+  async getDailyStudyTime(
+    userId: string, 
+    startDate: string, 
+    endDate: string
+  ): Promise<DailyStudyTime[]> {
+    try {
+      console.log('获取每日学习时间:', { userId, startDate, endDate });
+      
+      // 获取指定日期范围内的所有学习记录
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_WORD_ACTION_LOG,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.greaterThanEqual('session_date', startDate),
+          Query.lessThanEqual('session_date', endDate),
+          Query.select(['session_date', 'response_time_ms']),
+          Query.orderAsc('$createdAt'),
+          Query.limit(20000)
+        ]
+      });
+
+      console.log('学习记录数量:', response.rows.length);
+
+      // 按日期分组统计
+      const dailyStats = new Map<string, {
+        studyDurationMs: number;
+        date: string;
+      }>();
+
+      const daysOfWeek = ['日', '一', '二', '三', '四', '五', '六'];
+
+      response.rows.forEach((row: any) => {
+        const log = row as unknown as UserWordActionLog;
+        console.log('学习记录:', log);
+        if(log.session_date === null || log.session_date === undefined)
+          return;
+        const dateStr = log.session_date;
+        
+        if (!dailyStats.has(dateStr)) {
+          dailyStats.set(dateStr, {
+            studyDurationMs: 0,
+            date: dateStr
+          });
+        }
+        
+        const dayStat = dailyStats.get(dateStr)!;
+        
+        // 累加学习时间
+        if (log.study_duration_ms) {
+          dayStat.studyDurationMs += log.study_duration_ms;
+        }else if(log.response_time_ms){
+          dayStat.studyDurationMs += log.response_time_ms;
+        }
+
+      });
+
+      console.log('每日学习时间统计:', dailyStats);
+
+      // 转换为 DailyStudyTime 数组并排序
+      const result: DailyStudyTime[] = Array.from(dailyStats.values()).map(stat => {
+        const date = this.parseReviewDate(stat.date);
+        const dayOfWeek = date ? daysOfWeek[date.getDay()] : '未知';
+        
+        return {
+          date: stat.date,
+          dayOfWeek,
+          studyTimeMinutes: Math.round(stat.studyDurationMs / (1000 * 60)) // 转换为分钟
+        };
+      }).sort((a, b) => a.date.localeCompare(b.date));
+
+      // 确保日期范围内所有日期都有数据（包括0分钟的天数）
+      const allDays = this.getAllDatesInRange(startDate, endDate);
+      const filledResult = allDays.map(date => {
+        const existing = result.find(item => item.date === date);
+        if (existing) return existing;
+        
+        const parsedDate = this.parseReviewDate(date);
+        const dayOfWeek = parsedDate ? daysOfWeek[parsedDate.getDay()] : '未知';
+        
+        return {
+          date,
+          dayOfWeek,
+          studyTimeMinutes: 0,
+          studyDurationMs: 0,
+          sessionCount: 0
+        };
+      });
+
+      return filledResult;
+    } catch (error) {
+      console.error('dataReportService.getDailyStudyTime error:', error);
+      // 返回空数组
+      return this.getAllDatesInRange(startDate, endDate).map(date => {
+        const parsedDate = this.parseReviewDate(date);
+        const daysOfWeek = ['日', '一', '二', '三', '四', '五', '六'];
+        const dayOfWeek = parsedDate ? daysOfWeek[parsedDate.getDay()] : '未知';
+        
+        return {
+          date,
+          dayOfWeek,
+          studyTimeMinutes: 0
+        };
+      });
+    }
+  }
+
+  /**
+   * 获取指定范围内的所有日期
+   */
+  private getAllDatesInRange(startDate: string, endDate: string): string[] {
+    const dates: string[] = [];
+    const start = this.parseReviewDate(startDate);
+    const end = this.parseReviewDate(endDate);
+    
+    if (!start || !end) return dates;
+    
+    const current = new Date(start);
+    
+    while (current <= end) {
+      const year = current.getFullYear();
+      const month = current.getMonth() + 1;
+      const day = current.getDate();
+      dates.push(`${year}/${month.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}`);
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return dates;
+  }
+
+  /**
+   * 获取学习周报
+   * @param userId 用户ID
+   * @param baseDate 基准日期，默认为当前日期
+   * @param weekOffset 周偏移量，0=当前周，-1=上一周，1=下一周
+   * @returns 学习周报
+   */
+  async getWeeklyStudyReport(
+    userId: string,
+    baseDate?: Date,
+    weekOffset: number = 0
+  ): Promise<WeeklyStudyReport> {
+    try {
+      // 获取指定周的日期范围
+      const { startOfWeek, endOfWeek, weekNumber, year } = this.getWeekRange(baseDate, weekOffset);
+      
+      // 获取每日学习时间
+      const dailyStudyTime = await this.getDailyStudyTime(userId, startOfWeek, endOfWeek);
+      
+      // 计算统计数据
+      const totalStudyTime = dailyStudyTime.reduce((sum, day) => sum + day.studyTimeMinutes, 0);
+      const daysWithStudy = dailyStudyTime.filter(day => day.studyTimeMinutes > 0).length;
+      const averageDailyStudyTime = daysWithStudy > 0 ? Math.round(totalStudyTime / daysWithStudy) : 0;
+      
+      return {
+        weekStart: startOfWeek,
+        weekEnd: endOfWeek,
+        weekNumber,
+        year,
+        dailyStudyTime,
+        totalStudyTime,
+        averageDailyStudyTime
+      };
+    } catch (error) {
+      console.error('dataReportService.getWeeklyStudyReport error:', error);
+      // 返回默认周报
+      const { startOfWeek, endOfWeek, weekNumber, year } = this.getWeekRange(baseDate, weekOffset);
+      const dailyStudyTime = await this.getAllDatesInRange(startOfWeek, endOfWeek).map(date => {
+        const parsedDate = this.parseReviewDate(date);
+        const daysOfWeek = ['日', '一', '二', '三', '四', '五', '六'];
+        const dayOfWeek = parsedDate ? daysOfWeek[parsedDate.getDay()] : '未知';
+        
+        return {
+          date,
+          dayOfWeek,
+          studyTimeMinutes: 0
+        };
+      });
+      
+      return {
+        weekStart: startOfWeek,
+        weekEnd: endOfWeek,
+        weekNumber,
+        year,
+        dailyStudyTime,
+        totalStudyTime: 0,
+        averageDailyStudyTime: 0
+      };
+    }
   }
 
   /**
@@ -400,13 +656,14 @@ class dataReportService {
   /**
    * 获取用户学习统计信息
    */
-  async getUserLearningStats(userId: string): Promise<{
+  async getUserLearningStats(userId: string, session_date: string): Promise<{
     totalLearned: number;
     easyCount: number;
     normalCount: number;
     difficultCount: number;
     longDifficultCount: number;
     averageProficiency: number;
+    todayLearnTime: number;
   }> {
     try {
       const allProgressResponse = await tablesDB.listRows({
@@ -449,13 +706,18 @@ class dataReportService {
         totalProficiency += progress.proficiency_level;
       });
 
+      // 获取每日学习时间
+      const dailyStudyTime = await this.getDailyStudyTime(userId, session_date, session_date);
+      const todayLearnTime = dailyStudyTime[0].studyTimeMinutes;
+
       return {
         totalLearned: allProgress.length,
         easyCount,
         normalCount,
         difficultCount,
         longDifficultCount,
-        averageProficiency: allProgress.length > 0 ? totalProficiency / allProgress.length : 0
+        averageProficiency: allProgress.length > 0 ? totalProficiency / allProgress.length : 0,
+        todayLearnTime
       };
     } catch (error) {
       console.error('dataReportService.getUserLearningStats error:', error);
@@ -496,8 +758,8 @@ class dataReportService {
   }
 
   /**
- * 获取单词的详细历史数据
- */
+   * 获取单词的详细历史数据
+   */
   async getWordHistoryDetails(
     userId: string, 
     wordId: string
@@ -511,7 +773,6 @@ class dataReportService {
     }[];
   }> {
     try {
-
       const userWordProgress = await this.getUserWordProgress(userId, wordId);
       if (!userWordProgress) {
         throw new Error('用户没有该单词的进度信息');

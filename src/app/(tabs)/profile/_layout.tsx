@@ -64,6 +64,12 @@ export default function ProfileLayout() {
         }}
       />
       <Stack.Screen
+        name="reports/study-time/StudyTimeReport"
+        options={{
+          title: '学习时长',
+        }}
+      />
+      <Stack.Screen
         name="reports/word-detail/[wordId]"
         options={{
           title: '单词详情',

@@ -224,6 +224,14 @@ const PronunceFC: React.FC<TestTypeProps> = ({
         <View style={styles.wordCard}>
           <View style={styles.wordCardHeader}>
             <Text style={styles.wordText}>{word.spelling || ''}</Text>
+          </View>
+          {/* --- 修改：条件渲染音标 --- */}
+          {(word.american_phonetic || word.british_phonetic) && (
+            <Text style={styles.phoneticText}>
+              {word.american_phonetic ? `美 /${word.american_phonetic}/` : `英 /${word.british_phonetic}/`}
+            </Text>
+          )}
+          
             {/* 新增：模拟成功按钮 */}
             <TouchableOpacity
               style={styles.simulateButton}
@@ -232,13 +240,6 @@ const PronunceFC: React.FC<TestTypeProps> = ({
               <Ionicons name="checkmark-circle-outline" size={24} color="#4A90E2" />
               <Text style={styles.simulateButtonText}>直接通过</Text>
             </TouchableOpacity>
-          </View>
-          {/* --- 修改：条件渲染音标 --- */}
-          {(word.american_phonetic || word.british_phonetic) && (
-            <Text style={styles.phoneticText}>
-              {word.american_phonetic ? `美 /${word.american_phonetic}/` : `英 /${word.british_phonetic}/`}
-            </Text>
-          )}
           
           {/* <View style={styles.exampleContainer}>
             <Text style={styles.exampleText}>
