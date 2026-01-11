@@ -334,7 +334,7 @@ async getNewWordIds(
 
     // 排除已复习过的单词
     if (reviewedWordIds.length > 0) {
-      queries.push(Query.notContains('$id', reviewedWordIds));
+      queries.push(Query.notContains('$id', reviewedWordIds.slice(0, 100)));
     }
 
     // 难度等级筛选

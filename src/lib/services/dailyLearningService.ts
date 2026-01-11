@@ -4,7 +4,7 @@ import {
   COLLECTION_USER_WORD_ACTION_LOG,
   DATABASE_ID
 } from '@/src/constants/appwrite';
-import { tablesDB } from '@/src/lib/appwrite';
+import { functions, tablesDB } from '@/src/lib/appwrite';
 import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { DailyLearningSession } from '@/src/types/DailyLearningSession';
 import { LearningMode } from '@/src/types/LearningMode';
@@ -52,43 +52,77 @@ class DailyLearningService {
   }
 
   /**
-   * Creates a new daily learning session for the user.
+   * Creates a new daily learning session for the user by calling the Appwrite Cloud Function.
    * @param userId 
    * @param modeId 
-   * @param initialWordIds 
+   * @param englishLevel 
    * @returns 
    */
   async createSession(
     userId: string,
     modeId: string,
-    initialWordIds: { pre_test: string[]; post_test: string[] }
+    englishLevel: number
   ): Promise<DailyLearningSession> {
     try {
-      const sessionData: any = {
-        user_id: userId,
-        session_date: DateUtils.getLocalDate(),
-        mode_id: modeId,
-        status: 0, // Start at '待开始'
-        // 将数组序列化为 JSON 字符串
-        pre_test_word_ids: JSON.stringify(initialWordIds.pre_test),
-        post_test_word_ids: JSON.stringify(initialWordIds.post_test),
-        // Progress fields will be initialized as null/undefined or empty strings
-        pre_test_progress: "0/" + initialWordIds.pre_test.length,
-        post_test_progress: "0/" + initialWordIds.post_test.length,
+      // 云函数 ID - 应该从环境变量中获取
+      const FUNCTION_ID = process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_ID || '';
+      
+      if (!FUNCTION_ID) {
+        throw new Error('云函数 ID 未配置，请检查环境变量 EXPO_PUBLIC_APPWRITE_FUNCTION_ID');
+      }
+
+      // 准备请求数据
+      const payload = {
+        userId,
+        sessionDate: DateUtils.getLocalDate(), // 使用当前日期
+        modeId,
+        englishLevel: englishLevel
       };
 
-      const newSession = await tablesDB.createRow({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_DAILY_LEARNING_SESSIONS,
-        rowId: ID.unique(),
-        data: sessionData
-      });
-      // 反序列化 JSON 字符串为数组
-      const result = newSession as unknown as DailyLearningSession;
-      result.pre_test_word_ids = initialWordIds.pre_test;
-      result.post_test_word_ids = initialWordIds.post_test;
+      console.log("调用云函数创建会话，参数:", payload);
+
+      // 使用 Appwrite Functions 服务调用云函数
+      const execution = await functions.createExecution({
+        functionId:FUNCTION_ID,
+        body:JSON.stringify(payload), // 数据作为字符串传递
+        async:false // 设置为 false 表示同步执行（等待结果）
+        }
+      );
+
+      console.log("云函数执行结果:", execution);
+
+      // 检查执行状态
+      if (execution.status === 'failed') {
+        throw new Error(`云函数执行失败: ${execution.errors || '未知错误'}`);
+      }
+
+      // 解析响应
+      let responseData;
+      try {
+        responseData = JSON.parse(execution.responseBody || '{}');
+      } catch (parseError) {
+        console.error("解析云函数响应失败:", parseError);
+        throw new Error('云函数返回的数据格式错误');
+      }
+
+      // 检查响应是否成功
+      if (!responseData.success) {
+        throw new Error(responseData.error || responseData.message || '创建会话失败');
+      }
+
+      // 确保数组字段被正确反序列化
+      const session = responseData.data as DailyLearningSession;
       
-      return result;
+      // 如果字段是字符串，反序列化为数组
+      if (typeof session.pre_test_word_ids === 'string') {
+        session.pre_test_word_ids = JSON.parse(session.pre_test_word_ids);
+      }
+      if (typeof session.post_test_word_ids === 'string') {
+        session.post_test_word_ids = JSON.parse(session.post_test_word_ids);
+      }
+      
+      return session;
+      
     } catch (error) {
       console.error("DailyLearningService.createSession error:", error);
       throw error;

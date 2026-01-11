@@ -11,7 +11,7 @@ interface DailyLearningState {
   createSession: (
     userId: string,
     modeId: string,
-    initialWordIds: { pre_test: string[]; post_test: string[] }
+    englishLevel: number
   ) => Promise<void>;
   updateSessionProgress: (sessionId: string, updates: Partial<DailyLearningSession>) => Promise<void>;
   recordWordAction: (actionData: any) => Promise<void>;
@@ -43,11 +43,10 @@ const useDailyLearningStore = create<DailyLearningState>((set) => ({
       }
     }
   },
-  createSession: async (userId, modeId, initialWordIds) => { // Add initialWordIds parameter
+  createSession: async (userId, modeId, englishLevel) => {
     set({ loading: true, error: null });
     try {
-      // Pass the initialWordIds object directly to the service
-      const session = await dailyLearningService.createSession(userId, modeId, initialWordIds);
+      const session = await dailyLearningService.createSession(userId, modeId, englishLevel);
       set({ session, loading: false });
     } catch (error: any) {
       set({ error: error.message || 'Failed to create session', loading: false });

@@ -1,7 +1,6 @@
 // src/app/(tabs)/today/index.tsx
 import SessionCard from '@/src/components/features/today/SessionCard';
 import SummaryCard from '@/src/components/features/today/SummaryCard';
-import dailyLearningService from '@/src/lib/services/dailyLearningService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { DateUtils } from '@/src/lib/utils/DateUtils';
@@ -78,8 +77,7 @@ export default function TodayScreen() {
 
             try {
                 setIsLoading(true);
-                const initialWordIds = await dailyLearningService.generateTodaysWordLists(user.$id, modeId, englishLevel);
-                await createSession(user.$id, modeId, initialWordIds);
+                await createSession(user.$id, modeId, englishLevel);
             } catch (err) {
                 console.error("Failed to create new session:", err);
                 Alert.alert('错误', '无法创建今日学习计划。');
