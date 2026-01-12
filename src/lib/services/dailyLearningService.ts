@@ -65,14 +65,11 @@ class DailyLearningService {
   ): Promise<DailyLearningSession> {
     try {
       // 云函数 ID - 应该从环境变量中获取
-      const FUNCTION_ID = process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_ID || '';
-      
-      if (!FUNCTION_ID) {
-        throw new Error('云函数 ID 未配置，请检查环境变量 EXPO_PUBLIC_APPWRITE_FUNCTION_ID');
-      }
+      const FUNCTION_ID = process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_SESSION || '';
 
       // 准备请求数据
       const payload = {
+        action : 'createSession',
         userId,
         sessionDate: DateUtils.getLocalDate(), // 使用当前日期
         modeId,
@@ -125,6 +122,7 @@ class DailyLearningService {
       
     } catch (error) {
       console.error("DailyLearningService.createSession error:", error);
+      console.warn("创建会话时发生错误，请检查参数和网络连接。");
       throw error;
     }
   }
@@ -336,79 +334,93 @@ class DailyLearningService {
     }
   }
 
-  /**
- * Adds incremental words to an existing session and updates progress
- * @param sessionId The ID of the existing session
- * @param userId The ID of the user
- * @param modeId The ID of the learning mode
- * @param englishLevel The english level for word selection
- * @returns The updated session
- */
-async addIncrementalWordsToSession(
-  sessionId: string,
-  userId: string,
-  modeId: string,
-  englishLevel: number
-): Promise<DailyLearningSession> {
-  try {
-    console.log("[DailyLearningService] addIncrementalWordsToSession, userId:", userId, ", modeId:", modeId, ", englishLevel:", englishLevel);
-    // 1. Get current session
-    const currentSession = await this.getSessionById(sessionId);
-    if (!currentSession) {
-      throw new Error('会话不存在');
-    }
+   /**
+   * Adds incremental words to an existing session and updates progress by calling the Appwrite Cloud Function.
+   * @param sessionId The ID of the existing session
+   * @param userId The ID of the user
+   * @param modeId The ID of the learning mode
+   * @param englishLevel The english level for word selection
+   * @returns The updated session
+   */
+   async addIncrementalWordsToSession(
+    sessionId: string,
+    userId: string,
+    modeId: string,
+    englishLevel: number
+  ): Promise<DailyLearningSession> {
+    try {
+      console.log("[DailyLearningService] addIncrementalWordsToSession, userId:", userId, ", modeId:", modeId, ", englishLevel:", englishLevel);
 
-    // 2. Generate incremental words list, 排除当前会话中已存在的单词
-    const incrementalWords = await this.generateIncrementalWordsList(
-      userId,
-      modeId,
-      englishLevel,
-      currentSession.pre_test_word_ids // 排除当前会话中所有已存在的单词
-    );
-
-    if (incrementalWords.length === 0) {
-      throw new Error('暂时没有更多可学习的单词');
-    }
-
-    // 3. Merge word lists and update progress for both pre_test and post_test
-    const currentPreTestWords = currentSession.pre_test_word_ids || [];
-    const currentPostTestWords = currentSession.post_test_word_ids || [];
+      // 云函数 ID - 应该从环境变量中获取
+      const FUNCTION_ID = process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_SESSION || '';
     
-    const updatedPreTestWords = [...currentPreTestWords, ...incrementalWords];
-    const updatedPostTestWords = [...currentPostTestWords, ...incrementalWords];
-    
-    // 更新 pre_test 进度
-    const currentPreTestProgress = currentSession.pre_test_progress || '0/0';
-    const [preTestCompleted, preTestTotal] = currentPreTestProgress.split('/').map(Number);
-    const newPreTestTotal = preTestTotal + incrementalWords.length;
-    const updatedPreTestProgress = `${preTestCompleted}/${newPreTestTotal}`;
 
-    // 更新 post_test 进度
-    const currentPostTestProgress = currentSession.post_test_progress || '0/0';
-    const [postTestCompleted, postTestTotal] = currentPostTestProgress.split('/').map(Number);
-    const newPostTestTotal = postTestTotal + incrementalWords.length;
-    const updatedPostTestProgress = `${postTestCompleted}/${newPostTestTotal}`;
+      // 准备请求数据
+      const payload = {
+        action: 'addIncrementalWords',
+        sessionId,
+        userId,
+        modeId,
+        englishLevel
+      };
 
-    // 4. Update session
-    const updatedSession = await this.updateSession(sessionId, {
-      pre_test_word_ids: updatedPreTestWords,
-      post_test_word_ids: updatedPostTestWords,
-      pre_test_progress: updatedPreTestProgress,
-      post_test_progress: updatedPostTestProgress,
-      status: 1, // Set to in progress
-    });
+      console.log("调用云函数添加增量单词，参数:", payload);
 
-    console.log(`[DailyLearningService] Added ${incrementalWords.length} incremental words to both pre_test and post_test`);
-    console.log("Updated Pre-Test Word list:", updatedPreTestWords);
-    console.log("Updated Post-Test Word list:", updatedPostTestWords);
+      // 使用 Appwrite Functions 服务调用云函数
+      const execution = await functions.createExecution({
+        functionId: FUNCTION_ID,
+        body: JSON.stringify(payload),
+        async: false
+      });
 
-    return updatedSession;
+      console.log("云函数执行结果:", execution);
 
-  } catch (error) {
-    console.error("DailyLearningService.addIncrementalWordsToSession error:", error);
-    throw error;
+      // 检查执行状态
+      if (execution.status === 'failed') {
+        throw new Error(`云函数执行失败: ${execution.errors || '未知错误'}`);
+      }
+
+      // 解析响应
+      let responseData;
+      try {
+        responseData = JSON.parse(execution.responseBody || '{}');
+      } catch (parseError) {
+        console.error("解析云函数响应失败:", parseError);
+        throw new Error('云函数返回的数据格式错误');
+      }
+
+      // 检查响应是否成功
+      if (!responseData.success) {
+        if (responseData.code === 'NO_MORE_WORDS') {
+          throw new Error('暂时没有更多可学习的单词');
+        }
+        if (responseData.code === 'SESSION_NOT_FOUND') {
+          throw new Error('会话不存在');
+        }
+        throw new Error(responseData.error || responseData.message || '添加增量单词失败');
+      }
+
+      // 确保数组字段被正确反序列化
+      const session = responseData.data as DailyLearningSession;
+      
+      // 如果字段是字符串，反序列化为数组
+      if (typeof session.pre_test_word_ids === 'string') {
+        session.pre_test_word_ids = JSON.parse(session.pre_test_word_ids);
+      }
+      if (typeof session.post_test_word_ids === 'string') {
+        session.post_test_word_ids = JSON.parse(session.post_test_word_ids);
+      }
+      
+      console.log(`[DailyLearningService] 成功添加 ${responseData.data.incremental_words_added || 0} 个增量单词`);
+      
+      return session;
+
+    } catch (error) {
+      console.error("DailyLearningService.addIncrementalWordsToSession error:", error);
+      console.warn("添加增量单词到会话时，云函数调用失败");
+      throw error;
+    }
   }
-}
 }
 
 export default new DailyLearningService();
