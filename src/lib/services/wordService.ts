@@ -1,61 +1,107 @@
 // src/lib/services/wordService.ts
-import { COLLECTION_WORDS, DATABASE_ID } from '@/src/constants/appwrite';
-import { tablesDB } from '@/src/lib/appwrite';
-import { parseExampleSentences, Word, WordMeaning, WordOption } from '@/src/types/Word';
-import { Query } from 'appwrite';
+import { COLLECTION_WORDS, DATABASE_ID } from "@/src/constants/appwrite";
+import { functions, tablesDB } from "@/src/lib/appwrite";
+import {
+  parseExampleSentences,
+  Word,
+  WordMeaning,
+  WordOption,
+} from "@/src/types/Word";
+import { Query } from "appwrite";
 
 class WordService {
-  async getWordById(wordId: string, isIncludeExample?: boolean, isIncludeOptions?: boolean): Promise<Word | null> {
+  // 云函数名称
+  private FUNCTION_ID = process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_SESSION || "";
+
+  async getWordById(
+    wordId: string,
+    isIncludeExample?: boolean,
+    isIncludeOptions?: boolean,
+  ): Promise<Word | null> {
     try {
-      const response = await tablesDB.getRow({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, rowId:wordId});
-      let word = response as unknown as Word;
-      this.processWordMeaning(word);
-      // 处理例句数据
-      if(isIncludeOptions == null || isIncludeOptions){
-        this.processWordExampleSentence(word);
+      console.log(`[WordService] 通过云函数获取单词: ${wordId}`);
+
+      // 准备请求数据
+      const payload = {
+        action: "getWordById",
+        wordId,
+        isIncludeExample: isIncludeExample ?? true,
+        isIncludeOptions: isIncludeOptions ?? true,
+      };
+
+      // 调用云端 Function
+      const execution = await functions.createExecution({
+        functionId: this.FUNCTION_ID,
+        body: JSON.stringify(payload), // 数据作为字符串传递
+        async: false, // 设置为 false 表示同步执行（等待结果）
+      });
+
+      console.log("[WordService] 云函数执行结果:", execution);
+      // 检查执行状态
+      if (execution.status === "failed") {
+        throw new Error(
+          `[WordService] 云函数执行失败: ${execution.errors || "未知错误"}`,
+        );
       }
 
-      // 为单词生成选项
-      if(isIncludeOptions == null || isIncludeOptions){
-        await this.generateRandomOptions(word, 6);
+      // 解析响应
+      let result;
+      try {
+        result = JSON.parse(execution.responseBody || "{}");
+      } catch (parseError) {
+        console.error("[WordService] 解析云函数响应失败:", parseError);
+        throw new Error("云函数返回的数据格式错误");
       }
+
+      if (!result.success) {
+        if (result.code === "WORD_NOT_FOUND") {
+          return null;
+        }
+        throw new Error(result.error || "获取单词失败");
+      }
+
+      const word = result.data as Word;
+      console.log("[WordService] 获取的单词:", word);
+
       return word;
     } catch (error: any) {
-      if (error.code === 404) {
-        return null;
-      }
       console.error("WordService.getWordById error:", error);
       throw error;
     }
   }
 
-  async getWordsByIds(wordIds: string[], isIncludeExample?: boolean, isIncludeOptions?: boolean): Promise<Word[]> {
+  async getWordsByIds(
+    wordIds: string[],
+    isIncludeExample?: boolean,
+    isIncludeOptions?: boolean,
+  ): Promise<Word[]> {
     if (wordIds.length === 0) return [];
     try {
-      // Appwrite Query.equal with array checks if the field value is IN the array
-      const response = await tablesDB.listRows({databaseId:DATABASE_ID, tableId:COLLECTION_WORDS, queries:[
-        Query.equal('$id', wordIds),
-        Query.limit(20000)
-      ]});
+      // 对于批量获取，我们仍然使用直接查询数据库以提高性能
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_WORDS,
+        queries: [Query.equal("$id", wordIds), Query.limit(20000)],
+      });
       let words = response.rows as unknown as Word[];
 
-      words.map(word => {
+      words.map((word) => {
         this.processWordMeaning(word);
-        if(isIncludeExample==null || isIncludeExample){
+        if (isIncludeExample == null || isIncludeExample) {
           this.processWordExampleSentence(word);
         }
       });
-      
-      // 按顺序获取单词
-      const wordMap = new Map(words.map(word => [word.$id, word]));
-      words = wordIds
-        .map(id => wordMap.get(id))
-        .filter(word => word !== undefined) as Word[];
 
-      if(isIncludeOptions == null || isIncludeOptions){
-      // 为每个单词生成选项
+      // 按顺序获取单词
+      const wordMap = new Map(words.map((word) => [word.$id, word]));
+      words = wordIds
+        .map((id) => wordMap.get(id))
+        .filter((word) => word !== undefined) as Word[];
+
+      if (isIncludeOptions == null || isIncludeOptions) {
+        // 为每个单词生成选项
         words = await Promise.all(
-          words.map(word => this.generateRandomOptions(word, 6))
+          words.map((word) => this.generateRandomOptions(word, 6)),
         );
       }
       return words;
@@ -88,24 +134,27 @@ class WordService {
     }
 
     const results: { partOfSpeech: string; meanings: string[] }[] = [];
-    
+
     // 按换行符分割多个释义
     let meaningText = meaning;
-    if(meaningText.includes('\\n')){
-      meaningText = meaningText.replaceAll('\\n', '\n');
+    if (meaningText.includes("\\n")) {
+      meaningText = meaningText.replaceAll("\\n", "\n");
     }
-    const meaningBlocks = meaningText.split('\n').filter(block => block.trim());
-    
+    const meaningBlocks = meaningText
+      .split("\n")
+      .filter((block) => block.trim());
+
     // 定义支持的词性模式
-    const pattern = /^(n|a|v|r|s|vi|vt|pl|num|adv|pron|conj|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
+    const pattern =
+      /^(n|a|v|r|s|vi|vt|pl|num|adv|pron|conj|prep|interj|\[[^\]]+\])([\.\s])(.*)$/;
 
     for (const block of meaningBlocks) {
       const trimmedBlock = block.trim();
-      
+
       // 尝试匹配词性
-      let matchedPos = '';
+      let matchedPos = "";
       let meaningPart = trimmedBlock;
-      
+
       const match = trimmedBlock.match(pattern);
       if (match && match.length === 4) {
         matchedPos = match[1];
@@ -114,35 +163,35 @@ class WordService {
 
       // 提取含义部分并清理
       meaningPart = meaningPart.trim();
-      meaningPart = meaningPart.replace(/^[.:：\s\r]+/, '');
-      meaningPart = meaningPart.replace('；', ';');
-      meaningPart = meaningPart.replace('（', '(');
-      meaningPart = meaningPart.replace('）', ')');
-      if(meaningPart.includes('(')){
-        meaningPart = meaningPart.replace(/\([^)]*\)/g, '');
+      meaningPart = meaningPart.replace(/^[.:：\s\r]+/, "");
+      meaningPart = meaningPart.replace("；", ";");
+      meaningPart = meaningPart.replace("（", "(");
+      meaningPart = meaningPart.replace("）", ")");
+      if (meaningPart.includes("(")) {
+        meaningPart = meaningPart.replace(/\([^)]*\)/g, "");
       }
-      if(meaningPart.includes('[')){
-        meaningPart = meaningPart.replace(/\[[^)]*\]/g, '');
+      if (meaningPart.includes("[")) {
+        meaningPart = meaningPart.replace(/\[[^)]*\]/g, "");
       }
-      
 
       // 按分号分割多个含义
-      const subMeanings = meaningPart.split(';')
-        .map(m => this.getFirstPart(m.trim()))
-        .filter(m => m.length > 0);
-      
+      const subMeanings = meaningPart
+        .split(";")
+        .map((m) => this.getFirstPart(m.trim()))
+        .filter((m) => m.length > 0);
+
       if (subMeanings.length > 0) {
         // 为每个词性创建一个条目，包含所有含义
         results.push({
           partOfSpeech: matchedPos,
-          meanings: subMeanings
+          meanings: subMeanings,
         });
       } else {
         // 如果没有明确分隔的含义，将整个部分作为一个含义
-        
+
         results.push({
           partOfSpeech: matchedPos,
-          meanings: [this.getFirstPart(meaningPart)]
+          meanings: [this.getFirstPart(meaningPart)],
         });
       }
     }
@@ -151,8 +200,8 @@ class WordService {
   };
 
   getFirstPart = (meaning: string): string => {
-    return meaning.split(',')[0].trim();
-  }
+    return meaning.split(",")[0].trim();
+  };
 
   // --- 修改后的 parseChineseMeaning 方法，使用通用的词性拆分 ---
   /**
@@ -160,32 +209,36 @@ class WordService {
    * @param chineseMeaning 中文翻译字符串，格式如 "n. 苹果; 苹果公司\\nv. 动作; 行动"
    * @returns { partOfSpeech: string; meaning: string } 解析结果（返回第一个词性的第一个含义）
    */
-  parseChineseMeaning = (chineseMeaning: string): { partOfSpeech: string; meaning: string } => {
+  parseChineseMeaning = (
+    chineseMeaning: string,
+  ): { partOfSpeech: string; meaning: string } => {
     if (!chineseMeaning?.trim()) {
-      return { partOfSpeech: '', meaning: '' };
+      return { partOfSpeech: "", meaning: "" };
     }
 
     const parsedMeanings = this.parseMeanings(chineseMeaning);
-  
+
     return this.getFirstMeaning(parsedMeanings);
   };
 
   /**
    * 获取单词的第一个词性和含义
-   * @param meanings 
-   * @returns 
+   * @param meanings
+   * @returns
    */
-  getFirstMeaning(meanings: WordMeaning[]): { partOfSpeech: string; meaning: string } { 
-    
+  getFirstMeaning(meanings: WordMeaning[]): {
+    partOfSpeech: string;
+    meaning: string;
+  } {
     // 返回第一个词性的第一个含义
     if (meanings.length > 0 && meanings[0].meanings.length > 0) {
       return {
         partOfSpeech: meanings[0].partOfSpeech,
-        meaning: meanings[0].meanings[0]
+        meaning: meanings[0].meanings[0],
       };
     }
-    
-    return { partOfSpeech: '', meaning: '' };
+
+    return { partOfSpeech: "", meaning: "" };
   }
 
   // --- 新增方法：获取所有词性和含义 ---
@@ -204,192 +257,212 @@ class WordService {
    * @param meaning 释义字符串
    * @returns { partOfSpeech: string; meaning: string }[] 扁平化的含义数组
    */
-  getAllMeaningsFlat = (meaning: string): { partOfSpeech: string; meaning: string }[] => {
+  getAllMeaningsFlat = (
+    meaning: string,
+  ): { partOfSpeech: string; meaning: string }[] => {
     const groupedMeanings = this.parseMeanings(meaning);
     const flatMeanings: { partOfSpeech: string; meaning: string }[] = [];
-    
-    groupedMeanings.forEach(group => {
-      group.meanings.forEach(meaningText => {
+
+    groupedMeanings.forEach((group) => {
+      group.meanings.forEach((meaningText) => {
         flatMeanings.push({
           partOfSpeech: group.partOfSpeech,
-          meaning: meaningText
+          meaning: meaningText,
         });
       });
     });
-    
+
     return flatMeanings;
   };
 
   /**
- * 处理单词的释义
- * @param correctWord 正确的 Word 对象
- * @returns Promise<Word> 单词对象
- */
-async processWordMeaning(correctWord: Word): Promise<Word> {
-  try {
-    const definitions = this.getAllMeanings(correctWord.definition || '');
-    correctWord.definitions = definitions;
-    correctWord.chinese_meanings = this.getAllMeanings(correctWord.chinese_meaning || '');
-    const parsed = this.getFirstMeaning(correctWord.chinese_meanings);
-    correctWord.partOfSpeech = parsed.partOfSpeech;
-    correctWord.meaning = parsed.meaning;
-    // --- 简化逻辑结束 ---
-    return correctWord;
-
-  } catch (error: any) {
-    console.error(`[WordService] processWordMeaning error for word ${correctWord?.$id}`, error);
-    return correctWord;
-  }
-}
-
-/**
- * 生成指定单词的随机选项（包括正确选项和错误选项）
- * @param correctWord 正确的 Word 对象
- * @param count 所需选项的总数量 (包括正确选项)
- * @returns Promise<Word> 包含选项的单词对象
- */
-async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
-  try {
-    // 1. 参数校验
-    if (count <= 0) {
-      console.warn('[WordService] Requested option count is <= 0, returning empty array.');
+   * 处理单词的释义
+   * @param correctWord 正确的 Word 对象
+   * @returns Promise<Word> 单词对象
+   */
+  async processWordMeaning(correctWord: Word): Promise<Word> {
+    try {
+      const definitions = this.getAllMeanings(correctWord.definition || "");
+      correctWord.definitions = definitions;
+      correctWord.chinese_meanings = this.getAllMeanings(
+        correctWord.chinese_meaning || "",
+      );
+      const parsed = this.getFirstMeaning(correctWord.chinese_meanings);
+      correctWord.partOfSpeech = parsed.partOfSpeech;
+      correctWord.meaning = parsed.meaning;
+      // --- 简化逻辑结束 ---
+      return correctWord;
+    } catch (error: any) {
+      console.error(
+        `[WordService] processWordMeaning error for word ${correctWord?.$id}`,
+        error,
+      );
       return correctWord;
     }
+  }
 
-    const totalOptionsNeeded = count;
-    const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);
+  /**
+   * 生成指定单词的随机选项（包括正确选项和错误选项）
+   * @param correctWord 正确的 Word 对象
+   * @param count 所需选项的总数量 (包括正确选项)
+   * @returns Promise<Word> 包含选项的单词对象
+   */
+  async generateRandomOptions(correctWord: Word, count: number): Promise<Word> {
+    try {
+      // 1. 参数校验
+      if (count <= 0) {
+        console.warn(
+          "[WordService] Requested option count is <= 0, returning empty array.",
+        );
+        return correctWord;
+      }
 
-    // 2. 查询候选
-    // f单词 (排除正确单词)
-    let candidateWords: Word[] = [];
-    if (falseOptionsCount > 0) {
-      const response = await tablesDB.listRows({
-        databaseId: DATABASE_ID,
-        tableId: COLLECTION_WORDS,
-        queries: [
-          Query.notEqual('$id', correctWord.$id),
-          Query.limit(Math.max(falseOptionsCount * 5, 50)), // 获取更多以增加随机性
-          Query.orderRandom()
-        ]
-      });
-      candidateWords = response.rows as unknown as Word[];
-    }
+      const totalOptionsNeeded = count;
+      const falseOptionsCount = Math.max(0, totalOptionsNeeded - 1);
 
-    // 3. 从候选单词中随机选择 count-1 个
-    let selectedFalseWords: Word[] = [];
-    if (candidateWords.length > 0 && falseOptionsCount > 0) {
-      const shuffledCandidates = candidateWords.sort(() => 0.5 - Math.random());
-      selectedFalseWords = shuffledCandidates.slice(0, falseOptionsCount);
-    }
+      // 2. 查询候选
+      // f单词 (排除正确单词)
+      let candidateWords: Word[] = [];
+      if (falseOptionsCount > 0) {
+        const response = await tablesDB.listRows({
+          databaseId: DATABASE_ID,
+          tableId: COLLECTION_WORDS,
+          queries: [
+            Query.notEqual("$id", correctWord.$id),
+            Query.limit(Math.max(falseOptionsCount * 5, 50)), // 获取更多以增加随机性
+            Query.orderRandom(),
+          ],
+        });
+        candidateWords = response.rows as unknown as Word[];
+      }
 
-    // 4. 合并正确单词和选中的错误单词
-    const selectedWordsForOptions: Word[] = [correctWord, ...selectedFalseWords];
+      // 3. 从候选单词中随机选择 count-1 个
+      let selectedFalseWords: Word[] = [];
+      if (candidateWords.length > 0 && falseOptionsCount > 0) {
+        const shuffledCandidates = candidateWords.sort(
+          () => 0.5 - Math.random(),
+        );
+        selectedFalseWords = shuffledCandidates.slice(0, falseOptionsCount);
+      }
 
-    // 5. 将选中的单词转换为 WordOption 对象
-    let allOptions: WordOption[] = selectedWordsForOptions.map(word => {
-        const parsed = this.parseChineseMeaning(word.chinese_meaning || '');
+      // 4. 合并正确单词和选中的错误单词
+      const selectedWordsForOptions: Word[] = [
+        correctWord,
+        ...selectedFalseWords,
+      ];
+
+      // 5. 将选中的单词转换为 WordOption 对象
+      let allOptions: WordOption[] = selectedWordsForOptions.map((word) => {
+        const parsed = this.parseChineseMeaning(word.chinese_meaning || "");
         return {
           partOfSpeech: parsed.partOfSpeech, // 解析出的词性
           spelling: word.spelling,
-          meaning: parsed.meaning,           // 解析出的含义
-          id: word.$id                      // 使用单词ID
+          meaning: parsed.meaning, // 解析出的含义
+          id: word.$id, // 使用单词ID
         };
-    });
+      });
 
-    // 6. 随机打乱所有选项
-    const shuffledOptions = allOptions.sort(() => 0.5 - Math.random());
+      // 6. 随机打乱所有选项
+      const shuffledOptions = allOptions.sort(() => 0.5 - Math.random());
 
       // 7. 设置处理后的单词选项
-    correctWord.options = shuffledOptions;
-    console.log(`[WordService] Generated options for word ${correctWord.$id}:`, shuffledOptions);
-    // --- 简化逻辑结束 ---
-    return correctWord;
-
-  } catch (error: any) {
-    console.error(`[WordService] generateRandomOptions error for word ${correctWord?.$id}, count ${count}:`, error);
-    return correctWord;
+      correctWord.options = shuffledOptions;
+      console.log(
+        `[WordService] Generated options for word ${correctWord.$id}:`,
+        shuffledOptions,
+      );
+      // --- 简化逻辑结束 ---
+      return correctWord;
+    } catch (error: any) {
+      console.error(
+        `[WordService] generateRandomOptions error for word ${correctWord?.$id}, count ${count}:`,
+        error,
+      );
+      return correctWord;
+    }
   }
-}
 
   /**
- * 查询新学的单词（只返回单词ID，按照frequency排序）
- * @param userId 用户ID
- * @param reviewedWordIds 已复习过的单词ID数组（需要排除）
- * @param englishLevel 英语水平（可选），0:零基础 1：小学 2：初中 3：高中
- * @param tag 标签（可选），支持模糊匹配（如输入"gk"可以匹配到"gk, zk gk"）
- * @param limit 限制返回数量，默认10
- * @returns Promise<string[]> 新学单词ID数组
- */
-async getNewWordIds(
-  userId: string,
-  reviewedWordIds: string[] = [],
-  englishLevel?: number,
-  tag?: string | null,
-  limit: number = 20
-): Promise<string[]> {
-  try {
-    console.log(`[WordService] Getting new word IDs for user ${userId}, excluding ${reviewedWordIds.length} reviewed words, tag: ${tag}`);
+   * 查询新学的单词（只返回单词ID，按照frequency排序）
+   * @param userId 用户ID
+   * @param reviewedWordIds 已复习过的单词ID数组（需要排除）
+   * @param englishLevel 英语水平（可选），0:零基础 1：小学 2：初中 3：高中
+   * @param tag 标签（可选），支持模糊匹配（如输入"gk"可以匹配到"gk, zk gk"）
+   * @param limit 限制返回数量，默认10
+   * @returns Promise<string[]> 新学单词ID数组
+   */
+  async getNewWordIds(
+    userId: string,
+    reviewedWordIds: string[] = [],
+    englishLevel?: number,
+    tag?: string | null,
+    limit: number = 20,
+  ): Promise<string[]> {
+    try {
+      console.log(
+        `[WordService] Getting new word IDs for user ${userId}, excluding ${reviewedWordIds.length} reviewed words, tag: ${tag}`,
+      );
 
-    const queries = [];
+      const queries = [];
 
-    // 排除已复习过的单词
-    if (reviewedWordIds.length > 0) {
-      queries.push(Query.notContains('$id', reviewedWordIds.slice(0, 100)));
+      // 排除已复习过的单词
+      if (reviewedWordIds.length > 0) {
+        queries.push(Query.notContains("$id", reviewedWordIds.slice(0, 100)));
+      }
+
+      // 难度等级筛选
+      if (englishLevel !== undefined) {
+        const difficultyLevel = this.getDifficultyLevel(englishLevel);
+        queries.push(Query.equal("difficulty_level", difficultyLevel));
+      }
+
+      // 标签筛选 - 使用模糊搜索
+      if (tag) {
+        queries.push(Query.contains("tag", tag)); // 使用search进行模糊匹配
+      }
+
+      // 添加限制、排序和字段选择
+      queries.push(Query.select(["$id"])); // 只选择ID字段
+      queries.push(Query.orderRandom());
+      queries.push(Query.limit(limit));
+
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_WORDS,
+        queries,
+      });
+
+      const wordIds = response.rows.map((row) => row.$id as string);
+
+      console.log(
+        `[WordService] Found ${wordIds.length} new word IDs for user ${userId}, tag: ${tag}, sorted by frequency`,
+      );
+      return wordIds;
+    } catch (error) {
+      console.error("WordService.getNewWordIds error:", error);
+      throw error;
     }
-
-    // 难度等级筛选
-    if (englishLevel !== undefined) {
-      const difficultyLevel = this.getDifficultyLevel(englishLevel);
-      queries.push(Query.equal('difficulty_level', difficultyLevel));
-    }
-
-    // 标签筛选 - 使用模糊搜索
-    if (tag) {
-      queries.push(Query.contains('tag', tag)); // 使用search进行模糊匹配
-    }
-
-    // 添加限制、排序和字段选择
-    queries.push(Query.select(['$id'])); // 只选择ID字段
-    queries.push(Query.orderRandom());
-    queries.push(Query.limit(limit));
-
-    const response = await tablesDB.listRows({
-      databaseId: DATABASE_ID,
-      tableId: COLLECTION_WORDS,
-      queries
-    });
-
-    const wordIds = response.rows.map(row => row.$id as string);
-    
-    console.log(`[WordService] Found ${wordIds.length} new word IDs for user ${userId}, tag: ${tag}, sorted by frequency`);
-    return wordIds;
-
-  } catch (error) {
-    console.error("WordService.getNewWordIds error:", error);
-    throw error;
   }
-}
 
-/**
- * 将englishLevel映射到对应的难度级别
- * @param englishLevel 英语水平等级（0-3及其他）
- * @returns 映射后的难度级别（1,2,3）
- */
-getDifficultyLevel(englishLevel: number): number {
-  // 检查0、1、2 -> 难度1：中考
-  if ([0, 1, 2].includes(englishLevel)) {
+  /**
+   * 将englishLevel映射到对应的难度级别
+   * @param englishLevel 英语水平等级（0-3及其他）
+   * @returns 映射后的难度级别（1,2,3）
+   */
+  getDifficultyLevel(englishLevel: number): number {
+    // 检查0、1、2 -> 难度1：中考
+    if ([0, 1, 2].includes(englishLevel)) {
       return 1;
-  }
-  // 检查3 -> 难度2：高考
-  else if (englishLevel === 3) {
+    }
+    // 检查3 -> 难度2：高考
+    else if (englishLevel === 3) {
       return 2;
-  }
-  // 其他情况（包括负数、4及以上等）-> 难度3
-  else {
+    }
+    // 其他情况（包括负数、4及以上等）-> 难度3
+    else {
       return 3;
+    }
   }
-}
-
 }
 
 export default new WordService();

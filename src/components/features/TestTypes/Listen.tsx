@@ -1,11 +1,11 @@
 // src/components/features/today/TestTypes/Listen.tsx
-import { TestTypeProps, WordOption } from '@/src/types/Word';
-import { Ionicons } from '@expo/vector-icons';
-import { AudioModule } from 'expo-audio';
-import * as Haptics from 'expo-haptics';
-import * as Speech from 'expo-speech'; // 引入 expo-speech
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ErrorBoundary } from 'react-error-boundary';
+import wordAudioPlayer from "@/src/lib/utils/WordAudioPlayer";
+import { TestTypeProps, WordOption } from "@/src/types/Word";
+import { Ionicons } from "@expo/vector-icons";
+import { AudioModule } from "expo-audio";
+import * as Haptics from "expo-haptics";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 import {
   ActivityIndicator,
   Alert,
@@ -14,8 +14,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
+  View,
+} from "react-native";
 
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
@@ -39,62 +39,66 @@ interface OptionCardProps {
   testID?: string;
 }
 
-const OptionCard: React.FC<OptionCardProps> = React.memo(({
-  option,
-  isSelected,
-  isCorrect,
-  showFeedback,
-  onSelect,
-  testID
-}) => {
-  const optionId = option.id; // 使用选项的 id 作为唯一标识
+const OptionCard: React.FC<OptionCardProps> = React.memo(
+  ({ option, isSelected, isCorrect, showFeedback, onSelect, testID }) => {
+    const optionId = option.id; // 使用选项的 id 作为唯一标识
 
-  const handlePress = useCallback(() => {
-    onSelect(optionId); // 传递选项 ID
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [onSelect, optionId]);
+    const handlePress = useCallback(() => {
+      onSelect(optionId); // 传递选项 ID
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, [onSelect, optionId]);
 
-  return (
-    <TouchableOpacity
-      testID={testID}
-      style={[
-        styles.optionCard,
-        isSelected && !showFeedback && styles.selectedOptionCard,
-        showFeedback && isCorrect && isSelected && styles.correctOptionCard, // 根据 isCorrect 和 isSelected 显示状态
-        showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
-      ]}
-      onPress={handlePress}
-      disabled={!!showFeedback}
-      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.meaning}`}
-      accessibilityRole="button"
-      accessibilityState={{ selected: isSelected }}
-    >
-      <Text style={styles.optionText}>
-        {/* <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text> */}
-        <Text style={styles.meaningText}> {option.meaning}</Text>
-      </Text>
-    </TouchableOpacity>
-  );
-});
+    return (
+      <TouchableOpacity
+        testID={testID}
+        style={[
+          styles.optionCard,
+          isSelected && !showFeedback && styles.selectedOptionCard,
+          showFeedback && isCorrect && isSelected && styles.correctOptionCard, // 根据 isCorrect 和 isSelected 显示状态
+          showFeedback &&
+            !isCorrect &&
+            isSelected &&
+            styles.incorrectOptionCard,
+        ]}
+        onPress={handlePress}
+        disabled={!!showFeedback}
+        accessibilityLabel={`选项: ${option.partOfSpeech} ${option.meaning}`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isSelected }}
+      >
+        <Text style={styles.optionText}>
+          {/* <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text> */}
+          <Text style={styles.meaningText}> {option.meaning}</Text>
+        </Text>
+      </TouchableOpacity>
+    );
+  },
+);
 
-OptionCard.displayName = 'OptionCard';
+OptionCard.displayName = "OptionCard";
 
 // 主组件
-const ListenFC: React.FC<TestTypeProps> = ({ 
-  word, 
-  onAnswer, 
-  testType = 'listen'
+const ListenFC: React.FC<TestTypeProps> = ({
+  word,
+  onAnswer,
+  testType = "listen",
 }) => {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null); // 存储选中的选项 ID
-  const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [showFeedback, setShowFeedback] = useState<{
+    correct: boolean;
+    message: string;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // 新增：提交状态
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // 新增状态：控制播放和播放计数
+  const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playCount, setPlayCount] = useState(0);
-  const [hasRecordingPermission, setHasRecordingPermission] = useState<boolean | null>(null); // 权限状态
+  const [hasRecordingPermission, setHasRecordingPermission] = useState<
+    boolean | null
+  >(null); // 权限状态
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null); // 存储播放间隔定时器
 
   // 检查录音权限
@@ -103,13 +107,13 @@ const ListenFC: React.FC<TestTypeProps> = ({
       const status = await AudioModule.requestRecordingPermissionsAsync();
       const permission = status.granted;
       setHasRecordingPermission(permission);
-      
+
       // 如果没有权限，提示用户
       if (!permission) {
         Alert.alert(
-          '权限不足',
-          '需要录音权限才能正常使用听力测试功能，请在设置中开启权限。',
-          [{ text: '知道了' }]
+          "权限不足",
+          "需要录音权限才能正常使用听力测试功能，请在设置中开启权限。",
+          [{ text: "知道了" }],
         );
       }
     };
@@ -126,68 +130,64 @@ const ListenFC: React.FC<TestTypeProps> = ({
     }).start();
   }, [fadeAnim]);
 
+  useEffect(() => {
+    if (word.spelling) {
+      wordAudioPlayer.preload(word.spelling, "us");
+    }
+
+    return () => {
+      wordAudioPlayer.stop();
+    };
+  }, [word.spelling]);
+
   // 播放单词发音函数 (简化版)
   const playWordSound = useCallback(async () => {
-    // 检查权限，没有权限则不播放
-    if (hasRecordingPermission !== true) return;
+    console.log("playWordSound...");
+    console.log("current time:", Date.now());
+    setIsPlaying(true);
 
-    try {
-      setIsPlaying(true);
-      await Speech.speak(word.spelling || 'property', {
-        language: 'en-US',
-        rate: 0.6,
-        onDone: () => {
-          setIsPlaying(false);
-          // 在播放完成时增加计数
-          setPlayCount(prev => prev + 1);
-        },
-        onError: (error) => {
-          console.error('播放失败:', error);
-          setIsPlaying(false);
-          setPlayCount(prev => prev + 1); // 出错也增加计数，避免卡死
-        }
-      });
-    } catch (error) {
-      console.error('播放失败:', error);
-      setIsPlaying(false);
-      setPlayCount(prev => prev + 1); // 出错也增加计数，避免卡死
+    const success = await wordAudioPlayer.play(word.spelling || "", {
+      accent: "us",
+      playbackRate: playbackRate,
+      fallbackToTTS: true,
+    });
+
+    setIsPlaying(false);
+    if (!success) {
+      Alert.alert("提示", "无法播放单词发音，请检查网络连接或权限设置。");
     }
-  }, [word.spelling, hasRecordingPermission]); // 依赖权限状态
+    console.log("Play success:", success);
+    if (success) {
+      setPlayCount((prev) => prev + 1);
+    }
+  }, [word.spelling, playbackRate]);
 
   // 自动播放单词3次
   useEffect(() => {
-    // 如果组件已挂载且播放次数小于3次，则启动播放
-    if (hasRecordingPermission && playCount < 3) {
-      playWordSound(); // 启动第一次播放
-      // 设置下一次播放的间隔（1500ms）
-      playIntervalRef.current = setTimeout(() => {
-        if (playCount < 2) { // 确保只播放3次
-          playWordSound(); // 启动下一次播放
-        }
-      }, 1500);
+    if (hasRecordingPermission) {
+      // 播放3次，每次间隔2秒
+      playWordSound(); // 立即播放
+      setTimeout(() => playWordSound(), 2000); // 1.5秒后
+      setTimeout(() => playWordSound(), 4000); // 3秒后
     }
-
-    // 清理函数：组件卸载时清除定时器
-    return () => {
-      if (playIntervalRef.current) {
-        clearTimeout(playIntervalRef.current);
-      }
-    };
-  }, [playCount, playWordSound, hasRecordingPermission]); // 依赖权限状态
+  }, [hasRecordingPermission, playWordSound]);
 
   // 正确答案的单词 ID
   const correctWordId = word.$id;
-  console.log('Correct word:', correctWordId, word.spelling, word.meaning);
+  console.log("Correct word:", correctWordId, word.spelling, word.meaning);
 
-  const handleSelect = useCallback((optionId: string) => {
-    if (showFeedback) return;
-    console.log('Selected option ID:', optionId);
-    setSelectedOptionId(optionId);
-  }, [showFeedback]);
+  const handleSelect = useCallback(
+    (optionId: string) => {
+      if (showFeedback) return;
+      console.log("Selected option ID:", optionId);
+      setSelectedOptionId(optionId);
+    },
+    [showFeedback],
+  );
 
   const handleSubmit = useCallback(() => {
     if (!selectedOptionId) {
-      Alert.alert('请选择一个选项');
+      Alert.alert("请选择一个选项");
       return;
     }
     if (showFeedback || isSubmitting) return;
@@ -204,12 +204,12 @@ const ListenFC: React.FC<TestTypeProps> = ({
       userAnswer: selectedOptionId, // 保存选中的选项 ID
       wordId: word.$id, // 保存当前测试的单词 ID
       responseTimeMs,
-      speedUsed: 50 // 或者根据实际播放速度调整
+      speedUsed: 50, // 或者根据实际播放速度调整
     };
 
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '❌ 错误！',
+      message: isCorrect ? "✅ 正确！" : "❌ 错误！",
     });
 
     setTimeout(() => {
@@ -218,7 +218,16 @@ const ListenFC: React.FC<TestTypeProps> = ({
       // setSelectedOptionId(null); // 可选：提交后清除选择
       // setShowFeedback(null);  // 可选：提交后清除反馈
     }, 100);
-  }, [selectedOptionId, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctWordId]);
+  }, [
+    selectedOptionId,
+    showFeedback,
+    isSubmitting,
+    startTime,
+    word,
+    onAnswer,
+    testType,
+    correctWordId,
+  ]);
 
   // 处理"听不懂"按钮点击
   const handleNotUnderstand = useCallback(() => {
@@ -230,11 +239,11 @@ const ListenFC: React.FC<TestTypeProps> = ({
     const result = {
       type: testType, // 使用传入的 testType
       correct: false,
-      userAnswer: 'not-understand', // 特殊标识
+      userAnswer: "not-understand", // 特殊标识
       wordId: word.$id, // 保存当前测试的单词 ID
       responseTimeMs,
       speedUsed: 50,
-      isNotUnderstand: true // 标记为"听不懂"
+      isNotUnderstand: true, // 标记为"听不懂"
     };
 
     setShowFeedback({
@@ -253,8 +262,10 @@ const ListenFC: React.FC<TestTypeProps> = ({
       <View style={styles.permissionDeniedContainer}>
         <Ionicons name="mic-off" size={48} color="#FF9500" />
         <Text style={styles.permissionDeniedText}>录音权限未开启</Text>
-        <Text style={styles.permissionDeniedSubText}>请在设置中开启录音权限以使用听力测试功能</Text>
-        <TouchableOpacity 
+        <Text style={styles.permissionDeniedSubText}>
+          请在设置中开启录音权限以使用听力测试功能
+        </Text>
+        <TouchableOpacity
           style={styles.openSettingsButton}
           onPress={() => {
             // 如果需要可以添加打开设置的逻辑
@@ -283,13 +294,11 @@ const ListenFC: React.FC<TestTypeProps> = ({
       <View style={styles.wordPhoneticContainer}>
         {/* 显示播放状态指示器 */}
         <View style={styles.wordTextContainer}>
-          <Text style={styles.wordText}>{'*****'}</Text>
+          <Text style={styles.wordText}>{"*****"}</Text>
         </View>
       </View>
       {/* 例句区域 */}
-      <Text style={styles.exampleText}>
-        {'请听音频，选择正确的中文释义。'}
-      </Text>
+      <Text style={styles.exampleText}>{"请听音频，选择正确的中文释义。"}</Text>
       {/* 选项区域 */}
       <View style={styles.optionsGrid}>
         {word.options?.map((option, index) => {
@@ -311,18 +320,24 @@ const ListenFC: React.FC<TestTypeProps> = ({
           );
         })}
       </View>
-      
+
       {/* 底部按钮区域 */}
       <View style={styles.buttonContainer}>
         {/* 提交按钮 - 占2/3 */}
         <TouchableOpacity
           testID="submit-button"
-          style={[styles.submitButton, (!selectedOptionId || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
+          style={[
+            styles.submitButton,
+            (!selectedOptionId || showFeedback || isSubmitting) &&
+              styles.submitButtonDisabled,
+          ]}
           onPress={handleSubmit}
           disabled={!selectedOptionId || !!showFeedback || isSubmitting}
           accessibilityLabel="提交答案"
           accessibilityRole="button"
-          accessibilityState={{ disabled: !selectedOptionId || !!showFeedback || isSubmitting }}
+          accessibilityState={{
+            disabled: !selectedOptionId || !!showFeedback || isSubmitting,
+          }}
         >
           {isSubmitting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
@@ -330,11 +345,15 @@ const ListenFC: React.FC<TestTypeProps> = ({
             <Text style={styles.submitButtonText}>提交</Text>
           )}
         </TouchableOpacity>
-        
+
         {/* 听不懂按钮 - 占1/3 */}
         <TouchableOpacity
           testID="not-understand-button"
-          style={[styles.notUnderstandButton, (showFeedback || isSubmitting) && styles.notUnderstandButtonDisabled]}
+          style={[
+            styles.notUnderstandButton,
+            (showFeedback || isSubmitting) &&
+              styles.notUnderstandButtonDisabled,
+          ]}
           onPress={handleNotUnderstand}
           disabled={!!showFeedback || isSubmitting}
           accessibilityLabel="听不懂"
@@ -342,12 +361,18 @@ const ListenFC: React.FC<TestTypeProps> = ({
           accessibilityState={{ disabled: !!showFeedback || isSubmitting }}
         >
           <View style={styles.notUnderstandButtonContent}>
-            <Ionicons 
-              name="volume-mute-outline" 
-              size={16} 
-              color={(showFeedback || isSubmitting) ? '#AEAEB2' : '#8E8E93'} 
+            <Ionicons
+              name="volume-mute-outline"
+              size={16}
+              color={showFeedback || isSubmitting ? "#AEAEB2" : "#8E8E93"}
             />
-            <Text style={[styles.notUnderstandButtonText, (showFeedback || isSubmitting) && styles.notUnderstandButtonTextDisabled]}>
+            <Text
+              style={[
+                styles.notUnderstandButtonText,
+                (showFeedback || isSubmitting) &&
+                  styles.notUnderstandButtonTextDisabled,
+              ]}
+            >
               听不懂
             </Text>
           </View>
@@ -369,92 +394,92 @@ const Listen: React.FC<TestTypeProps> = (props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     paddingVertical: 20,
-    position: 'relative',
+    position: "relative",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   errorText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 16,
-    color: '#1A1A1A',
+    color: "#1A1A1A",
   },
   errorSubText: {
     fontSize: 14,
-    color: '#666666',
+    color: "#666666",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   wordPhoneticContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginVertical: 20,
   },
   wordTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   wordText: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    fontWeight: "bold",
+    color: "#1A1A1A",
     marginRight: 10, // 给播放指示器留点空间
   },
   playingIndicator: {
     fontSize: 20, // 调整指示器大小
-    color: '#4A90E2', // 使用主题色
+    color: "#4A90E2", // 使用主题色
   },
   phoneticText: {
     fontSize: 16,
-    color: '#666666',
+    color: "#666666",
     marginTop: 5,
   },
   exampleText: {
     fontSize: 14,
-    color: '#666666',
-    fontStyle: 'italic',
+    color: "#666666",
+    fontStyle: "italic",
     marginBottom: 20,
     lineHeight: 20,
-    width: '100%',
-    textAlign: 'left',
+    width: "100%",
+    textAlign: "left",
   },
   optionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     marginBottom: 80,
     rowGap: 12,
   },
   optionCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
+    width: "48%",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 8,
     padding: 12,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -465,150 +490,150 @@ const styles = StyleSheet.create({
     }),
   },
   selectedOptionCard: {
-    borderColor: '#4A90E2',
-    backgroundColor: '#F0F8FF',
+    borderColor: "#4A90E2",
+    backgroundColor: "#F0F8FF",
   },
   correctOptionCard: {
-    borderColor: '#28A745',
-    backgroundColor: '#F8FFF8',
+    borderColor: "#28A745",
+    backgroundColor: "#F8FFF8",
   },
   incorrectOptionCard: {
-    borderColor: '#DC3545',
-    backgroundColor: '#FFF8F8',
+    borderColor: "#DC3545",
+    backgroundColor: "#FFF8F8",
   },
   optionText: {
     fontSize: 13,
     lineHeight: 18,
-    textAlign: 'left',
+    textAlign: "left",
   },
   partOfSpeechText: {
-    color: '#4A90E2',
-    fontWeight: '500',
+    color: "#4A90E2",
+    fontWeight: "500",
     marginRight: 4,
   },
   meaningText: {
-    color: '#333333',
+    color: "#333333",
     flexShrink: 1,
   },
   // 按钮容器 - 水平排列，提交按钮2/3，听不懂按钮1/3
   buttonContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 16,
     right: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   // 提交按钮 - 占2/3
   submitButton: {
     flex: 2, // 2/3
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     borderRadius: 24,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginRight: 6, // 两个按钮之间的间距
   },
   submitButtonDisabled: {
-    backgroundColor: '#C5C5C7',
+    backgroundColor: "#C5C5C7",
   },
   submitButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   // 听不懂按钮 - 占1/3
   notUnderstandButton: {
     flex: 1, // 1/3
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 24,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     marginLeft: 6, // 两个按钮之间的间距
   },
   notUnderstandButtonDisabled: {
-    borderColor: '#F0F0F0',
-    backgroundColor: '#FAFAFA',
+    borderColor: "#F0F0F0",
+    backgroundColor: "#FAFAFA",
   },
   notUnderstandButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   notUnderstandButtonText: {
-    color: '#8E8E93',
+    color: "#8E8E93",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     marginLeft: 4,
   },
   notUnderstandButtonTextDisabled: {
-    color: '#C7C7CC',
+    color: "#C7C7CC",
   },
   feedbackContainer: {
-    position: 'absolute',
-    top: '70%',
+    position: "absolute",
+    top: "70%",
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
     transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackText: {
     fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginTop: 8,
   },
   correctFeedbackText: {
-    color: '#28A745',
+    color: "#28A745",
   },
   incorrectFeedbackText: {
-    color: '#DC3545',
+    color: "#DC3545",
   },
   // 新增权限相关样式
   permissionDeniedContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   permissionDeniedText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 16,
-    color: '#1A1A1A',
+    color: "#1A1A1A",
   },
   permissionDeniedSubText: {
     fontSize: 14,
-    color: '#666666',
+    color: "#666666",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 20,
   },
   openSettingsButton: {
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   openSettingsText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666666',
+    color: "#666666",
   },
 });
 export default Listen;
