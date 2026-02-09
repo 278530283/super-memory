@@ -1,9 +1,9 @@
 // src/components/features/today/TestTypes/TransEn.tsx
-import { TestTypeProps, WordOption } from '@/src/types/Word';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ErrorBoundary } from 'react-error-boundary';
+import { TestTypeProps, WordOption } from "@/src/types/Word";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 import {
   ActivityIndicator,
   Alert,
@@ -12,8 +12,8 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
+  View,
+} from "react-native";
 
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
@@ -37,55 +37,56 @@ interface OptionCardProps {
   testID?: string;
 }
 
-const OptionCard: React.FC<OptionCardProps> = React.memo(({
-  option,
-  isSelected,
-  isCorrect,
-  showFeedback,
-  onSelect,
-  testID
-}) => {
-  // const optionKey = `${option.partOfSpeech} ${option.meaning}`; // 旧方式
-  const optionId = option.id; // 使用选项的 id 作为唯一标识
+const OptionCard: React.FC<OptionCardProps> = React.memo(
+  ({ option, isSelected, isCorrect, showFeedback, onSelect, testID }) => {
+    // const optionKey = `${option.partOfSpeech} ${option.meaning}`; // 旧方式
+    const optionId = option.id; // 使用选项的 id 作为唯一标识
 
-  const handlePress = useCallback(() => {
-    onSelect(optionId); // 传递选项 ID
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [onSelect, optionId]);
+    const handlePress = useCallback(() => {
+      onSelect(optionId); // 传递选项 ID
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, [onSelect, optionId]);
 
-  return (
-    <TouchableOpacity
-      testID={testID}
-      style={[
-        styles.optionCard,
-        isSelected && !showFeedback && styles.selectedOptionCard,
-        showFeedback && isCorrect && isSelected && styles.correctOptionCard, // 根据 isCorrect 和 isSelected 显示状态
-        showFeedback && !isCorrect && isSelected && styles.incorrectOptionCard,
-      ]}
-      onPress={handlePress}
-      disabled={!!showFeedback}
-      accessibilityLabel={`选项: ${option.partOfSpeech} ${option.meaning}`}
-      accessibilityRole="button"
-      accessibilityState={{ selected: isSelected }}
-    >
-      <Text style={styles.optionText}>
-        {/* <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text> */}
-        <Text style={styles.meaningText}> {option.meaning}</Text>
-      </Text>
-    </TouchableOpacity>
-  );
-});
+    return (
+      <TouchableOpacity
+        testID={testID}
+        style={[
+          styles.optionCard,
+          isSelected && !showFeedback && styles.selectedOptionCard,
+          showFeedback && isCorrect && isSelected && styles.correctOptionCard, // 根据 isCorrect 和 isSelected 显示状态
+          showFeedback &&
+            !isCorrect &&
+            isSelected &&
+            styles.incorrectOptionCard,
+        ]}
+        onPress={handlePress}
+        disabled={!!showFeedback}
+        accessibilityLabel={`选项: ${option.partOfSpeech} ${option.meaning}`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isSelected }}
+      >
+        <Text style={styles.optionText}>
+          {/* <Text style={styles.partOfSpeechText}>{option.partOfSpeech}</Text> */}
+          <Text style={styles.meaningText}> {option.meaning}</Text>
+        </Text>
+      </TouchableOpacity>
+    );
+  },
+);
 
-OptionCard.displayName = 'OptionCard';
+OptionCard.displayName = "OptionCard";
 
 // 主组件
 const TransEnFC: React.FC<TestTypeProps> = ({
   word,
   onAnswer,
-  testType = 'transEn'
+  testType = "transEn",
 }) => {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null); // 存储选中的选项 ID
-  const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
+  const [showFeedback, setShowFeedback] = useState<{
+    correct: boolean;
+    message: string;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // 新增：提交状态
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -101,17 +102,20 @@ const TransEnFC: React.FC<TestTypeProps> = ({
 
   // 正确答案的单词 ID
   const correctWordId = word.$id;
-  console.log('Correct word ID:', correctWordId);
+  console.log("Correct word ID:", correctWordId);
 
-  const handleSelect = useCallback((optionId: string) => {
-    if (showFeedback) return;
-    console.log('Selected option ID:', optionId);
-    setSelectedOptionId(optionId);
-  }, [showFeedback]);
+  const handleSelect = useCallback(
+    (optionId: string) => {
+      if (showFeedback) return;
+      console.log("Selected option ID:", optionId);
+      setSelectedOptionId(optionId);
+    },
+    [showFeedback],
+  );
 
   const handleSubmit = useCallback(() => {
     if (!selectedOptionId) {
-      Alert.alert('请选择一个选项');
+      Alert.alert("请选择一个选项");
       return;
     }
     if (showFeedback || isSubmitting) return;
@@ -132,7 +136,7 @@ const TransEnFC: React.FC<TestTypeProps> = ({
 
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : '❌ 错误！',
+      message: isCorrect ? "✅ 正确！" : "❌ 错误！",
     });
 
     setTimeout(() => {
@@ -141,19 +145,28 @@ const TransEnFC: React.FC<TestTypeProps> = ({
       // setSelectedOptionId(null); // 可选：提交后清除选择
       // setShowFeedback(null);  // 可选：提交后清除反馈
     }, 100);
-  }, [selectedOptionId, showFeedback, isSubmitting, startTime, word, onAnswer, testType, correctWordId]);
+  }, [
+    selectedOptionId,
+    showFeedback,
+    isSubmitting,
+    startTime,
+    word,
+    onAnswer,
+    testType,
+    correctWordId,
+  ]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 单词 + 音标区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.spelling || ''}</Text>
+        <Text style={styles.wordText}>{word.spelling || ""}</Text>
         {/* --- 修改：条件渲染音标 --- */}
-        {(word.american_phonetic || word.british_phonetic) && (
+        {/* {(word.american_phonetic || word.british_phonetic) && (
           <Text style={styles.phoneticText}>
             {word.american_phonetic ? `美 /${word.american_phonetic}/` : `英 /${word.british_phonetic}/`}
           </Text>
-        )}
+        )} */}
       </View>
       {/* --- 修改：条件渲染例句 --- */}
       {/* {word.example_sentence && (
@@ -186,12 +199,18 @@ const TransEnFC: React.FC<TestTypeProps> = ({
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
-        style={[styles.submitButton, (!selectedOptionId || showFeedback || isSubmitting) && styles.submitButtonDisabled]}
+        style={[
+          styles.submitButton,
+          (!selectedOptionId || showFeedback || isSubmitting) &&
+            styles.submitButtonDisabled,
+        ]}
         onPress={handleSubmit}
         disabled={!selectedOptionId || !!showFeedback || isSubmitting}
         accessibilityLabel="提交答案"
         accessibilityRole="button"
-        accessibilityState={{ disabled: !selectedOptionId || !!showFeedback || isSubmitting }}
+        accessibilityState={{
+          disabled: !selectedOptionId || !!showFeedback || isSubmitting,
+        }}
       >
         {isSubmitting ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
@@ -226,82 +245,82 @@ const TransEn: React.FC<TestTypeProps> = (props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     paddingVertical: 20,
-    position: 'relative',
+    position: "relative",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   errorText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 16,
-    color: '#1A1A1A',
+    color: "#1A1A1A",
   },
   errorSubText: {
     fontSize: 14,
-    color: '#666666',
+    color: "#666666",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   wordPhoneticContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginVertical: 20,
   },
   wordText: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    fontWeight: "bold",
+    color: "#1A1A1A",
   },
   phoneticText: {
     fontSize: 16,
-    color: '#666666',
+    color: "#666666",
     marginTop: 5,
   },
   exampleText: {
     fontSize: 14,
-    color: '#666666',
-    fontStyle: 'italic',
+    color: "#666666",
+    fontStyle: "italic",
     marginBottom: 20,
     lineHeight: 20,
-    width: '100%',
-    textAlign: 'left',
+    width: "100%",
+    textAlign: "left",
   },
   optionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
     marginBottom: 80,
     rowGap: 12,
   },
   optionCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
+    width: "48%",
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 8,
     padding: 12,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -312,69 +331,69 @@ const styles = StyleSheet.create({
     }),
   },
   selectedOptionCard: {
-    borderColor: '#4A90E2',
-    backgroundColor: '#F0F8FF',
+    borderColor: "#4A90E2",
+    backgroundColor: "#F0F8FF",
   },
   correctOptionCard: {
-    borderColor: '#28A745',
-    backgroundColor: '#F8FFF8',
+    borderColor: "#28A745",
+    backgroundColor: "#F8FFF8",
   },
   incorrectOptionCard: {
-    borderColor: '#DC3545',
-    backgroundColor: '#FFF8F8',
+    borderColor: "#DC3545",
+    backgroundColor: "#FFF8F8",
   },
   optionText: {
     fontSize: 13,
     lineHeight: 18,
-    textAlign: 'left',
+    textAlign: "left",
   },
   partOfSpeechText: {
-    color: '#4A90E2',
-    fontWeight: '500',
+    color: "#4A90E2",
+    fontWeight: "500",
     marginRight: 4,
   },
   meaningText: {
-    color: '#333333',
+    color: "#333333",
     flexShrink: 1,
   },
   submitButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     borderRadius: 24,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   submitButtonDisabled: {
-    backgroundColor: '#C5C5C7',
+    backgroundColor: "#C5C5C7",
   },
   submitButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   feedbackContainer: {
-    position: 'absolute',
-    top: '70%',
+    position: "absolute",
+    top: "70%",
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
     transform: [{ translateY: -20 }],
     zIndex: 10,
   },
   feedbackText: {
     fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginTop: 8,
   },
   correctFeedbackText: {
-    color: '#28A745',
+    color: "#28A745",
   },
   incorrectFeedbackText: {
-    color: '#DC3545',
+    color: "#DC3545",
   },
 });
 

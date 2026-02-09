@@ -1,8 +1,8 @@
 // src/components/features/today/TestTypes/Spelling.tsx
-import { TestTypeProps } from '@/src/types/Word';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ErrorBoundary } from 'react-error-boundary';
+import { TestTypeProps } from "@/src/types/Word";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ErrorBoundary } from "react-error-boundary";
 import {
   ActivityIndicator,
   Alert,
@@ -12,8 +12,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
+  View,
+} from "react-native";
 
 // 错误回退组件
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
@@ -28,17 +28,26 @@ const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
 );
 
 // 主组件
-const SpellingFC: React.FC<TestTypeProps> = ({ 
-  word, 
-  onAnswer, 
-  testType = 'spelling'
+const SpellingFC: React.FC<TestTypeProps> = ({
+  word,
+  onAnswer,
+  testType = "spelling",
 }) => {
-  const [userInput, setUserInput] = useState<string>(''); // 存储用户输入
-  const [showFeedback, setShowFeedback] = useState<{ correct: boolean; message: string } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // 新增：提交状态
+  const correctSpelling = word.spelling;
+  const wordLength = correctSpelling.length;
+
+  // 初始化每个字母的输入框状态
+  const [letterInputs, setLetterInputs] = useState<string[]>(
+    Array(wordLength).fill(""),
+  );
+  const [showFeedback, setShowFeedback] = useState<{
+    correct: boolean;
+    message: string;
+  } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const inputRef = useRef<TextInput>(null); // 用于聚焦输入框
+  const inputRefs = useRef<TextInput[]>([]); // 存储所有输入框的引用
 
   // 动画效果
   useEffect(() => {
@@ -49,109 +58,167 @@ const SpellingFC: React.FC<TestTypeProps> = ({
     }).start();
   }, [fadeAnim]);
 
-  // 正确的英文拼写
-  const correctSpelling = word.spelling;
-  console.log('Correct spelling:', correctSpelling);
+  // 处理单个字母输入框变化
+  const handleLetterChange = useCallback(
+    (text: string, index: number) => {
+      // 只取最后一个字符（限制为单个字母）
+      const newLetter =
+        text.length > 0 ? text[text.length - 1].toLowerCase() : "";
 
-  const handleInputChange = useCallback((text: string) => {
-    setUserInput(text);
-  }, []);
+      setLetterInputs((prev) => {
+        const newInputs = [...prev];
+        newInputs[index] = newLetter;
+        return newInputs;
+      });
+
+      // 如果输入了字符且不是最后一个输入框，自动聚焦到下一个
+      if (newLetter !== "" && index < wordLength - 1) {
+        inputRefs.current[index + 1]?.focus();
+      }
+    },
+    [wordLength],
+  );
+
+  // 处理删除键
+  const handleKeyPress = useCallback(
+    (e: any, index: number) => {
+      if (e.nativeEvent.key === "Backspace") {
+        // 如果当前输入框为空且不是第一个，删除前一个并聚焦
+        if (letterInputs[index] === "" && index > 0) {
+          setLetterInputs((prev) => {
+            const newInputs = [...prev];
+            newInputs[index - 1] = "";
+            return newInputs;
+          });
+          inputRefs.current[index - 1]?.focus();
+        }
+      }
+    },
+    [letterInputs],
+  );
 
   const handleSubmit = useCallback(() => {
-    if (!userInput.trim()) {
-      Alert.alert('请输入英文拼写');
+    // 组合所有字母
+    const userInput = letterInputs.join("");
+
+    if (userInput.length < wordLength) {
+      Alert.alert("提示", `请输入完整的 ${wordLength} 个字母`);
       return;
     }
-    if (isSubmitting) return; // 防止重复提交
 
-    // 设置提交状态
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
 
     // 不区分大小写比较
-    const isCorrect = userInput.trim().toLowerCase() === correctSpelling.toLowerCase();
+    const isCorrect = userInput.toLowerCase() === correctSpelling.toLowerCase();
     const responseTimeMs = Date.now() - startTime;
     const result = {
-      type: testType, // 使用传入的 testType
-      correct: isCorrect, // 是否正确
-      userAnswer: userInput.trim(), // 用户的输入
-      wordId: word.$id, // 传递 word 的 ID
-      responseTimeMs, // 反应时间
+      type: testType,
+      correct: isCorrect,
+      userAnswer: userInput,
+      wordId: word.$id,
+      responseTimeMs,
     };
 
     setShowFeedback({
       correct: isCorrect,
-      message: isCorrect ? '✅ 正确！' : `❌ 再试试`,
+      message: isCorrect ? "✅ 正确！" : `❌ 再试试`,
     });
 
     setTimeout(() => {
       onAnswer(result);
-      // setUserInput(''); // 清空输入
-      // setShowFeedback(null); // 清除反馈状态，边框颜色也会重置
-      // setIsSubmitting(false); // 重置提交状态
-      // // 可选：提交后重新聚焦输入框
-      // if (inputRef.current) {
-      //   inputRef.current.focus();
-      // }
-    }, 100); // 延迟 1.5 秒后继续
-  }, [userInput, isSubmitting, startTime, word, onAnswer, testType, correctSpelling]);
+    }, 100);
+  }, [
+    letterInputs,
+    wordLength,
+    isSubmitting,
+    startTime,
+    word,
+    onAnswer,
+    testType,
+    correctSpelling,
+  ]);
 
   // 根据 showFeedback 状态确定输入框样式
   const getInputStyle = () => {
     if (!showFeedback) {
-      return [styles.textInput, { borderColor: '#E0E0E0', backgroundColor: '#FFFFFF' }];
+      return { borderColor: "#E0E0E0", backgroundColor: "#FFFFFF" };
     }
-    
+
     if (showFeedback.correct) {
-      return [styles.textInput, { borderColor: '#28A745', backgroundColor: '#F8FFF8' }];
+      return { borderColor: "#28A745", backgroundColor: "#F8FFF8" };
     } else {
-      return [styles.textInput, { borderColor: '#DC3545', backgroundColor: '#FFF8F8' }];
+      return { borderColor: "#DC3545", backgroundColor: "#FFF8F8" };
     }
+  };
+
+  // 渲染每个字母的输入框
+  const renderLetterInputs = () => {
+    return (
+      <View style={styles.lettersContainer}>
+        {letterInputs.map((letter, index) => (
+          <TextInput
+            key={index}
+            ref={(ref) => {
+              if (ref) {
+                inputRefs.current[index] = ref;
+              }
+            }}
+            style={[styles.letterInput, getInputStyle()]}
+            value={letter}
+            onChangeText={(text) => handleLetterChange(text, index)}
+            onKeyPress={(e) => handleKeyPress(e, index)}
+            placeholder="_"
+            placeholderTextColor="#C5C5C7"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSubmitting}
+            maxLength={1}
+            keyboardType="default"
+            textAlign="center"
+          />
+        ))}
+      </View>
+    );
   };
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       {/* 中文意思区域 */}
       <View style={styles.wordPhoneticContainer}>
-        <Text style={styles.wordText}>{word.meaning || ''}</Text>
+        <Text style={styles.wordText}>{word.meaning || ""}</Text>
         {/* 条件渲染音标 */}
-        {(word.american_phonetic || word.british_phonetic) && (
+        {/* {(word.american_phonetic || word.british_phonetic) && (
           <Text style={styles.phoneticText}>
-            {word.american_phonetic ? `美 /${word.american_phonetic}/` : `英 /${word.british_phonetic}/`}
+            {word.american_phonetic
+              ? `美 /${word.american_phonetic}/`
+              : `英 /${word.british_phonetic}/`}
           </Text>
-        )}
+        )} */}
       </View>
-      {/* 例句区域 */}
-      {/* {word.example_sentence && (
-        <Text style={styles.exampleText}>
-          {word.example_sentence?.toLowerCase().replace(word.spelling, '***') || '请根据中文含义，填写英文单词拼写'}
-        </Text>
-      )} */}
-      {/* 拼写输入区域 */}
+
+      {/* 拼写输入区域 - 显示每个字母的输入框 */}
       <View style={styles.inputContainer}>
-        <TextInput
-          ref={inputRef}
-          style={getInputStyle()} // 应用动态样式
-          value={userInput}
-          onChangeText={handleInputChange}
-          placeholder="请输入英文拼写..."
-          placeholderTextColor="#C5C5C7"
-          autoCapitalize="none" // 关闭自动大写
-          autoCorrect={false}   // 关闭自动更正
-          editable={!isSubmitting} // 提交时禁用编辑
-        />
+        {renderLetterInputs()}
+        <Text style={styles.hintText}>请输入 {wordLength} 个字母</Text>
       </View>
+
       {/* 提交按钮 */}
       <TouchableOpacity
         testID="submit-button"
         style={[
-          styles.submitButton, 
-          (!userInput.trim() || isSubmitting) && styles.submitButtonDisabled
+          styles.submitButton,
+          (letterInputs.some((input) => input === "") || isSubmitting) &&
+            styles.submitButtonDisabled,
         ]}
         onPress={handleSubmit}
-        disabled={!userInput.trim() || isSubmitting}
+        disabled={letterInputs.some((input) => input === "") || isSubmitting}
         accessibilityLabel={isSubmitting ? "提交中..." : "提交答案"}
         accessibilityRole="button"
-        accessibilityState={{ disabled: !userInput.trim() || isSubmitting }}
+        accessibilityState={{
+          disabled: letterInputs.some((input) => input === "") || isSubmitting,
+        }}
       >
         {isSubmitting ? (
           <ActivityIndicator size="small" color="#FFFFFF" />
@@ -159,17 +226,6 @@ const SpellingFC: React.FC<TestTypeProps> = ({
           <Text style={styles.submitButtonText}>提交</Text>
         )}
       </TouchableOpacity>
-      {/* 答题反馈 */}
-      {/* {showFeedback && (
-        <View style={styles.feedbackContainer}>
-          <Text style={[
-            styles.feedbackText,
-            showFeedback.correct ? styles.correctFeedbackText : styles.incorrectFeedbackText,
-          ]}>
-            {showFeedback.message}
-          </Text>
-        </View>
-      )} */}
     </Animated.View>
   );
 };
@@ -186,81 +242,78 @@ const Spelling: React.FC<TestTypeProps> = (props) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
     paddingVertical: 20,
-    position: 'relative',
+    position: "relative",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   errorText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 16,
-    color: '#1A1A1A',
+    color: "#1A1A1A",
   },
   errorSubText: {
     fontSize: 14,
-    color: '#666666',
+    color: "#666666",
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   wordPhoneticContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginVertical: 20,
   },
   wordText: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    fontWeight: "bold",
+    color: "#1A1A1A",
   },
   phoneticText: {
     fontSize: 16,
-    color: '#666666',
+    color: "#666666",
     marginTop: 5,
   },
-  exampleText: {
-    fontSize: 14,
-    color: '#666666',
-    fontStyle: 'italic',
-    marginBottom: 20,
-    lineHeight: 20,
-    width: '100%',
-    textAlign: 'left',
-  },
   inputContainer: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 20,
+    alignItems: "center",
+    marginBottom: 30,
   },
-  textInput: {
-    fontSize: 18,
-    height: 50,
+  lettersContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+  letterInput: {
+    width: 48,
+    height: 56,
     borderWidth: 2,
     borderRadius: 8,
-    paddingHorizontal: 15,
-    letterSpacing: 2,
+    marginHorizontal: 4,
+    fontSize: 22,
+    fontWeight: "600",
     ...Platform.select({
       ios: {
-        shadowColor: '#d0bebeff',
+        shadowColor: "#d0bebeff",
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -270,46 +323,30 @@ const styles = StyleSheet.create({
       },
     }),
   },
+  hintText: {
+    fontSize: 14,
+    color: "#666666",
+    marginTop: 8,
+  },
   submitButton: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: '#4A90E2',
+    backgroundColor: "#4A90E2",
     borderRadius: 24,
     paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 50, // 确保按钮高度一致
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 50,
   },
   submitButtonDisabled: {
-    backgroundColor: '#C5C5C7',
+    backgroundColor: "#C5C5C7",
   },
   submitButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '600',
-  },
-  feedbackContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    transform: [{ translateY: -20 }],
-    zIndex: 10,
-  },
-  feedbackText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  correctFeedbackText: {
-    color: '#28A745',
-  },
-  incorrectFeedbackText: {
-    color: '#DC3545',
+    fontWeight: "600",
   },
 });
 
