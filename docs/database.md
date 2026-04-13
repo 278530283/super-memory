@@ -6,7 +6,9 @@
 ---
 
 ## 1. 用户表（`user`）
+
 存储用户基础信息及配置项
+
 ```sql
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '用户唯一标识',
@@ -23,7 +25,9 @@ CREATE TABLE `user` (
 ```
 
 ## 2. 学习模式表（`learning_mode`）
+
 定义三种学习模式的参数
+
 ```sql
 CREATE TABLE `learning_mode` (
   `id` tinyint NOT NULL COMMENT '模式ID（1=轻松，2=正常，3=努力）',
@@ -37,7 +41,9 @@ CREATE TABLE `learning_mode` (
 ```
 
 ## 3. 单词表（`word`）
+
 存储单词基础信息及发音属性
+
 ```sql
 CREATE TABLE `word` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '单词唯一标识',
@@ -59,13 +65,21 @@ CREATE TABLE `word` (
   `difficulty_level` tinyint NOT NULL COMMENT '适配水平（1=小学，2=初中，3=高中）',
   `tag` tinyint NULL COMMENT '字符串标签：zk/中考，gk/高考，cet4/四级 等等标签，空格分割',
   `is_analyzed` tinyint NOT NULL DEFAULT '0' COMMENT '是否已完成词根词缀分析（1=是，0=否）',
+  `prefix` varchar(100) DEFAULT NULL COMMENT '前缀（如：un, dis, pre, im）',
+  `prefix_mean` varchar(200) DEFAULT NULL COMMENT '前缀含义（该单词中）',
+  `root` varchar(100) DEFAULT NULL COMMENT '词根（变形后，如：vis, vid, port）',
+  `root_mean` varchar(200) DEFAULT NULL COMMENT '词根含义（该单词中）',
+  `suffix` varchar(100) DEFAULT NULL COMMENT '后缀（如：able, tion, ful, ist）',
+  `suffix_mean` varchar(200) DEFAULT NULL COMMENT '后缀含义（该单词中）',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_spelling` (`spelling`)
 ) ENGINE=InnoDB COMMENT '单词基础信息表';
 ```
 
 ## 4. 词素表 (`morpheme`)
+
 存储词根、前缀、后缀的基础信息，是词根词缀系统的核心。
+
 ```sql
 CREATE TABLE `morpheme` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '词素唯一标识',
@@ -83,7 +97,9 @@ CREATE TABLE `morpheme` (
 ```
 
 ## 5. 单词-词素关联表 (`word_morpheme_association`)
+
 建立单词与其构成词素之间的关系，并记录顺序。
+
 ```sql
 CREATE TABLE `word_morpheme_association` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -99,7 +115,9 @@ CREATE TABLE `word_morpheme_association` (
 ```
 
 ## 6. 复习策略表（`review_strategy`）
+
 定义不同类型单词的复习规则，并支持区分传统策略和FSRS策略。
+
 ```sql
 CREATE TABLE `review_strategy` (
   `id` tinyint NOT NULL COMMENT '策略ID',
@@ -112,7 +130,9 @@ CREATE TABLE `review_strategy` (
 ```
 
 ## 7. 每日学习会话表 (`daily_learning_session`)
+
 核心表，用于管理“评测-学习-再评测”全流程的状态、进度和内容。
+
 ```sql
 CREATE TABLE `daily_learning_session` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '会话唯一标识',
@@ -132,7 +152,9 @@ CREATE TABLE `daily_learning_session` (
 ```
 
 ## 8. 用户单词行为日志表 (`user_word_action_log`)
+
 核心表，用于记录用户在“评测-学习-再评测”全流程中，与每个单词的每一次原子级交互，是数据驱动和个性化推荐的基础。
+
 ```sql
 CREATE TABLE `user_word_action_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '日志唯一标识',
@@ -140,12 +162,12 @@ CREATE TABLE `user_word_action_log` (
   `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
   `session_id` bigint NULL COMMENT '关联的每日学习会话ID（快速复习时可为空）',
   `phase` tinyint NOT NULL COMMENT '阶段 (1=前置评测, 2=学习阶段, 3=当日评测, 4=快速复习, 5=专项训练)',
-  `action_type` tinyint NOT NULL COMMENT '行为类型 
+  `action_type` tinyint NOT NULL COMMENT '行为类型
     -- 评测/测试类：
     (1=听单词, 2=英译中, 3=中译英, 4=拼写, 5=跟读, 6=词义匹配, 7=语境应用, 8=快速反应)
     -- 学习/吸收类：
     (10=观看图文, 11=播放例句, 12=词根词缀解析, 13=联想记忆故事, 14=自定义材料学习)',
-  `learning_method` tinyint NULL COMMENT '学习方法 (仅当action_type=2时有效) 
+  `learning_method` tinyint NULL COMMENT '学习方法 (仅当action_type=2时有效)
     (1=词根词缀法, 2=联想记忆法, 3=语境法, 4=自定义材料法, 5=重复朗读法)',
   `is_correct` tinyint NULL COMMENT '是否正确 (1=是, 0=否) — 对于纯学习活动可为空',
   `response_time_ms` int NULL COMMENT '响应耗时（毫秒） — 对于纯学习活动可为空',
@@ -161,7 +183,9 @@ CREATE TABLE `user_word_action_log` (
 ```
 
 ## 9. 用户单词历史评测等级表 (`user_word_test_history`)
+
 核心表，记录用户每次完整的评测（前置评测、当日评测）中，每个单词的等级变化或最终等级，并且能按日期查询。。
+
 ```sql
 CREATE TABLE `user_word_test_history` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '记录唯一标识',
@@ -179,7 +203,9 @@ CREATE TABLE `user_word_test_history` (
 ```
 
 ## 10. 用户单词进度表（`user_word_progress`）
+
 核心表，记录用户对每个单词的掌握状态
+
 ```sql
 CREATE TABLE `user_word_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -200,7 +226,9 @@ CREATE TABLE `user_word_progress` (
 ```
 
 ## 11. 学习记录表（`learning_record`）
+
 记录用户每日学习任务及测试结果。此表在“当日评测”完成后生成，用于归档最终结果。
+
 ```sql
 CREATE TABLE `learning_record` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -222,7 +250,9 @@ CREATE TABLE `learning_record` (
 ```
 
 ## 12. 学习单词关联表（`learning_word`）
+
 记录单次学习中包含的单词及其在不同阶段的成果。此表在 `learning_record` 生成后填充。
+
 ```sql
 CREATE TABLE `learning_word` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -243,7 +273,9 @@ CREATE TABLE `learning_word` (
 ```
 
 ## 13. 复习记录表（`review_record`）
+
 记录用户复习行为及效果，并增加策略类型和FSRS评分字段。
+
 ```sql
 CREATE TABLE `review_record` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -265,7 +297,9 @@ CREATE TABLE `review_record` (
 ```
 
 ## 14. **复习计划日志表 (`review_schedule_log`)**
+
 记录用户的复习计划，包括计划时间、计划天数、计划间隔等。
+
 ```sql
 CREATE TABLE `review_schedule_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '调度记录唯一标识',
@@ -286,7 +320,9 @@ CREATE TABLE `review_schedule_log` (
 ```
 
 ## 15. 发音评估记录表（`pronunciation_evaluation`）
+
 存储AI对用户发音的评估结果
+
 ```sql
 CREATE TABLE `pronunciation_evaluation` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -306,7 +342,9 @@ CREATE TABLE `pronunciation_evaluation` (
 ```
 
 ## 16. 词素关系表 (`morpheme_relation`)
+
 记录词素之间的衍生、变体、反义等关系，用于构建知识网络。
+
 ```sql
 CREATE TABLE `morpheme_relation` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -323,7 +361,9 @@ CREATE TABLE `morpheme_relation` (
 ```
 
 ## 17. 自定义材料表（`custom_material`）
+
 存储家长为单词添加的个性化记忆材料
+
 ```sql
 CREATE TABLE `custom_material` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -341,7 +381,9 @@ CREATE TABLE `custom_material` (
 ```
 
 ## 18. 文章表（`article`）
+
 存储用户上传的OCR文章及提取的生词
+
 ```sql
 CREATE TABLE `article` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -357,7 +399,9 @@ CREATE TABLE `article` (
 ```
 
 ## 19. 水平评估表（`level_assessment`）
+
 存储用户起始水平及定期评估结果
+
 ```sql
 CREATE TABLE `level_assessment` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -374,7 +418,9 @@ CREATE TABLE `level_assessment` (
 ```
 
 ## 20. 用户词素进度表 (`user_morpheme_progress`)
+
 记录用户对每个词根/词缀的掌握情况。
+
 ```sql
 CREATE TABLE `user_morpheme_progress` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -396,27 +442,34 @@ CREATE TABLE `user_morpheme_progress` (
 ## 设计说明
 
 ### 双轨制复习系统
-*   **传统策略**：通过 `review_strategy` (其中 `strategy_type=1`) 和 `review_record` (其中 `strategy_type=1`) 实现，沿用固定的间隔规则 (`interval_rule`)。
-*   **FSRS算法**：通过 `fsrs_review_schedule` 表和 `review_record` (其中 `strategy_type=2` 且包含 `rating`) 实现，为每个用户-单词对动态计算最优复习时间。
-*   **全局控制**：`user.review_mode` 字段决定用户默认使用哪种复习模式，便于进行A/B测试和效果对比分析。
+
+- **传统策略**：通过 `review_strategy` (其中 `strategy_type=1`) 和 `review_record` (其中 `strategy_type=1`) 实现，沿用固定的间隔规则 (`interval_rule`)。
+- **FSRS算法**：通过 `fsrs_review_schedule` 表和 `review_record` (其中 `strategy_type=2` 且包含 `rating`) 实现，为每个用户-单词对动态计算最优复习时间。
+- **全局控制**：`user.review_mode` 字段决定用户默认使用哪种复习模式，便于进行A/B测试和效果对比分析。
 
 ### 关系完整性
+
 通过外键关联确保数据一致性（如 `user`-`user_word_progress`、`learning_record`-`learning_word`、`word`-`word_morpheme_association`）。新增 `learning_record.session_id` 与 `daily_learning_session.id` 的外键，确保学习结果与学习过程精确对应。新增的 `user_word_action_log` 表通过 `session_id` 和 `word_id` 与核心流程和单词实体关联。
 
 ### 性能优化
+
 核心查询字段（如`user_id`、`word_id`、`morpheme_id`、时间字段）均建立索引，提升查询效率。`daily_learning_session` 表的 `uk_user_date` 唯一索引确保每天每个用户只有一个会话。`user_word_action_log` 表为高频写入表，索引设计兼顾了查询性能和写入速度。
 
 ### 核心流程支持
-*   **`daily_learning_session`**：是“今日学习”功能的引擎，负责管理三阶段流程的状态、进度和三个独立的单词列表，支持中断恢复。
-*   **`learning_record`**：是学习成果的归档，仅在流程结束时生成，记录最终的耗时、正确率等统计信息。
-*   **`learning_word`**：记录单词级别的学习成果，并通过 `phase` 字段明确区分该成果是在前置评测、学习阶段还是当日评测中产生的。
-*   **`user_word_action_log`**：是系统的数据基石，记录每一次微观交互，为 `learning_word.mastery_change` 的计算、个性化复习推送、薄弱项分析提供原始数据。
+
+- **`daily_learning_session`**：是“今日学习”功能的引擎，负责管理三阶段流程的状态、进度和三个独立的单词列表，支持中断恢复。
+- **`learning_record`**：是学习成果的归档，仅在流程结束时生成，记录最终的耗时、正确率等统计信息。
+- **`learning_word`**：记录单词级别的学习成果，并通过 `phase` 字段明确区分该成果是在前置评测、学习阶段还是当日评测中产生的。
+- **`user_word_action_log`**：是系统的数据基石，记录每一次微观交互，为 `learning_word.mastery_change` 的计算、个性化复习推送、薄弱项分析提供原始数据。
 
 ### 扩展性
+
 预留字段（如`difficulty_level`）支持未来按学段细化内容，JSON字段（如`level_distribution`）适配灵活的统计数据存储。词素模块的设计支持轻松扩展新的关系和属性。`user_word_action_log` 表的 `action_type` 和 `test_type` 字段设计为枚举，方便未来扩展新的学习或评测类型。
 
 ### 词素集成
+
 新增的词根词缀模块与原有系统深度集成，通过`word_morpheme_association`表关联，并在`word`表中添加`is_analyzed`标志位，实现了单词学习与词素学习的无缝结合。
 
 ### 数据驱动升级
+
 通过引入 `user_word_action_log` 表，系统从“结果驱动”升级为“过程驱动”和“数据驱动”。它捕获了用户与产品的每一次微观互动，为后续的AI算法、个性化学习和精细化运营提供了不可或缺的数据燃料。这张表是构建真正智能学习系统的数据基石。

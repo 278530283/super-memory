@@ -29,6 +29,12 @@ export interface Word {
   meaning?: string;
   definitions?: WordMeaning[];
   chinese_meanings?: WordMeaning[];
+  prefix?: string | null; // 前缀
+  prefix_mean?: string | null; // 前缀含义
+  root?: string | null; // 词根（变形后）
+  root_mean?: string | null; // 词根含义
+  suffix?: string | null; // 后缀
+  suffix_mean?: string | null; // 后缀含义
 }
 
 // 定义选项对象的类型
@@ -39,7 +45,7 @@ export interface WordOption {
   id: string; // 单词的 $id 或生成的唯一 ID
 }
 
-export interface WordMeaning{
+export interface WordMeaning {
   partOfSpeech: string;
   meanings: string[];
 }
@@ -51,48 +57,53 @@ export interface WordExchange {
 }
 
 export enum ExchangeType {
-  PAST_TENSE = 'p',        // 过去式（did）
-  PAST_PARTICIPLE = 'd',   // 过去分词（done）
-  PRESENT_PARTICIPLE = 'i', // 现在分词（doing）
-  THIRD_PERSON = '3',      // 第三人称单数（does）
-  COMPARATIVE = 'r',       // 形容词比较级（-er）
-  SUPERLATIVE = 't',       // 形容词最高级（-est）
-  PLURAL = 's',            // 名词复数形式
-  LEMMA = '0',             // Lemma，如 perceived 的 Lemma 是 perceive
-  LEMMA_DERIVED = '1'      // Lemma 的变换形式，比如 s 代表 apples 是其 lemma 的复数形式
+  PAST_TENSE = "p", // 过去式（did）
+  PAST_PARTICIPLE = "d", // 过去分词（done）
+  PRESENT_PARTICIPLE = "i", // 现在分词（doing）
+  THIRD_PERSON = "3", // 第三人称单数（does）
+  COMPARATIVE = "r", // 形容词比较级（-er）
+  SUPERLATIVE = "t", // 形容词最高级（-est）
+  PLURAL = "s", // 名词复数形式
+  LEMMA = "0", // Lemma，如 perceived 的 Lemma 是 perceive
+  LEMMA_DERIVED = "1", // Lemma 的变换形式，比如 s 代表 apples 是其 lemma 的复数形式
 }
 
 // 例句结构定义
 export interface ExampleSentence {
-  en: string;           // 英文例句
-  ch: string;           // 中文翻译
-  trans?: {             // 单词级翻译（可选）
+  en: string; // 英文例句
+  ch: string; // 中文翻译
+  trans?: {
+    // 单词级翻译（可选）
     [key: string]: string;
   };
 }
 
 // 工具函数：解析exchange字段
-export function parseExchange(exchangeString: string | null | undefined): WordExchange[] {
+export function parseExchange(
+  exchangeString: string | null | undefined,
+): WordExchange[] {
   if (!exchangeString) return [];
-  
-  return exchangeString.split('/').map(item => {
-    const [type, word] = item.split(':');
+
+  return exchangeString.split("/").map((item) => {
+    const [type, word] = item.split(":");
     return {
       type: type as ExchangeType,
-      word: word || ''
+      word: word || "",
     };
   });
 }
 
 // 工具函数：生成exchange字段
 export function buildExchange(exchanges: WordExchange[]): string {
-  return exchanges.map(ex => `${ex.type}:${ex.word}`).join('/');
+  return exchanges.map((ex) => `${ex.type}:${ex.word}`).join("/");
 }
 
 // 工具函数：解析例句数据
-export function parseExampleSentences(exampleSentence: string | null | undefined): ExampleSentence[] {
+export function parseExampleSentences(
+  exampleSentence: string | null | undefined,
+): ExampleSentence[] {
   if (!exampleSentence) return [];
-  
+
   try {
     // 尝试解析JSON格式的例句
     const parsed = JSON.parse(exampleSentence);
@@ -102,37 +113,39 @@ export function parseExampleSentences(exampleSentence: string | null | undefined
     return [];
   } catch (error) {
     // 如果不是JSON格式，返回空数组或尝试其他解析逻辑
-    console.warn('Failed to parse example sentences:', error);
+    console.warn("Failed to parse example sentences:", error);
     return [];
   }
 }
 
 // 工具函数：将例句数据序列化为字符串
-export function serializeExampleSentences(sentences: ExampleSentence[]): string {
+export function serializeExampleSentences(
+  sentences: ExampleSentence[],
+): string {
   return JSON.stringify(sentences);
 }
 
 // 难度级别枚举
 export enum DifficultyLevel {
-  PRIMARY = 1,    // 小学
-  MIDDLE = 2,     // 初中
-  HIGH = 3        // 高中
+  PRIMARY = 1, // 小学
+  MIDDLE = 2, // 初中
+  HIGH = 3, // 高中
 }
 
 // 语速敏感度枚举
 export enum SpeedSensitivity {
-  LOW = 1,        // 低
-  MEDIUM = 2,     // 中
-  HIGH = 3        // 高
+  LOW = 1, // 低
+  MEDIUM = 2, // 中
+  HIGH = 3, // 高
 }
 
 export interface TestTypeProps {
   word: Word;
-  onAnswer: (result: { 
-    type: string; 
-    correct: boolean; 
-    userAnswer: string; 
-    wordId: string; 
+  onAnswer: (result: {
+    type: string;
+    correct: boolean;
+    userAnswer: string;
+    wordId: string;
     responseTimeMs?: number;
     speedUsed?: number; // 新增速度使用参数
   }) => void;

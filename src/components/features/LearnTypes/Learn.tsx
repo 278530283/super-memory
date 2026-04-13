@@ -21,6 +21,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -66,22 +67,18 @@ const LearnFC: React.FC<TestTypeProps> = ({
   const [startTime] = useState<number>(Date.now());
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
-
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasRecordingPermission, setHasRecordingPermission] = useState<
     boolean | null
   >(null);
   const playIntervalRef = useRef<number | null>(null);
-
   const [activeTab, setActiveTab] = useState<TabType>("word");
   const tabScrollRef = useRef<ScrollView>(null);
   const contentScrollRef = useRef<ScrollView>(null);
-
   const [activeSegments, setActiveSegments] = useState<{
     [exampleIndex: number]: string | null;
   }>({});
-
   const [recognizedText, setRecognizedText] = useState<string | null>(null);
   const [followReadFeedback, setFollowReadFeedback] = useState<{
     correct: boolean;
@@ -160,12 +157,10 @@ const LearnFC: React.FC<TestTypeProps> = ({
       const segments: BilingualSegment[] = [];
       if (!example.trans) return segments;
       const chinesePositions: { [key: string]: boolean } = {};
-
       Object.entries(example.trans).forEach(([enKey, chValue], index) => {
         const enStart = example.en.indexOf(enKey);
         const chStart = example.ch.indexOf(chValue);
         if (enStart === -1 || chStart === -1) return;
-
         let isOverlapping = false;
         for (let i = chStart; i < chStart + chValue.length; i++) {
           if (chinesePositions[i]) {
@@ -174,7 +169,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
           }
         }
         if (isOverlapping) return;
-
         for (let i = chStart; i < chStart + chValue.length; i++)
           chinesePositions[i] = true;
         segments.push({
@@ -206,7 +200,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
         return <Text style={styles.exampleEnglish}>{example.en}</Text>;
       const elements: JSX.Element[] = [];
       let lastIndex = 0;
-
       segments
         .sort((a, b) => a.enStart - b.enStart)
         .forEach((seg, i) => {
@@ -235,7 +228,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
           );
           lastIndex = seg.enEnd;
         });
-
       if (lastIndex < example.en.length) {
         elements.push(
           <Text key="after" style={styles.exampleEnglish}>
@@ -255,7 +247,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
         return <Text style={styles.exampleChinese}>{example.ch}</Text>;
       const elements: JSX.Element[] = [];
       let lastIndex = 0;
-
       segments
         .sort((a, b) => a.chStart - b.chStart)
         .forEach((seg, i) => {
@@ -284,7 +275,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
           );
           lastIndex = seg.chEnd;
         });
-
       if (lastIndex < example.ch.length) {
         elements.push(
           <Text key="after" style={styles.exampleChinese}>
@@ -338,7 +328,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
       setAudioSource(uri);
       await audioRecorder.stop();
       setIsRecording(false);
-
       const result = await speechRecognitionService.recognizeSpeech(
         uri,
         word.spelling,
@@ -433,7 +422,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 顶部选项卡 */}
       <View style={styles.tabBarContainer}>
         <ScrollView
           ref={tabScrollRef}
@@ -454,7 +442,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
               单词信息
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.tabItem,
@@ -471,7 +458,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
               例句
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[styles.tabItem, activeTab === "root" && styles.tabActive]}
             onPress={() => switchTab("root")}
@@ -488,7 +474,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
         </ScrollView>
       </View>
 
-      {/* ✅ 选项卡指示器（放在选项卡正下方） */}
       <View style={styles.indicatorContainer}>
         {tabList.map((item, i) => (
           <View
@@ -501,7 +486,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
         ))}
       </View>
 
-      {/* ✅ 左右滑动切换内容 */}
       <ScrollView
         ref={contentScrollRef}
         horizontal
@@ -542,16 +526,14 @@ const LearnFC: React.FC<TestTypeProps> = ({
                 </View>
 
                 <View style={styles.meaningRow}>
-                  {/* <Text style={styles.meaningLabel}>翻译：</Text> */}
                   <Text style={styles.meaningText}>
                     {(
                       word.chinese_meaning ||
                       word.chinese_meanings?.[0]?.meanings?.join("；") ||
                       "暂无翻译"
                     )
-                      .split("\\n") // 按 \n 拆分成数组
+                      .split("\n")
                       .map((line, index, array) => (
-                        // 每一行渲染，最后一行不加换行
                         <Text key={index}>
                           {line}
                           {index !== array.length - 1 && "\n"}
@@ -560,10 +542,19 @@ const LearnFC: React.FC<TestTypeProps> = ({
                   </Text>
                 </View>
 
-                <View style={styles.imagePlaceholder}>
-                  <Ionicons name="image-outline" size={60} color="#ddd" />
-                  <Text style={styles.imageTip}>单词配图</Text>
-                </View>
+                {/* ✅ 图片使用 word.image_path */}
+                {word.image_path ? (
+                  <Image
+                    source={{ uri: word.image_path }}
+                    style={styles.wordImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={60} color="#ddd" />
+                    <Text style={styles.imageTip}>单词配图</Text>
+                  </View>
+                )}
               </View>
             </View>
           </Animated.ScrollView>
@@ -600,7 +591,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
           </Animated.ScrollView>
         </View>
 
-        {/* 词根+跟读 */}
+        {/* 词根+跟读（✅ 已改用你的6个字段） */}
         <View style={styles.pageContainer}>
           <Animated.ScrollView
             style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}
@@ -610,11 +601,44 @@ const LearnFC: React.FC<TestTypeProps> = ({
             <View style={styles.tabPanel}>
               <View style={styles.rootCard}>
                 <Text style={styles.sectionTitle}>词根词缀拆解</Text>
-                <View style={styles.rootItem}>
-                  <Text style={styles.rootText}>
-                    {word.root ||
-                      `${word.spelling?.slice(0, 3)}... 词根：${word.spelling}`}
-                  </Text>
+
+                <View style={styles.rootInfoBox}>
+                  {word.prefix ? (
+                    <View style={styles.affixItem}>
+                      <Text style={styles.affixLabel}>前缀：</Text>
+                      <Text style={styles.affixText}>
+                        {word.prefix}{" "}
+                        {word.prefix_mean ? `(${word.prefix_mean})` : ""}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {word.root ? (
+                    <View style={styles.affixItem}>
+                      <Text style={styles.affixLabel}>词根：</Text>
+                      <Text style={styles.affixText}>
+                        {word.root}{" "}
+                        {word.root_mean ? `(${word.root_mean})` : ""}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.affixItem}>
+                      <Text style={styles.affixLabel}>词根：</Text>
+                      <Text style={styles.affixText}>
+                        {word.spelling}（无拆分）
+                      </Text>
+                    </View>
+                  )}
+
+                  {word.suffix ? (
+                    <View style={styles.affixItem}>
+                      <Text style={styles.affixLabel}>后缀：</Text>
+                      <Text style={styles.affixText}>
+                        {word.suffix}{" "}
+                        {word.suffix_mean ? `(${word.suffix_mean})` : ""}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.followSection}>
@@ -635,13 +659,11 @@ const LearnFC: React.FC<TestTypeProps> = ({
                         color="#fff"
                       />
                     </TouchableOpacity>
-
                     <Text style={styles.recordTip}>
                       {isRecording
                         ? "正在录音…"
                         : recognizedText || "点击麦克风跟读"}
                     </Text>
-
                     {audioSource && (
                       <TouchableOpacity
                         style={styles.playRecordBtn}
@@ -660,7 +682,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
                         />
                       </TouchableOpacity>
                     )}
-
                     {followReadFeedback && (
                       <View
                         style={[
@@ -691,7 +712,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
         </View>
       </ScrollView>
 
-      {/* 底部按钮 */}
       <View style={styles.bottomBtnContainer}>
         <TouchableOpacity
           style={[styles.nextBtn, isSubmitting && styles.nextBtnDisabled]}
@@ -722,12 +742,7 @@ const Learn: React.FC<TestTypeProps> = (props) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-
-  // 选项卡
-  tabBarContainer: {
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-  },
+  tabBarContainer: { backgroundColor: "#fff", paddingVertical: 12 },
   tabScrollContent: { paddingHorizontal: 16, gap: 12 },
   tabItem: {
     paddingHorizontal: 20,
@@ -738,8 +753,6 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: "#7C3AED" },
   tabText: { fontSize: 15, color: "#64748b" },
   tabTextActive: { color: "#fff", fontWeight: "600" },
-
-  // ✅ 指示器（选项卡下方）
   indicatorContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -754,17 +767,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#e2e8f0",
   },
-  indicatorActive: {
-    width: 20,
-    backgroundColor: "#7C3AED",
-  },
-
-  // 滑动内容
+  indicatorActive: { width: 20, backgroundColor: "#7C3AED" },
   contentScroll: { flex: 1 },
-  pageContainer: {
-    width: SCREEN_WIDTH * 0.92,
-    alignSelf: "center",
-  },
+  pageContainer: { width: SCREEN_WIDTH * 0.92, alignSelf: "center" },
   contentPadding: {
     paddingHorizontal: 8,
     paddingVertical: 12,
@@ -772,7 +777,6 @@ const styles = StyleSheet.create({
   },
   tabPanel: { width: "100%" },
 
-  // 单词卡片
   wordCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -799,6 +803,9 @@ const styles = StyleSheet.create({
   meaningRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   meaningLabel: { fontSize: 16, color: "#7C3AED", fontWeight: "600" },
   meaningText: { fontSize: 16, color: "#374151", flex: 1 },
+
+  // 单词图片
+  wordImage: { height: 180, borderRadius: 12, backgroundColor: "#f0f4f8" },
   imagePlaceholder: {
     height: 180,
     backgroundColor: "#f8fafc",
@@ -863,7 +870,7 @@ const styles = StyleSheet.create({
   highlightedChinese: { color: "#DC2626" },
   emptyExample: { padding: 40, alignItems: "center" },
 
-  // 词根跟读
+  // 词根面板（✅ 新版样式）
   rootCard: { backgroundColor: "#fff", borderRadius: 16, padding: 20, gap: 24 },
   sectionTitle: {
     fontSize: 17,
@@ -871,8 +878,16 @@ const styles = StyleSheet.create({
     color: "#1e293b",
     marginBottom: 8,
   },
-  rootItem: { padding: 12, backgroundColor: "#f8fafc", borderRadius: 12 },
-  rootText: { fontSize: 16, color: "#374151" },
+  rootInfoBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+  },
+  affixItem: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  affixLabel: { fontSize: 15, fontWeight: "600", color: "#7C3AED", width: 50 },
+  affixText: { fontSize: 15, color: "#1e293b", flex: 1 },
+
   followSection: { gap: 12 },
   recordBox: { alignItems: "center", gap: 16 },
   recordBtn: {
@@ -925,7 +940,6 @@ const styles = StyleSheet.create({
   btnRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   nextBtnText: { fontSize: 17, fontWeight: "bold", color: "#7C3AED" },
 
-  // 其他
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 12, fontSize: 16, color: "#64748b" },
   permissionDeniedContainer: {
