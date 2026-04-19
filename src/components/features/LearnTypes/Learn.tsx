@@ -1,6 +1,6 @@
 import speechRecognitionService from "@/src/lib/services/speechRecognitionService";
 import wordAudioPlayer from "@/src/lib/utils/WordAudioPlayer";
-import { ExampleSentence, TestTypeProps } from "@/src/types/Word";
+import { ExampleSentence, Morpheme, TestTypeProps } from "@/src/types/Word";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
@@ -399,6 +399,47 @@ const LearnFC: React.FC<TestTypeProps> = ({
   const getExampleSentences = () => word.example_sentences || [];
   const exampleSentences = getExampleSentences();
 
+  // ====================== 核心修改：构词类型 + 词素渲染 ======================
+  const getFormationText = (type: string) => {
+    const map: Record<string, string> = {
+      primitive: "原生词",
+      derivative: "派生词",
+      compound: "合成词",
+      mixed: "混合词",
+      abbr: "缩略词",
+    };
+    return map[type] || "原生词";
+  };
+
+  const renderMorphemeItem = (m: Morpheme) => {
+    let roleText = "";
+    switch (m.role_in_word) {
+      case "prefix":
+        roleText = "前缀";
+        break;
+      case "root":
+        roleText = "词根";
+        break;
+      case "suffix":
+        roleText = "后缀";
+        break;
+      case "free_word":
+        roleText = "自由词素";
+        break;
+      default:
+        roleText = "词素";
+    }
+    return (
+      <View style={styles.affixItem} key={m.morpheme}>
+        <Text style={styles.affixLabel}>{roleText}：</Text>
+        <Text style={styles.affixText}>
+          {m.morpheme}（{m.context_meaning}）
+        </Text>
+      </View>
+    );
+  };
+  // ========================================================================
+
   if (hasRecordingPermission === null) {
     return (
       <View style={styles.loadingContainer}>
@@ -439,7 +480,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
                 activeTab === "word" && styles.tabTextActive,
               ]}
             >
-              单词信息
+              单词
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -468,7 +509,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
                 activeTab === "root" && styles.tabTextActive,
               ]}
             >
-              词根+跟读
+              助记
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -520,11 +561,10 @@ const LearnFC: React.FC<TestTypeProps> = ({
                         isPlaying ? "volume-medium" : "volume-medium-outline"
                       }
                       size={20}
-                      color="#7C3AED"
+                      color="#0284c7"
                     />
                   </TouchableOpacity>
                 </View>
-
                 <View style={styles.meaningRow}>
                   <Text style={styles.meaningText}>
                     {(
@@ -532,7 +572,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
                       word.chinese_meanings?.[0]?.meanings?.join("；") ||
                       "暂无翻译"
                     )
-                      .split("\n")
+                      .split("\\n")
                       .map((line, index, array) => (
                         <Text key={index}>
                           {line}
@@ -541,8 +581,6 @@ const LearnFC: React.FC<TestTypeProps> = ({
                       ))}
                   </Text>
                 </View>
-
-                {/* ✅ 图片使用 word.image_path */}
                 {word.image_path ? (
                   <Image
                     source={{ uri: word.image_path }}
@@ -552,7 +590,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
                 ) : (
                   <View style={styles.imagePlaceholder}>
                     <Ionicons name="image-outline" size={60} color="#ddd" />
-                    <Text style={styles.imageTip}>单词配图</Text>
+                    <Text style={styles.imageTip}></Text>
                   </View>
                 )}
               </View>
@@ -591,7 +629,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
           </Animated.ScrollView>
         </View>
 
-        {/* 词根+跟读（✅ 已改用你的6个字段） */}
+        {/* 构词+跟读（已改用 formation_type + morphemes） */}
         <View style={styles.pageContainer}>
           <Animated.ScrollView
             style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}
@@ -600,45 +638,39 @@ const LearnFC: React.FC<TestTypeProps> = ({
           >
             <View style={styles.tabPanel}>
               <View style={styles.rootCard}>
-                <Text style={styles.sectionTitle}>词根词缀拆解</Text>
-
-                <View style={styles.rootInfoBox}>
-                  {word.prefix ? (
-                    <View style={styles.affixItem}>
-                      <Text style={styles.affixLabel}>前缀：</Text>
-                      <Text style={styles.affixText}>
-                        {word.prefix}{" "}
-                        {word.prefix_mean ? `(${word.prefix_mean})` : ""}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {word.root ? (
-                    <View style={styles.affixItem}>
-                      <Text style={styles.affixLabel}>词根：</Text>
-                      <Text style={styles.affixText}>
-                        {word.root}{" "}
-                        {word.root_mean ? `(${word.root_mean})` : ""}
-                      </Text>
+                <Text style={styles.sectionTitle}>词根助记</Text>
+                <View style={styles.morphologyCard}>
+                  {word.morphemes && word.morphemes.length > 0 ? (
+                    <View style={styles.morphRow}>
+                      {word.morphemes.map((m, i, arr) => (
+                        <View key={i} style={styles.morphUnit}>
+                          <Text style={styles.morphText}>
+                            {m.morpheme.replace("-", "")}
+                          </Text>
+                          <Text style={styles.morphMeaning}>
+                            {m.context_meaning}
+                          </Text>
+                          {/* 不是最后一个就显示 + */}
+                          {i < arr.length - 1 && (
+                            <Text style={styles.plusSign}>+</Text>
+                          )}
+                        </View>
+                      ))}
+                      {/* 箭头 + 完整单词 */}
+                      <View style={styles.arrowWrap}>
+                        <Text style={styles.arrowSign}> → </Text>
+                      </View>
+                      <View style={styles.finalWordWrap}>
+                        <Text style={styles.finalWord}>{word.spelling}</Text>
+                        <Text style={styles.finalMeaning}>{word.meaning}</Text>
+                      </View>
                     </View>
                   ) : (
-                    <View style={styles.affixItem}>
-                      <Text style={styles.affixLabel}>词根：</Text>
-                      <Text style={styles.affixText}>
-                        {word.spelling}（无拆分）
-                      </Text>
+                    <View style={styles.noMorph}>
+                      <Ionicons name="cube-outline" size={20} color="#94A3B8" />
+                      <Text style={styles.noMorphText}>原生单词，不可拆分</Text>
                     </View>
                   )}
-
-                  {word.suffix ? (
-                    <View style={styles.affixItem}>
-                      <Text style={styles.affixLabel}>后缀：</Text>
-                      <Text style={styles.affixText}>
-                        {word.suffix}{" "}
-                        {word.suffix_mean ? `(${word.suffix_mean})` : ""}
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
 
                 <View style={styles.followSection}>
@@ -723,7 +755,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
           ) : (
             <View style={styles.btnRow}>
               <Text style={styles.nextBtnText}>完成学习</Text>
-              <Ionicons name="arrow-forward" size={20} color="#7C3AED" />
+              <Ionicons name="arrow-forward" size={20} color="#0284c7" />
             </View>
           )}
         </TouchableOpacity>
@@ -742,7 +774,11 @@ const Learn: React.FC<TestTypeProps> = (props) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  tabBarContainer: { backgroundColor: "#fff", paddingVertical: 12 },
+  tabBarContainer: {
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+    alignItems: "center",
+  },
   tabScrollContent: { paddingHorizontal: 16, gap: 12 },
   tabItem: {
     paddingHorizontal: 20,
@@ -750,7 +786,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#f1f5f9",
   },
-  tabActive: { backgroundColor: "#7C3AED" },
+  tabActive: { backgroundColor: "#64748b" },
   tabText: { fontSize: 15, color: "#64748b" },
   tabTextActive: { color: "#fff", fontWeight: "600" },
   indicatorContainer: {
@@ -767,7 +803,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#e2e8f0",
   },
-  indicatorActive: { width: 20, backgroundColor: "#7C3AED" },
+  indicatorActive: { width: 20, backgroundColor: "#64748b" },
   contentScroll: { flex: 1 },
   pageContainer: { width: SCREEN_WIDTH * 0.92, alignSelf: "center" },
   contentPadding: {
@@ -776,7 +812,6 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   tabPanel: { width: "100%" },
-
   wordCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -803,8 +838,6 @@ const styles = StyleSheet.create({
   meaningRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   meaningLabel: { fontSize: 16, color: "#7C3AED", fontWeight: "600" },
   meaningText: { fontSize: 16, color: "#374151", flex: 1 },
-
-  // 单词图片
   wordImage: { height: 180, borderRadius: 12, backgroundColor: "#f0f4f8" },
   imagePlaceholder: {
     height: 180,
@@ -815,8 +848,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   imageTip: { color: "#94a3b8", fontSize: 14 },
-
-  // 例句
   exampleCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -828,7 +859,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 6,
-    backgroundColor: "#7C3AED",
+    backgroundColor: "#64748b",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 2,
@@ -858,7 +889,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1e293b",
     textDecorationLine: "underline",
-    textDecorationColor: "#7C3AED",
+    textDecorationColor: "#0284c7",
   },
   chineseSegment: {
     fontSize: 15,
@@ -866,11 +897,9 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textDecorationColor: "#DC2626",
   },
-  highlightedEnglish: { color: "#7C3AED" },
-  highlightedChinese: { color: "#DC2626" },
+  highlightedEnglish: { color: "#0284c7" },
+  highlightedChinese: { color: "#0284c7" },
   emptyExample: { padding: 40, alignItems: "center" },
-
-  // 词根面板（✅ 新版样式）
   rootCard: { backgroundColor: "#fff", borderRadius: 16, padding: 20, gap: 24 },
   sectionTitle: {
     fontSize: 17,
@@ -885,9 +914,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   affixItem: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-  affixLabel: { fontSize: 15, fontWeight: "600", color: "#7C3AED", width: 50 },
+  affixLabel: { fontSize: 15, fontWeight: "600", color: "#0284c7", width: 50 },
   affixText: { fontSize: 15, color: "#1e293b", flex: 1 },
-
   followSection: { gap: 12 },
   recordBox: { alignItems: "center", gap: 16 },
   recordBtn: {
@@ -919,27 +947,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   fbText: { fontSize: 14, fontWeight: "500" },
-
-  // 底部按钮
   bottomBtnContainer: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
+    marginTop: -60,
   },
   nextBtn: {
-    backgroundColor: "#EDE9FE",
+    backgroundColor: "#fff",
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#7C3AED",
+    borderColor: "#0284c7",
   },
-  nextBtnDisabled: { backgroundColor: "#cbd5e1", borderColor: "#cbd5e1" },
+  nextBtnDisabled: { backgroundColor: "#d8e0ea", borderColor: "#cbd5e1" },
   btnRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  nextBtnText: { fontSize: 17, fontWeight: "bold", color: "#7C3AED" },
-
+  nextBtnText: { fontSize: 17, fontWeight: "bold", color: "#0284c7" },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { marginTop: 12, fontSize: 16, color: "#64748b" },
   permissionDeniedContainer: {
@@ -980,12 +1006,94 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     marginTop: 20,
-    backgroundColor: "#7C3AED",
+    backgroundColor: "#0284c7",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
   },
   retryButtonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  // 🔥 简约灰色系 · 词根词缀样式
+  morphologyCard: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 20,
+    gap: 14,
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  morphRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 4,
+  },
+  morphUnit: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  morphText: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#334155", // 深灰（词素）
+  },
+  morphMeaning: {
+    fontSize: 14,
+    color: "#64748b", // 中灰（释义）
+    marginLeft: 4,
+    marginRight: 4,
+  },
+  plusSign: {
+    fontSize: 18,
+    color: "#94a3b8", // 浅灰（加号）
+    marginHorizontal: 6,
+  },
+  arrowWrap: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  arrowSign: {
+    fontSize: 20,
+    color: "#64748b", // 中灰（箭头）
+    marginHorizontal: 6,
+  },
+  finalWordWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  finalWord: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e293b", // 近黑（完整单词）
+  },
+  finalMeaning: {
+    fontSize: 15,
+    color: "#475569", // 灰蓝（释义）
+    marginLeft: 8,
+  },
+  noMorph: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    gap: 8,
+  },
+  noMorphText: {
+    fontSize: 14,
+    color: "#94a3b8",
+  },
+  formationTagBar: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "#f8fafc",
+  },
+  formationTagText: {
+    fontSize: 12,
+    color: "#64748b",
+  },
 });
 
 export default Learn;

@@ -29,12 +29,17 @@ export interface Word {
   meaning?: string;
   definitions?: WordMeaning[];
   chinese_meanings?: WordMeaning[];
-  prefix?: string | null; // 前缀
-  prefix_mean?: string | null; // 前缀含义
-  root?: string | null; // 词根（变形后）
-  root_mean?: string | null; // 词根含义
-  suffix?: string | null; // 后缀
-  suffix_mean?: string | null; // 后缀含义
+  // 构词类型
+  formation_type: "primitive" | "derivative" | "compound" | "mixed" | "other";
+  // 词素列表
+  morphemes?: Morpheme[];
+}
+
+// 词素结构
+export interface Morpheme {
+  morpheme: string; // 词素内容
+  context_meaning: string; // 语境含义
+  role_in_word: "prefix" | "root" | "suffix" | "free_word";
 }
 
 // 定义选项对象的类型

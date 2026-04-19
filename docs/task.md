@@ -24,3 +24,10 @@ UI 与交互: 页面和组件应使用 `react-native` 和 `expo-router` 组件�
 类型: (隐含于 `expo.md`) 尽可能使用 TypeScript 接口定义 props、state 和服务返回值，接口定义可暂存于 `types/`。
 
 请先规划好 `src/` 目录结构，然后按上述优先级，有序地生成每个指定部分或文件的代码。
+
+# 英语资源参考
+
+http://www.lianggeshipin.com/4500Page/1.html
+https://www.etymonline.com/
+https://www.quword.com/
+https://raw.githubusercontent.com/KyleBing/english-vocabulary/

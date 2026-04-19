@@ -65,53 +65,40 @@ CREATE TABLE `word` (
   `difficulty_level` tinyint NOT NULL COMMENT '适配水平（1=小学，2=初中，3=高中）',
   `tag` tinyint NULL COMMENT '字符串标签：zk/中考，gk/高考，cet4/四级 等等标签，空格分割',
   `is_analyzed` tinyint NOT NULL DEFAULT '0' COMMENT '是否已完成词根词缀分析（1=是，0=否）',
-  `prefix` varchar(100) DEFAULT NULL COMMENT '前缀（如：un, dis, pre, im）',
-  `prefix_mean` varchar(200) DEFAULT NULL COMMENT '前缀含义（该单词中）',
-  `root` varchar(100) DEFAULT NULL COMMENT '词根（变形后，如：vis, vid, port）',
-  `root_mean` varchar(200) DEFAULT NULL COMMENT '词根含义（该单词中）',
-  `suffix` varchar(100) DEFAULT NULL COMMENT '后缀（如：able, tion, ful, ist）',
-  `suffix_mean` varchar(200) DEFAULT NULL COMMENT '后缀含义（该单词中）',
+  `formation_type` varchar(16) NOT NULL COMMENT '构词类型（primitive=原生词，derivative=纯派生词，compound=纯合成词，mixed=混合，abbr=缩略词）',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_spelling` (`spelling`)
 ) ENGINE=InnoDB COMMENT '单词基础信息表';
 ```
 
-## 4. 词素表 (`morpheme`)
+## 4. 词素表 (`morphemes`)
 
-存储词根、前缀、后缀的基础信息，是词根词缀系统的核心。
+存储词根、前缀、后缀及自由词素的基础信息，是词根词缀系统的核心。
 
 ```sql
-CREATE TABLE `morpheme` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '词素唯一标识',
-  `morpheme_text` varchar(50) NOT NULL COMMENT '词素文本（如   "spect  ",   "un-",   "-able  "）',
-  `type` tinyint NOT NULL COMMENT '类型（1=词根-root, 2=前缀-prefix, 3=后缀-suffix）',
-  `meaning_zh` varchar(200) NOT NULL COMMENT '中文释义（如   "看  "）',
-  `meaning_en` varchar(200) NOT NULL COMMENT '英文释义（如   "to look  "）',
-  `origin` varchar(50) DEFAULT NULL COMMENT '来源（如   "Latin  ",   "Greek  ",   "Old English  "）',
-  `description` text COMMENT '详细描述、演变历史、用法说明',
-  `priority` tinyint NOT NULL DEFAULT NULL COMMENT '常见度优先级（1-5，1最高，5最低）',
-  `difficulty_level` tinyint DEFAULT NULL COMMENT '推荐学习  水平（1=小学，2=初中，3=高中，NULL=通用）',
-   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_morpheme_text_type` (`morpheme_text`,`type`) COMMENT '同一文本不同类别的词素可共存（如 "ing  "既可能是后缀也可能是词根）'
-) ENGINE=InnoDB COMMENT '词素表（词根、前缀、后缀）';
+CREATE TABLE `morphemes` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '词素ID（主键自增）',
+  `morpheme` varchar(32) NOT NULL COMMENT '词素内容（如act, -er, homo-, sex）',
+  `morpheme_tag` varchar(32) NOT NULL COMMENT '词素天生标签（free_word,root,prefix,suffix）',
+  `origin_meaning` varchar(256) NOT NULL COMMENT '词素本源含义',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB COMMENT '词素表（词根/词缀/自由词素）';
 ```
 
-## 5. 单词-词素关联表 (`word_morpheme_association`)
+## 5. 单词-词素关联表 (`word_morpheme_rel`)
 
 建立单词与其构成词素之间的关系，并记录顺序。
 
 ```sql
-CREATE TABLE `word_morpheme_association` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `word_id` varchar(36) NOT NULL COMMENT '关联单词ID',
-  `morpheme_id` bigint NOT NULL COMMENT '关联词素ID',
-  `order_index` tinyint NOT NULL COMMENT '在单词中的出现顺序（从1开始）',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_word_morpheme_order` (`word_id`,`morpheme_id`,`order_index`),
-  KEY `idx_morpheme` (`morpheme_id`),
-  CONSTRAINT `fk_wma_word` FOREIGN KEY (`word_id`) REFERENCES `word` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_wma_morpheme` FOREIGN KEY (`morpheme_id`) REFERENCES `morpheme` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB COMMENT '单词-词素关联表';
+CREATE TABLE `word_morpheme_rel` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT '拆解记录ID',
+  `word_id` varchar(24) NOT NULL COMMENT '关联单词ID',
+  `morpheme_id` varchar(24) NOT NULL COMMENT '关联词素ID',
+  `sort` tinyint NOT NULL COMMENT '词素拼接顺序（1,2,3...）',
+  `context_meaning` varchar(256) DEFAULT '' COMMENT '单词内语境含义',
+  `role_in_word` enum('prefix','root','suffix','free_word') NOT NULL COMMENT '词素在单词中的角色',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB COMMENT '单词-词素拆解关联表';
 ```
 
 ## 6. 复习策略表（`review_strategy`）
