@@ -16,6 +16,23 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Reinstalling dependencies
+
+# 1. 删除依赖包 + 锁定文件
+rm -rf node_modules package-lock.json
+
+# 2. 清理 npm 缓存（你刚才已经做过了）
+npm cache clean --force
+
+# 3. 重新安装所有依赖
+npm install
+
+# 4. 修复 Expo 依赖
+npx expo install --fix
+
+# 5. 启动（清缓存）
+npx expo start --clear
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
