@@ -19,18 +19,23 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 ## Reinstalling dependencies
 
 # 1. 删除依赖包 + 锁定文件
+
 rm -rf node_modules package-lock.json
 
 # 2. 清理 npm 缓存（你刚才已经做过了）
+
 npm cache clean --force
 
 # 3. 重新安装所有依赖
+
 npm install
 
 # 4. 修复 Expo 依赖
+
 npx expo install --fix
 
 # 5. 启动（清缓存）
+
 npx expo start --clear
 
 In the output, you'll find options to open the app in a
@@ -65,3 +70,12 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+  打包：
+
+在expo云端构建：
+
+eas build:configure
+
+$env:EXPO_UPLOAD_TIMEOUT=300000; $env:EAS_BUILD_TIMEOUT=1800; eas build --platform android --profile preview
+
+eas build --platform android --profile preview --local
