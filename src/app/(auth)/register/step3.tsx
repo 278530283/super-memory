@@ -3,53 +3,37 @@ import useAuthStore from '@/src/lib/stores/useAuthStore';
 import { UserPreferences } from '@/src/types/User';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import RNPickerSelect from 'react-native-picker-select';
 
 export default function RegisterStep3() {
-  // 状态现在使用字符串类型以匹配 picker 的值
   const [learningMode, setLearningMode] = useState<string>('2');
   const [enableSpelling, setEnableSpelling] = useState<boolean>(false);
-  const [pronunce, setPronunce] = useState<string>('1'); // 注意：这里应该是 'pronounce'
-  const [reviewStrategy, setReviewStrategy] = useState<string>('2'); // 复习策略：1=传统, 2=FSRS
+  const [pronunce, setPronunce] = useState<string>('1');
+  const [reviewStrategy, setReviewStrategy] = useState<string>('2');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { user } = useAuthStore(); // 获取当前用户
+  const { user } = useAuthStore();
 
-  // 组件挂载时，尝试从 store 的 user 状态中加载现有偏好
   useEffect(() => {
-    // console.log("Current user in Step3:", user); // 调试用
     if (user && user.prefs) {
-      // 从用户偏好中加载数据
-      // 注意：这里需要处理可能未定义的情况，并提供默认值
-      setLearningMode(user.prefs.learningMode?.toString() || '2'); // 假设 learningMode 存储为数字，需要转为字符串
-      setEnableSpelling(!!user.prefs.enableSpelling); // 确保布尔值
-      // 注意：你的 UserPreferences 类型中定义的是 'pronounce'，但这里使用了 'pronunce'
-      // 如果实际存储的键是 'pronunce'，则按此处理；如果是 'pronounce'，则应修改
-      // 假设实际存储的键是 'pronounce'
-      setPronunce(user.prefs.pronounce?.toString() || '1'); // 假设 pronounce 存储为数字，需要转为字符串
-      // 加载复习策略，默认为FSRS(2)
+      setLearningMode(user.prefs.learningMode?.toString() || '2');
+      setEnableSpelling(!!user.prefs.enableSpelling);
+      setPronunce(user.prefs.pronounce?.toString() || '1');
       setReviewStrategy(user.prefs.reviewStrategy?.toString() || '2');
     }
-  }, [user]); // 依赖于 user 对象，当 user 更新时重新加载
+  }, [user]);
 
   const handleFinish = async () => {
     setIsLoading(true);
     try {
-      // 准备用户偏好数据，将字符串转换为数字
-      // 注意：确保 UserPreferences 类型中定义的字段名与这里一致
       const updates: Partial<UserPreferences> = {
         learningMode,
-        pronounce: parseInt(pronunce, 10), // 转换为数字，注意字段名
-        enableSpelling, // 布尔值
-        reviewStrategy: parseInt(reviewStrategy, 10), // 转换为数字
+        pronounce: parseInt(pronunce, 10),
+        enableSpelling,
+        reviewStrategy: parseInt(reviewStrategy, 10),
       };
 
-      // console.log("Updates being sent:", updates); // 调试用
-
-      // 保存到状态管理 (这会调用 userService.updateUserPreferences)
       await useAuthStore.getState().updatePreferences(updates);
-
-      // 导航到主应用
       router.replace('/(tabs)/today');
     } catch (error: any) {
       Alert.alert('保存失败', error.message || '请稍后重试');
@@ -59,11 +43,13 @@ export default function RegisterStep3() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={styles.scrollContent}
+    >
       <Text style={styles.title}>定制你的学习计划</Text>
       <Text style={styles.subtitle}>步骤 3/3</Text>
       
-      {/* 新增：复习策略选择 */}
       <Text style={styles.label}>选择复习算法</Text>
       <View style={styles.strategyCardContainer}>
         {[
@@ -159,17 +145,24 @@ export default function RegisterStep3() {
           {isLoading ? '保存中...' : '完成，开始学习！'}
         </Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  container: { 
+    flex: 1, 
+    padding: 20,
+    backgroundColor: '#fff'
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 40,
+  },
   title: { fontSize: 20, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
   subtitle: { fontSize: 16, color: 'gray', marginBottom: 20, textAlign: 'center' },
   label: { fontSize: 16, marginBottom: 10, marginTop: 15 },
-  
-  // 复习策略卡片样式
+
   strategyCardContainer: { marginBottom: 20 },
   strategyCard: {
     borderWidth: 1,
@@ -222,8 +215,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  
-  // 原有样式保持不变
+
   modeCardContainer: { marginBottom: 15 },
   modeCard: {
     borderWidth: 1,
