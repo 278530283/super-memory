@@ -72,10 +72,21 @@ Join our community of developers creating universal apps.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
   打包：
 
+安装eas
+npm install -g eas-cli
+
+eas login
+
 在expo云端构建：
 
 eas build:configure
 
+Windows:
 $env:EXPO_UPLOAD_TIMEOUT=300000; $env:EAS_BUILD_TIMEOUT=1800; eas build --platform android --profile preview
+
+EndeavourOS:
+EXPO_UPLOAD_TIMEOUT=300000 EAS_BUILD_TIMEOUT=1800 eas build --platform android --profile preview
+
+使用expo在本地构建：
 
 eas build --platform android --profile preview --local
