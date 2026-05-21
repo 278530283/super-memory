@@ -13,6 +13,8 @@ import { UserWordProgress } from '@/src/types/UserWordProgress';
 import { UserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Query } from 'appwrite';
 
+const COLLECTION_USER_REPORT_EXPORT = 'user_report_export';
+
 // 单词难度等级枚举 - 与数据库中的数值对应
 export enum WordDifficultyLevel {
   EASY = 1,      // 简单
@@ -72,6 +74,20 @@ export interface DailyStudyTime {
   date: string; // 日期 (YYYY/MM/DD)
   dayOfWeek: string; // 星期几
   studyTimeMinutes: number; // 学习时间(分钟)
+}
+
+// 导出报表项接口
+export interface UserReportExport {
+  $id: string;
+  user_id: string;
+  report_type: string;
+  report_name: string;
+  report_date: string;
+  summary: string;
+  file_url: string;
+  status: string;
+  $createdAt: string;
+  $updatedAt: string;
 }
 
 class dataReportService {
@@ -824,6 +840,29 @@ class dataReportService {
     catch (error) {
       console.error('dataReportService.getUserWordProgress error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 查询用户的数据导出报表列表
+   * @param userId 用户ID
+   * @returns 报表记录数组
+   */
+  async getUserExportReports(userId: string): Promise<UserReportExport[]> {
+    try {
+      const response = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: COLLECTION_USER_REPORT_EXPORT,
+        queries: [
+          Query.equal('user_id', userId),
+          Query.orderDesc('$createdAt'),
+          Query.limit(1000) // 足够容纳用户的全部导出记录
+        ]
+      });
+      return response.rows as unknown as UserReportExport[];
+    } catch (error) {
+      console.error('dataReportService.getUserExportReports error:', error);
+      return [];
     }
   }
 }

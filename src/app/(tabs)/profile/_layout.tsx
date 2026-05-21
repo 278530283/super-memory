@@ -1,7 +1,6 @@
 // src/app/(tabs)/profile/_layout.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import React from 'react';
 import { TouchableOpacity } from 'react-native';
 
 export default function ProfileLayout() {
@@ -74,6 +73,10 @@ export default function ProfileLayout() {
         options={{
           title: '单词详情',
         }}
+      />
+      <Stack.Screen
+        name="reports/exports/ExportReportsScreen"
+        options={{ title: '数据导出' }}
       />
       {/* <Stack.Screen
         name="level"

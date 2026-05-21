@@ -1,6 +1,5 @@
 // LearningOverview.tsx
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
 import {
   StyleSheet,
   Text,
@@ -18,9 +17,10 @@ interface LearningOverviewProps {
     todayLearnTime: number;
   };
   onTotalLearnedPress?: () => void;
+  onLearnedWordsPress?: () => void;
 }
 
-export default function LearningOverview({ stats, onTotalLearnedPress }: LearningOverviewProps) {
+export default function LearningOverview({ stats, onTotalLearnedPress, onLearnedWordsPress }: LearningOverviewProps) {
   const renderStatItem = (icon: string, iconColor: string, value: string | number, label: string, onPress?: () => void) => {
     const content = (
       <View style={styles.statContent}>
@@ -66,7 +66,8 @@ export default function LearningOverview({ stats, onTotalLearnedPress }: Learnin
           "book-outline", 
           "#4A90E2", 
           stats.totalLearned, 
-          "已学单词"
+          "已学单词>",
+          onLearnedWordsPress
         )}
         
         {renderStatItem(

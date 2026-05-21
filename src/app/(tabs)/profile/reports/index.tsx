@@ -5,7 +5,7 @@ import dataReportService from '@/src/lib/services/dataReportService';
 import useAuthStore from '@/src/lib/stores/useAuthStore';
 import useDailyLearningStore from '@/src/lib/stores/useDailyLearningStore';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface LearningStats {
@@ -50,6 +50,11 @@ export default function LearningReportsScreen() {
     router.push('/profile/reports/study-time/StudyTimeReport');
   };
 
+  const handleLearnedWordsPress = () => {
+    // 跳转到报表列表页面
+    router.push('/profile/reports/exports/ExportReportsScreen');
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -69,7 +74,7 @@ export default function LearningReportsScreen() {
   return (
     <View style={styles.container}>
       {/* 直接渲染组件，不使用 ScrollView */}
-      {stats && <LearningOverview stats={stats} onTotalLearnedPress={handleTotalLearnedPress}/>}
+      {stats && <LearningOverview stats={stats} onTotalLearnedPress={handleTotalLearnedPress} onLearnedWordsPress={handleLearnedWordsPress}/>}
       <WordReportList userId={user.$id} />
     </View>
   );

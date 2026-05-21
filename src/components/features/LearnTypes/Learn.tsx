@@ -572,7 +572,7 @@ const LearnFC: React.FC<TestTypeProps> = ({
                       word.chinese_meanings?.[0]?.meanings?.join("；") ||
                       "暂无翻译"
                     )
-                      .split("\\n")
+                      .split("\\n").slice(0, 3)
                       .map((line, index, array) => (
                         <Text key={index}>
                           {line}
