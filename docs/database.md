@@ -424,6 +424,30 @@ CREATE TABLE `user_morpheme_progress` (
 ) ENGINE=InnoDB COMMENT '用户词素学习进度表';
 ```
 
+## 21. 报表数据导出 (`user_report_export`)
+
+记录用户报表数据导出记录表。
+
+```sql
+CREATE TABLE `user_report_export` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` varchar(36) NOT NULL COMMENT '关联用户ID',
+  `report_type` varchar(32) NOT NULL COMMENT '报表类型（学习进度/词素掌握/单词统计/错题分析等）',
+  `report_name` varchar(100) NOT NULL COMMENT '报表名称',
+  `report_date` date NOT NULL COMMENT '报表统计日期',
+  `report_summary` varchar(255) DEFAULT NULL COMMENT '报表摘要说明',
+  `download_url` varchar(255) NOT NULL COMMENT '报表文件下载地址',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '导出创建时间',
+  `expire_time` datetime DEFAULT NULL COMMENT '文件过期时间',
+  `status` tinyint NOT NULL DEFAULT '1' COMMENT '状态（0=失效，1=有效，2=生成中）',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_report_date` (`report_date`),
+  KEY `idx_status` (`status`),
+  CONSTRAINT `fk_ure_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT '用户报表数据导出记录表';
+```
+
 ---
 
 ## 设计说明

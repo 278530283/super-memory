@@ -10,8 +10,48 @@ export class DateUtils {
   static formatDate(dateStr: string): string {
     // 匹配 yyyy/m/d 或 yyyy-mm-dd 格式
     return dateStr.replace(/\b(\d{1,2})\b/g, (match) => {
-        return match.padStart(2, '0');
+      return match.padStart(2, "0");
     });
+  }
+
+  /**
+   * 格式化日期为 中国时区(Asia/Shanghai) 的 YYYY/MM/DD 格式
+   * 最标准方案：直接指定时区，不手动加减8小时
+   */
+  static formatToChinaDate(date: Date | string | number): string {
+    // 统一转成 Date 对象
+    const dateObj = typeof date === "object" ? date : new Date(date);
+
+    // 强制用 中国时区 格式化，输出 YYYY/MM/DD
+    return dateObj
+      .toLocaleDateString("en-CA", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+      .replace(/-/g, "/");
+  }
+
+  /**
+   * 格式化日期为 中国时区 的 YYYY/MM/DD HH:mm:ss 格式
+   * 示例输出：2026/05/26 02:12:06
+   */
+  static formatToChinaDateTime(date: Date | string | number): string {
+    const d = new Date(date);
+
+    return d
+      .toLocaleString("en-CA", {
+        timeZone: "Asia/Shanghai", // 强制中国时区
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false, // 24小时制
+      })
+      .replace(/-/g, "/"); // 把 - 换成 /
   }
 
   /**
