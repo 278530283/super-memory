@@ -348,12 +348,12 @@ class ReviewStrategyService {
    */
   async calculateNextReviewDateTraditional(
     strategyId: string,
-    reviewDate: string,
+    reviewTime: string,
     reviewedTimes: number,
     userWordProgress: CreateUserWordProgress,
   ): Promise<{ nextReviewDate: string; reviewLog: ReviewScheduleLog }> {
-    const reviewTime = DateUtils.formatToChinaDateTime(reviewDate);
-    const defaultDate = this.getDefaultNextReviewDate(reviewDate);
+    const reviewTimeLocal = DateUtils.formatToChinaDateTime(reviewTime);
+    const defaultNextReviewDate = this.getDefaultNextReviewDate(reviewTime);
     try {
       const strategy = await this.getReviewStrategyById(strategyId);
       if (!strategy) {
@@ -361,11 +361,11 @@ class ReviewStrategyService {
           `[ReviewStrategyService] Strategy ${strategyId} not found, using default interval`,
         );
         return {
-          nextReviewDate: defaultDate,
+          nextReviewDate: defaultNextReviewDate,
           reviewLog: this.createTraditionalReviewLog(
             userWordProgress,
-            reviewTime,
-            defaultDate,
+            reviewTimeLocal,
+            defaultNextReviewDate,
             strategyId,
             1,
           ),
@@ -378,11 +378,11 @@ class ReviewStrategyService {
           `[ReviewStrategyService] Invalid interval rule for strategy ${strategyId}: ${strategy.interval_rule}`,
         );
         return {
-          nextReviewDate: defaultDate,
+          nextReviewDate: defaultNextReviewDate,
           reviewLog: this.createTraditionalReviewLog(
             userWordProgress,
-            reviewTime,
-            defaultDate,
+            reviewTimeLocal,
+            defaultNextReviewDate,
             strategyId,
             1,
           ),
@@ -392,13 +392,13 @@ class ReviewStrategyService {
       const intervalIndex = Math.min(reviewedTimes, intervals.length - 1);
       const interval = intervals[intervalIndex];
 
-      const currentDate = new Date(reviewDate);
+      const currentDate = new Date(reviewTime);
       const nextReviewDate = new Date(
         currentDate.getTime() + interval * 60 * 60 * 1000,
       );
 
       console.log(
-        `[ReviewStrategyService] Next review for strategy ${strategyId}, times ${reviewedTimes}: ${interval}h from ${reviewDate}`,
+        `[ReviewStrategyService] Next review for strategy ${strategyId}, times ${reviewedTimes}: ${interval}h from ${reviewTime}`,
       );
 
       // 计算调度天数（小时转换为天）
@@ -408,7 +408,7 @@ class ReviewStrategyService {
         nextReviewDate: DateUtils.formatToChinaDate(nextReviewDate),
         reviewLog: this.createTraditionalReviewLog(
           userWordProgress,
-          reviewTime,
+          reviewTimeLocal,
           DateUtils.formatToChinaDateTime(nextReviewDate),
           strategyId,
           scheduleDays,
@@ -420,11 +420,11 @@ class ReviewStrategyService {
         error,
       );
       return {
-        nextReviewDate: defaultDate,
+        nextReviewDate: defaultNextReviewDate,
         reviewLog: this.createTraditionalReviewLog(
           userWordProgress,
-          reviewTime,
-          defaultDate,
+          reviewTimeLocal,
+          defaultNextReviewDate,
           strategyId,
           1,
         ),
@@ -475,6 +475,7 @@ class ReviewStrategyService {
     reviewLog: ReviewScheduleLog;
   }> {
     const now = new Date(reviewTime);
+    const reviewTimeLocal = DateUtils.formatToChinaDateTime(reviewTime)
     try {
       console.log("reviewTime:", reviewTime);
       const rating = this.proficiencyLevelToFSRSRating(proficiencyLevel);
@@ -511,7 +512,7 @@ class ReviewStrategyService {
         $id: "", // 将在保存时生成
         user_id: userWordProgress.user_id,
         word_id: userWordProgress.word_id,
-        review_time: DateUtils.formatToChinaDateTime(reviewTime),
+        review_time: reviewTimeLocal,
         schedule_days: scheduleDays,
         next_review_time: DateUtils.formatToChinaDateTime(
           scheduledCard.card.due,
@@ -543,7 +544,7 @@ class ReviewStrategyService {
           $id: "",
           user_id: userWordProgress.user_id,
           word_id: userWordProgress.word_id,
-          review_time: now.toLocaleString(),
+          review_time: reviewTimeLocal,
           schedule_days: 1,
           next_review_time: defaultDate,
           strategy_id: STRATEGY_IDS.FSRS_DEFAULT,

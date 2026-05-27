@@ -19,18 +19,16 @@ export class DateUtils {
    * 最标准方案：直接指定时区，不手动加减8小时
    */
   static formatToChinaDate(date: Date | string | number): string {
-    // 统一转成 Date 对象
-    const dateObj = typeof date === "object" ? date : new Date(date);
+    // 统一转为 Date 对象
+    const dateObj = new Date(date);
 
-    // 强制用 中国时区 格式化，输出 YYYY/MM/DD
-    return dateObj
-      .toLocaleDateString("en-CA", {
-        timeZone: "Asia/Shanghai",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      })
-      .replace(/-/g, "/");
+    // 中国时区格式化，直接返回 YYYY/MM/DD
+    return dateObj.toLocaleDateString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).replace(/\//g, '/'); // 确保是 / 分隔
   }
 
   /**
@@ -51,7 +49,7 @@ export class DateUtils {
         second: "2-digit",
         hour12: false, // 24小时制
       })
-      .replace(/-/g, "/"); // 把 - 换成 /
+      .replace(/-/g, "/").replace(',', ''); // 把 - 换成 /
   }
 
   /**
