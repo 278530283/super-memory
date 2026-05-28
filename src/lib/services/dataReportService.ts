@@ -5,7 +5,7 @@ import {
   COLLECTION_USER_WORD_TEST_HISTORY, // 假设这个常量存在
   DATABASE_ID
 } from '@/src/constants/appwrite';
-import { tablesDB } from '@/src/lib/appwrite';
+import { functions, tablesDB } from '@/src/lib/appwrite';
 import wordService from '@/src/lib/services/wordService';
 import { DateUtils } from '@/src/lib/utils/DateUtils';
 import { UserWordActionLog } from '@/src/types/UserWordActionLog';
@@ -14,6 +14,7 @@ import { UserWordTestHistory } from '@/src/types/UserWordTestHistory';
 import { Query } from 'appwrite';
 
 const COLLECTION_USER_REPORT_EXPORT = 'user_report_export';
+const REPORT_FUNCTION_ID = process.env.EXPO_PUBLIC_APPWRITE_FUNCTION_ADMIN || '';
 
 // 单词难度等级枚举 - 与数据库中的数值对应
 export enum WordDifficultyLevel {
@@ -863,6 +864,29 @@ class dataReportService {
     } catch (error) {
       console.error('dataReportService.getUserExportReports error:', error);
       return [];
+    }
+  }
+
+   /**
+   * 触发生成学习行为报告
+   * @param userId 用户ID
+   * @param reportType 报表类型，默认 'TestBehavior'
+   */
+  async generateReport(userId: string, reportType: string = 'TestBehavior'): Promise<void> {
+    try {
+      const payload = {
+        action: 'report_generate',
+        user_id: userId,
+        report_type: reportType,
+      };
+      await functions.createExecution({
+        functionId: REPORT_FUNCTION_ID,
+        body: JSON.stringify(payload),
+        async: true, // 异步执行，不等待结果
+      });
+    } catch (error) {
+      console.error('触发报表生成失败:', error);
+      throw new Error('生成报表失败，请稍后重试');
     }
   }
 }
